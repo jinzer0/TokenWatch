@@ -1,0 +1,50 @@
+# TokenWatch MVP Design
+
+## Scope
+
+TokenWatch is a local-only Node.js, TypeScript, SQLite, Commander, and Ink app. The MVP ingests privacy-safe usage metadata from limited Codex and OpenCode artifacts, stores canonical events in SQLite, and presents aggregate summaries through CLI and TUI surfaces.
+
+`docs/tokscale` is reference-only and is not reused as implementation.
+
+## Data Model
+
+The canonical event is `UsageEvent`. Required fields include timestamp, source, sourceName, agent, provider, model, input/output/cached/reasoning/total tokens, nullable estimated cost, hashed session/raw identifiers, rawSource enum-like provenance, and allowlisted metadata.
+
+Event IDs are deterministic hashes of sanitized canonical fields. Raw paths, raw payloads, prompt/response text, credentials, and volatile export metadata are excluded from fingerprints.
+
+## Storage
+
+SQLite is initialized through idempotent migrations. Core tables are:
+
+- `usage_events`
+- `scan_runs`
+- `pricing_models`
+- `app_config`
+
+The DB uses WAL, a busy timeout, and repository-only writes. Duplicate IDs with identical payloads are counted as duplicates; identical IDs with different payloads are conflicts and do not overwrite existing rows.
+
+## Parser Boundary
+
+Parsers discover bounded candidate files, parse supported JSON, JSONL, and OpenCode SQLite shapes, and return sanitized event drafts plus bounded skip warnings. They do not write to DB, calculate pricing, emit raw payloads, or create global event fingerprints.
+
+The scanner resolves sourceName, calculates pricing, finalizes event IDs, persists events, and records scan run lifecycle counts.
+
+## Privacy Model
+
+Sensitive values must not appear outside parser internals. Blocked surfaces include DB rows, exports, CLI output, doctor output, scan run warnings, and TUI rendering. Metadata is allowlisted and schema-validated.
+
+Tests use synthetic fixtures with fake prompt, response, API key, OAuth token, auth/config, and raw path sentinels to assert absence from output surfaces.
+
+## CLI and TUI
+
+The CLI is the operational surface for scan, summary, import/export, config, seed, reset, doctor, and TUI launch. The TUI is intentionally thin: it reuses shared aggregation data and renders Overview, source/sourceName/model/agent/day/hour groups, recent scan runs, unknown pricing, and help.
+
+Local report expansion adds `tokenwatch graph`, `tokenwatch wrapped`, `tokenwatch doctor --sources`, `tokenwatch usage --provider <openai|anthropic> --json`, and `tokenwatch headless codex --input <file|->` to the documented CLI surface.
+
+`graph` returns a validated local JSON report with `series`, `totals`, nullable cost values, `unknownCostEvents`, and `privacy`. `wrapped` returns a yearly local JSON report with top-level `topModels`, `topAgents`, `topSources`, `topSourceNames`, `monthly`, `sessionMetrics`, `highlights`, `unknownCostEvents`, and `privacy`. PNG output is rendered from those validated report objects and does not carry raw records or metadata chunks from source artifacts.
+
+`doctor --sources` reports source support status and sanitized warnings only. `usage --provider <openai|anthropic> --json` is an Env-only Live probe that reads provider credentials from environment variables at invocation time, never persists them, and reports `unknown` when providers omit quota or rate-limit data. It is best-effort and not billing-grade. `headless codex --input <file|->` ingests explicit sanitized JSON only; it does not execute Codex and does not automatically capture stdout, stderr, transcripts, raw records, or raw paths.
+
+## Limitations
+
+The MVP does not provide billing-grade cost or quota guarantees, cloud sync, daemon mode, web dashboards, OAuth/API usage pulls, share URLs, badges, account/profile features, leaderboards, or exhaustive historical parser compatibility. Unknown schemas are skipped with sanitized warnings rather than treated as fatal errors.

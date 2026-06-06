@@ -1,0 +1,6 @@
+node_modules/
+dist/
+coverage/
+.sisyphus/
+docs/tokscale/
+docs/plan_0001.md

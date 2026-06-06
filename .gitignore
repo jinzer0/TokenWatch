@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Build and test output
+dist/
+coverage/
+.nyc_output/
+
+# Local environment and caches
+.env
+.env.*
+!.env.example
+.DS_Store
+.pnpm-store/
+.turbo/
+.cache/
+
+# TokenWatch local data and generated exports
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+!tests/fixtures/**/*.db
+tokenwatch-current-view.json
+usage.json
+usage-graph.png
+tokenwatch-*-debug.png
+
+# Local orchestration and reference material
+.omo/
+.sisyphus/
+docs/tokscale/
