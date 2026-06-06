@@ -1,0 +1,39 @@
+{
+  "id": "RAW_SESSION_SENTINEL_DO_NOT_LEAK-amp-thread",
+  "createdAt": "2026-06-04T01:00:00.000Z",
+  "messages": [
+    {
+      "role": "user",
+      "content": "PROMPT_SENTINEL_DO_NOT_LEAK",
+      "usage": { "inputTokens": 999, "outputTokens": 999 }
+    },
+    {
+      "role": "assistant",
+      "messageId": "amp-message-1",
+      "model": "claude-3-5-sonnet",
+      "provider": "anthropic",
+      "content": "RESPONSE_SENTINEL_DO_NOT_LEAK",
+      "usage": {
+        "inputTokens": 120,
+        "outputTokens": 44,
+        "cacheReadInputTokens": 9,
+        "cacheCreationInputTokens": 3
+      }
+    }
+  ],
+  "usageLedger": [
+    {
+      "timestamp": "2026-06-04T01:01:00.000Z",
+      "toMessageId": "amp-ledger-1",
+      "model": "claude-3-5-sonnet",
+      "provider": "anthropic",
+      "tokens": {
+        "input": 80,
+        "output": 25,
+        "cacheReadInputTokens": 7,
+        "cacheCreationInputTokens": 2
+      }
+    }
+  ],
+  "apiKey": "FAKE_API_KEY_SENTINEL_DO_NOT_LEAK"
+}

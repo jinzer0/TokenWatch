@@ -1,0 +1,5 @@
+{
+  "provider": "anthropic",
+  "model": "claude-3-7-sonnet",
+  "messages": [{ "content": "RESPONSE_SENTINEL_DO_NOT_LEAK" }]
+}

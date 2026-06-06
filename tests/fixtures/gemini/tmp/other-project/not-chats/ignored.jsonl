@@ -1,0 +1,1 @@
+{"type":"model","timestamp":"2026-06-03T02:10:00.000Z","sessionId":"gemini-ignored","model":"gemini-2.5-pro","usageMetadata":{"promptTokenCount":999,"candidatesTokenCount":999},"content":"PROMPT_SENTINEL_DO_NOT_LEAK"}

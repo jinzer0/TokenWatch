@@ -1,0 +1,12 @@
+[
+  {
+    "type": "say",
+    "text": "PROMPT_SENTINEL_DO_NOT_LEAK"
+  },
+  {
+    "type": "api_req_started",
+    "ts": 1780560060000,
+    "id": "roo-message-1",
+    "text": "{\"tokensIn\":170,\"tokensOut\":60,\"cacheReads\":12,\"cacheWrites\":7,\"durationMs\":2300,\"prompt\":\"PROMPT_SENTINEL_DO_NOT_LEAK\"}"
+  }
+]

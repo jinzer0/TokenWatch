@@ -1,0 +1,5 @@
+{"timestamp":"2026-05-30T01:00:00.000Z","provider":"openai","model":"gpt-5.5-fast","input_tokens":100,"output_tokens":50,"cached_tokens":10,"session_id":"codex-session-one","prompt":"PROMPT_SENTINEL_DO_NOT_LEAK","response":"RESPONSE_SENTINEL_DO_NOT_LEAK","api_key":"FAKE_API_KEY_SENTINEL_DO_NOT_LEAK","oauth_token":"FAKE_OAUTH_SENTINEL_DO_NOT_LEAK","repo_path":"/private/RAW_PATH_SENTINEL_DO_NOT_LEAK"}
+{"timestamp":"2026-05-30T01:10:00.000Z","provider":"openai","model":"unknown-demo-model","total_tokens":75,"session_id":"codex-session-two","prompt":"PROMPT_SENTINEL_DO_NOT_LEAK","response":"RESPONSE_SENTINEL_DO_NOT_LEAK","auth_config":"AUTH_CONFIG_SENTINEL_DO_NOT_LEAK"}
+{"timestamp":"not-a-date","provider":"openai","model":"gpt-5.5-fast","input_tokens":1}
+{"timestamp":"2026-05-30T01:15:00.000Z","provider":"openai","model":"gpt-5.5-fast","message":"no token evidence"}
+{bad json line

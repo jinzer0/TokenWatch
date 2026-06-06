@@ -1,0 +1,5 @@
+{
+  "provider": "openrouter",
+  "model": "kilo-code-model",
+  "environment": "RAW_PATH_SENTINEL_DO_NOT_LEAK"
+}

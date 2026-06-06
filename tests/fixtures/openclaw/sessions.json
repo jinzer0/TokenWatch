@@ -1,0 +1,9 @@
+{
+  "sessions": [
+    {
+      "id": "RAW_SESSION_SENTINEL_DO_NOT_LEAK-openclaw",
+      "transcript": "transcript.jsonl",
+      "path": "RAW_PATH_SENTINEL_DO_NOT_LEAK"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "messages": [
+    {
+      "type": "model",
+      "lastUpdated": "2026-06-03T02:00:00.000Z",
+      "sessionId": "gemini-default-session",
+      "model": "gemini-2.0-flash",
+      "usageMetadata": {
+        "promptTokenCount": 14,
+        "candidatesTokenCount": 6,
+        "cachedContentTokenCount": 3
+      },
+      "content": "RESPONSE_SENTINEL_DO_NOT_LEAK",
+      "projectHash": "RAW_PATH_SENTINEL_DO_NOT_LEAK",
+      "directories": ["/home/example/TOKENWATCH_PATH_SENTINEL_DO_NOT_LEAK"]
+    },
+    {
+      "type": "summary",
+      "content": "PROMPT_SENTINEL_DO_NOT_LEAK"
+    }
+  ]
+}

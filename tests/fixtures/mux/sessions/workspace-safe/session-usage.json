@@ -1,0 +1,41 @@
+{
+  "lastRequest": {
+    "timestamp": "2026-06-01T00:00:00.000Z"
+  },
+  "byModel": {
+    "gpt-5.5-fast": {
+      "input": {
+        "tokens": 201
+      },
+      "output": {
+        "tokens": 61
+      },
+      "cached": {
+        "tokens": 14
+      },
+      "cacheCreate": {
+        "tokens": 6
+      },
+      "reasoning": {
+        "tokens": 3
+      },
+      "cost_usd": 0.12
+    },
+    "claude-3-5-sonnet": {
+      "input": {
+        "tokens": 50
+      },
+      "output": {
+        "tokens": 15
+      },
+      "cached": {
+        "tokens": 1
+      },
+      "cacheCreate": {
+        "tokens": 2
+      },
+      "prompt": "PROMPT_SENTINEL_DO_NOT_LEAK"
+    }
+  },
+  "workspaceId": "RAW_WORKSPACE_SENTINEL_DO_NOT_LEAK"
+}

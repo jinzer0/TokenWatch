@@ -1,0 +1,2 @@
+{"type":"UserMessage","payload":{"text":"PROMPT_SENTINEL_DO_NOT_LEAK"}}
+{"type":"StatusUpdate","timestamp":1780556460.5,"payload":{"message_id":"kimi-message-1","model":"kimi-k2","token_usage":{"input_other":77,"output":22,"input_cache_read":4,"input_cache_creation":2},"raw":"RESPONSE_SENTINEL_DO_NOT_LEAK"}}

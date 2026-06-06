@@ -1,0 +1,50 @@
+[
+  {
+    "role": "user",
+    "content": "PROMPT_SENTINEL_DO_NOT_LEAK"
+  },
+  {
+    "role": "assistant",
+    "id": "message-safe-1",
+    "content": "RESPONSE_SENTINEL_DO_NOT_LEAK",
+    "metadata": {
+      "usage": {
+        "inputTokens": 203,
+        "outputTokens": 63,
+        "cacheReadTokens": 16,
+        "cacheWriteTokens": 8,
+        "reasoningTokens": 4,
+        "provider": "anthropic",
+        "model": "claude-3-5-sonnet"
+      }
+    }
+  },
+  {
+    "role": "assistant",
+    "id": "message-safe-2",
+    "timestamp": "2026-06-01T02:05:00.000Z",
+    "metadata": {
+      "codebuff": {
+        "usage": {
+          "inputTokens": 10,
+          "outputTokens": 5,
+          "provider": "openai",
+          "model": "gpt-4o"
+        }
+      }
+    }
+  },
+  {
+    "role": "assistant",
+    "id": "message-safe-3",
+    "timestamp": "2026-06-01T02:06:00.000Z",
+    "providerOptions": {
+      "usage": {
+        "input_tokens": 11,
+        "output_tokens": 6,
+        "provider": "openai",
+        "model": "gpt-4.1"
+      }
+    }
+  }
+]

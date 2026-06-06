@@ -1,0 +1,16 @@
+{
+  "records": [
+    {
+      "commitDate": "2026-06-03",
+      "composerLinesAdded": 120,
+      "humanLinesAdded": 4,
+      "tabLinesAdded": 16,
+      "v2AiPercentage": 92.5,
+      "workspacePath": "RAW_PATH_SENTINEL_DO_NOT_LEAK",
+      "prompt": "PROMPT_SENTINEL_DO_NOT_LEAK",
+      "response": "RESPONSE_SENTINEL_DO_NOT_LEAK",
+      "oauth": "FAKE_OAUTH_SENTINEL_DO_NOT_LEAK",
+      "authConfig": "AUTH_CONFIG_SENTINEL_DO_NOT_LEAK"
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+{"role":"user","content":"PROMPT_SENTINEL_DO_NOT_LEAK","usage":{"input":999,"output":999}}
+{"role":"assistant","timestamp":1780552800000,"sessionId":"RAW_SESSION_SENTINEL_DO_NOT_LEAK-openclaw","id":"openclaw-message-1","provider":"openrouter","model":"openclaw-model","usage":{"input":90,"output":30,"cacheRead":6,"cacheWrite":4,"totalTokens":126},"content":"RESPONSE_SENTINEL_DO_NOT_LEAK"}

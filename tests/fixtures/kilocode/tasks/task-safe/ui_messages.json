@@ -1,0 +1,12 @@
+[
+  {
+    "type": "completion_result",
+    "text": "RESPONSE_SENTINEL_DO_NOT_LEAK"
+  },
+  {
+    "type": "api_req_started",
+    "ts": 1780563660000,
+    "id": "kilo-message-1",
+    "text": "{\"tokensIn\":190,\"tokensOut\":65,\"cacheReads\":13,\"cacheWrites\":8,\"cost\":0.123,\"response\":\"RESPONSE_SENTINEL_DO_NOT_LEAK\"}"
+  }
+]

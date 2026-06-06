@@ -1,0 +1,26 @@
+{
+  "events": [
+    {
+      "timestamp": "2026-05-30T02:00:00.000Z",
+      "provider": "openai",
+      "model": "gpt-4.1-mini",
+      "agent": "opencode",
+      "usage": {
+        "input_tokens": 200,
+        "output_tokens": 80,
+        "cached_tokens": 20
+      },
+      "session_id": "opencode-session-1",
+      "prompt": "PROMPT_SENTINEL_DO_NOT_LEAK",
+      "response": "RESPONSE_SENTINEL_DO_NOT_LEAK",
+      "credential": "FAKE_CREDENTIAL_SENTINEL_DO_NOT_LEAK",
+      "path": "/repo/TOKENWATCH_PATH_SENTINEL_DO_NOT_LEAK"
+    },
+    {
+      "timestamp": "2026-05-30T02:05:00.000Z",
+      "provider": "openai",
+      "model": "gpt-4.1-mini",
+      "message": "no token evidence"
+    }
+  ]
+}

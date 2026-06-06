@@ -1,0 +1,2 @@
+{"type":"composer","prompt":"PROMPT_SENTINEL_DO_NOT_LEAK","response":"RESPONSE_SENTINEL_DO_NOT_LEAK","workspace":"RAW_PATH_SENTINEL_DO_NOT_LEAK","input_tokens":123456,"output_tokens":654321,"apiKey":"FAKE_API_KEY_SENTINEL_DO_NOT_LEAK"}
+{"type":"editor_state","path":"TOKENWATCH_PATH_SENTINEL_DO_NOT_LEAK","credential":"FAKE_CREDENTIAL_SENTINEL_DO_NOT_LEAK","lineAttribution":{"composerLinesAdded":800,"humanLinesAdded":12,"tabLinesAdded":44,"v2AiPercentage":98.7}}

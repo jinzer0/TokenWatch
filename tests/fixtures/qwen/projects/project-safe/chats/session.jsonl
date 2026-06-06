@@ -1,0 +1,2 @@
+{"role":"user","timestamp":"2026-06-04T05:00:00.000Z","content":"PROMPT_SENTINEL_DO_NOT_LEAK"}
+{"role":"assistant","timestamp":"2026-06-04T05:01:00.000Z","sessionId":"RAW_SESSION_SENTINEL_DO_NOT_LEAK-qwen","messageId":"qwen-message-1","model":"qwen3-coder","usageMetadata":{"promptTokenCount":150,"candidatesTokenCount":52,"thoughtsTokenCount":6,"cachedContentTokenCount":10},"content":"RESPONSE_SENTINEL_DO_NOT_LEAK","project":"RAW_PATH_SENTINEL_DO_NOT_LEAK"}

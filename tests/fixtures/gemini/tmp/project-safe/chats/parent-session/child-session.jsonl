@@ -1,0 +1,1 @@
+{"role":"model","startTime":"2026-06-03T02:05:00.000Z","conversationId":"gemini-child-session","model":"gemini-2.5-flash","usageMetadata":{"promptTokenCount":5,"candidatesTokenCount":4},"text":"RESPONSE_SENTINEL_DO_NOT_LEAK","credential":"FAKE_CREDENTIAL_SENTINEL_DO_NOT_LEAK"}

@@ -1,0 +1,14 @@
+{
+  "providerLockTimestamp": "2026-06-04T02:00:00.000Z",
+  "providerLock": { "provider": "factory", "model": "droid-large" },
+  "tokenUsage": {
+    "inputTokens": 210,
+    "outputTokens": 70,
+    "cacheCreationTokens": 11,
+    "cacheReadTokens": 17,
+    "thinkingTokens": 5
+  },
+  "messageCount": 4,
+  "configPrompt": "PROMPT_SENTINEL_DO_NOT_LEAK",
+  "credential": "FAKE_CREDENTIAL_SENTINEL_DO_NOT_LEAK"
+}
