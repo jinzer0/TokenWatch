@@ -3,6 +3,8 @@ node_modules/
 
 # Build and test output
 dist/
+out/
+release/
 coverage/
 .nyc_output/
 
