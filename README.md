@@ -55,6 +55,30 @@ tokenwatch tui --theme green --refresh 60000
 tokenwatch tui --theme mono --refresh off
 ```
 
+## 데스크톱 프리뷰
+
+CLI와 Ink TUI는 계속 지원됩니다. Electron 데스크톱 첫 릴리스는 읽기 전용 analytics 화면이며, scan과 import workflow는 당분간 CLI와 TUI에서 실행합니다. 데스크톱에서 scan/import 관리, signing, notarization, auto-update는 아직 포함하지 않습니다.
+
+데스크톱 개발 명령어는 `package.json`의 script 이름을 그대로 사용합니다.
+
+```bash
+corepack pnpm dev:desktop
+corepack pnpm build:desktop
+corepack pnpm package:mac
+corepack pnpm test:desktop
+```
+
+`corepack pnpm package:mac`은 현재 프로젝트의 macOS DMG 패키징 경로입니다. 결과물은 `release/TokenWatch-<version>-<arch>.dmg` 같은 일반 artifact pattern으로 확인하세요. 서명 관련 계정이나 인증서 세부 정보는 문서나 evidence에 기록하지 않습니다.
+
+데스크톱도 TokenWatch의 privacy boundary를 그대로 따릅니다. main/preload가 정규화된 SQLite usage metadata를 읽고, renderer는 sanitized DTO만 받습니다. renderer, IPC, 로그, packaging smoke evidence에는 프롬프트, 응답, API 키, OAuth 토큰, 자격 증명, 원본 경로, 원본 레코드, 원본 session ID, SQL payload, stack trace, 임의 메타데이터 덤프가 나오면 안 됩니다.
+
+데스크톱 smoke check도 실제 사용자 DB를 건드리지 않도록 임시 DB를 지정하세요.
+
+```bash
+TOKENWATCH_DB_PATH=/tmp/tokenwatch-desktop-smoke.db corepack pnpm dev:desktop
+TOKENWATCH_DB_PATH=/tmp/tokenwatch-desktop-smoke.db corepack pnpm test:desktop
+```
+
 기본 DB 위치는 `~/.tokenwatch/tokenwatch.db`입니다. 테스트나 격리 실행에서는 임시 DB 경로를 지정하세요.
 
 ```bash
