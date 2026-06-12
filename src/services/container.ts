@@ -8,6 +8,7 @@ import { AggregatorService } from './aggregator.js';
 import { BudgetService } from './budgetService.js';
 import { ConfigService } from './configService.js';
 import { DoctorService } from './doctor.js';
+import { DesktopDashboardService } from './desktopDashboard.js';
 import { ExporterService } from './exporter.js';
 import { HeadlessCodexIngestService } from './headlessCodex.js';
 import { ImporterService } from './importer.js';
@@ -34,6 +35,7 @@ export function createServices(db: TokenWatchDb) {
     headlessCodex: new HeadlessCodexIngestService(usageEvents),
     importer: new ImporterService(usageEvents, pricingModels),
     budget: new BudgetService(budgetThresholds, usageEvents),
+    desktopDashboard: new DesktopDashboardService(usageEvents, scanRuns, aggregator),
     scanner: new ScannerService(usageEvents, scanRuns, config, pricingResolver, pricingModels),
     doctor: new DoctorService(config, usageEvents, scanRuns, aggregator)
   };
