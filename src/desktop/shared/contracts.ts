@@ -1,4 +1,10 @@
 import { z } from 'zod';
+import {
+  dashboardBudgetDiagnosticSchema,
+  dashboardPricingDiagnosticSchema,
+  type DesktopDashboardBudgetDiagnostic,
+  type DesktopDashboardPricingDiagnostic
+} from './diagnosticContracts.js';
 
 const scanRunStatuses = ['running', 'completed', 'failed', 'interrupted'] as const;
 const pathKinds = ['default', 'custom', 'unknown'] as const;
@@ -7,6 +13,7 @@ const positiveIntegerSchema = z.number().int().nonnegative();
 const nonNegativeNumberSchema = z.number().nonnegative();
 const nullableCostSchema = nonNegativeNumberSchema.nullable();
 const isoDateTimeSchema = z.string().datetime({ offset: true });
+const dateOnlySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const sanitizedPrivacySchema = z.object({ sanitized: z.literal(true) }).strict();
 
 const unsafePrivacyPattern =
@@ -46,6 +53,26 @@ const dashboardDateRangeSchema = z
     start: isoDateTimeSchema.nullable(),
     end: isoDateTimeSchema.nullable()
   })
+  .strict();
+
+const dashboardFilterInputSchema = z
+  .object({ from: dateOnlySchema.optional(), to: dateOnlySchema.optional() })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.from && value.to && value.from > value.to) {
+      ctx.addIssue({ code: 'custom', message: 'desktop_dashboard_invalid_date_range' });
+    }
+  });
+
+export const desktopDashboardFiltersSchema = dashboardFilterInputSchema.transform((value) => ({
+  from: value.from ?? null,
+  to: value.to ?? null,
+  fromTimestamp: value.from ? `${value.from}T00:00:00.000Z` : null,
+  toTimestamp: value.to ? `${value.to}T23:59:59.999Z` : null
+}));
+
+const dashboardFilterStateSchema = z
+  .object({ from: dateOnlySchema.nullable(), to: dateOnlySchema.nullable() })
   .strict();
 
 const dashboardTopSchema = z
@@ -114,6 +141,38 @@ const dashboardScanRunSchema = z
   })
   .strict();
 
+const dashboardSessionMetricsSchema = z
+  .object({
+    sessionCount: positiveIntegerSchema,
+    totalWallDurationMs: positiveIntegerSchema,
+    totalActiveDurationMs: positiveIntegerSchema,
+    longestSessionMs: positiveIntegerSchema,
+    longestContinuousMs: positiveIntegerSchema,
+    maxConcurrentSessions: positiveIntegerSchema,
+    eventsWithoutSession: positiveIntegerSchema
+  })
+  .strict();
+
+const dashboardSessionIntervalSchema = z
+  .object({
+    source: safeLabelSchema,
+    sessionIdHash: safeLabelSchema,
+    startedAt: isoDateTimeSchema,
+    endedAt: isoDateTimeSchema,
+    lastSeen: isoDateTimeSchema,
+    events: positiveIntegerSchema,
+    messageCount: positiveIntegerSchema,
+    inputTokens: positiveIntegerSchema,
+    outputTokens: positiveIntegerSchema,
+    cachedTokens: positiveIntegerSchema,
+    reasoningTokens: positiveIntegerSchema,
+    totalTokens: positiveIntegerSchema,
+    estimatedCostUsd: nullableCostSchema,
+    activeDurationMs: positiveIntegerSchema,
+    wallDurationMs: positiveIntegerSchema
+  })
+  .strict();
+
 export const desktopDashboardSchema = z
   .object({
     version: z.literal(1),
@@ -129,7 +188,12 @@ export const desktopDashboardSchema = z
     bySource: z.array(dashboardBreakdownSchema),
     bySourceName: z.array(dashboardBreakdownSchema),
     unknownPricingCount: positiveIntegerSchema,
+    budgetDiagnostics: z.array(dashboardBudgetDiagnosticSchema),
+    pricingDiagnostics: z.array(dashboardPricingDiagnosticSchema),
     recentScanRuns: z.array(dashboardScanRunSchema),
+    filters: dashboardFilterStateSchema,
+    sessionMetrics: dashboardSessionMetricsSchema,
+    sessionIntervals: z.array(dashboardSessionIntervalSchema),
     privacy: sanitizedPrivacySchema
   })
   .strict();
@@ -155,6 +219,7 @@ export const desktopAppStatusSchema = z
 export const desktopAppVersionSchema = safeLabelSchema.max(80);
 
 export const desktopIpcNoArgsSchema = z.tuple([]);
+export const desktopDashboardIpcArgsSchema = z.tuple([desktopDashboardFiltersSchema.optional()]);
 
 export const desktopIpcChannels = {
   dashboardGetSnapshot: 'dashboard:getSnapshot',
@@ -179,6 +244,9 @@ export const desktopIpcErrorSchema = z
 export type DesktopDashboard = z.infer<typeof desktopDashboardSchema>;
 export type DesktopDashboardBreakdown = z.infer<typeof dashboardBreakdownSchema>;
 export type DesktopDashboardScanRun = z.infer<typeof dashboardScanRunSchema>;
+export type { DesktopDashboardBudgetDiagnostic, DesktopDashboardPricingDiagnostic };
+export type DesktopDashboardFilterInput = z.input<typeof desktopDashboardFiltersSchema>;
+export type DesktopDashboardFilters = z.output<typeof desktopDashboardFiltersSchema>;
 export type DesktopDashboardSnapshot = z.infer<typeof desktopDashboardSnapshotSchema>;
 export type DesktopAppStatus = z.infer<typeof desktopAppStatusSchema>;
 export type DesktopIpcChannel = (typeof desktopIpcChannels)[keyof typeof desktopIpcChannels];
