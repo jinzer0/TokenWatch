@@ -54,15 +54,26 @@ describe('desktop shell security defaults', () => {
   it('keeps the preload API allowlisted without exposing generic IPC helpers', () => {
     const preloadSource = readProjectFile('src/desktop/preload.ts');
     const rendererApiTypes = readProjectFile('src/desktop/renderer/src/tokenwatch.d.ts');
+    const sharedApiTypes = readProjectFile('src/desktop/shared/api.ts');
 
     expect(preloadSource).toContain("contextBridge.exposeInMainWorld('tokenwatch'");
     expect(preloadSource).toContain('ipcRenderer.invoke');
-    expect(`${preloadSource}\n${rendererApiTypes}`).not.toMatch(/\b(send|on|removeListener)\s*:/);
+    expect(`${preloadSource}\n${rendererApiTypes}\n${sharedApiTypes}`).not.toMatch(
+      /\b(send|on|removeListener)\s*:/
+    );
     expect(rendererApiTypes).not.toMatch(/\bipcRenderer\b|\binvoke\s*:/);
-    expect(rendererApiTypes).toContain('getSnapshot: () => Promise<DesktopDashboardSnapshot>');
-    expect(rendererApiTypes).toContain('refresh: () => Promise<DesktopDashboardSnapshot>');
-    expect(rendererApiTypes).toContain('getStatus: () => Promise<DesktopAppStatus>');
-    expect(rendererApiTypes).toContain('getVersion: () => Promise<string>');
+    expect(rendererApiTypes).toContain(
+      "import type { TokenWatchDesktopApi } from '../../shared/api.js'"
+    );
+    expect(rendererApiTypes).not.toMatch(/\b(type|interface)\s+TokenWatchDesktopApi\b/);
+    expect(sharedApiTypes).toContain(
+      'getSnapshot: (filters?: DesktopDashboardFilterInput) => Promise<DesktopDashboardSnapshot>'
+    );
+    expect(sharedApiTypes).toContain(
+      'refresh: (filters?: DesktopDashboardFilterInput) => Promise<DesktopDashboardSnapshot>'
+    );
+    expect(sharedApiTypes).toContain('getStatus: () => Promise<DesktopAppStatus>');
+    expect(sharedApiTypes).toContain('getVersion: () => Promise<string>');
   });
 
   it('keeps renderer code out of Node, Electron, database, and service modules', () => {
