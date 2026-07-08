@@ -277,7 +277,8 @@ p {
 .metric-card,
 .summary-card,
 .breakdown-section,
-.breakdown-drilldown {
+.breakdown-drilldown,
+.recent-run-card {
   background: var(--surface-card);
   border: 1px solid var(--border-soft);
   box-shadow: var(--shadow-card);
@@ -447,6 +448,7 @@ p {
 .analytics-card {
   border-radius: var(--radius-lg);
   min-height: 12rem;
+  min-width: 0;
   padding: var(--space-6);
 }
 
@@ -507,6 +509,167 @@ p {
   grid-column: 1 / -1;
 }
 
+.recent-runs-card {
+  background: var(--surface-card);
+  grid-column: 1 / -1;
+}
+
+.budget-pricing-card {
+  background:
+    linear-gradient(145deg, rgba(245, 200, 107, 0.1), transparent 38rem),
+    linear-gradient(160deg, rgba(142, 231, 245, 0.08), transparent 46rem), var(--surface-card);
+  grid-column: 1 / -1;
+}
+
+.diagnostic-budget-grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(var(--summary-card-min), 1fr));
+  margin-top: var(--space-5);
+}
+
+.diagnostics-empty {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  color: var(--color-paper-300);
+  margin-top: var(--space-5);
+  padding: var(--space-5);
+}
+
+.diagnostic-fields {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 0;
+}
+
+.diagnostic-fields div {
+  border-bottom: 1px solid var(--border-soft);
+  display: grid;
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+}
+
+.diagnostic-fields dt {
+  color: var(--color-paper-300);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.diagnostic-fields dd {
+  color: var(--color-paper-100);
+  font-weight: 800;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.diagnostics-table-wrap {
+  margin-top: var(--space-5);
+}
+
+.recent-runs-list {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+}
+
+.recent-runs-empty {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  color: var(--color-paper-300);
+  margin-top: var(--space-5);
+  padding: var(--space-5);
+}
+
+.recent-run-card {
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+}
+
+.recent-run-card.completed {
+  border-color: var(--border-cyan);
+}
+
+.recent-run-card.failed {
+  border-color: var(--border-error);
+}
+
+.recent-run-card.running,
+.recent-run-card.interrupted {
+  border-color: var(--border-amber);
+}
+
+.recent-run-header {
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+}
+
+.recent-run-header > span:last-child {
+  color: var(--color-paper-300);
+  font-size: 0.82rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.recent-run-status {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-pill);
+  color: var(--color-paper-100);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  padding: var(--space-1) var(--space-3);
+  text-transform: uppercase;
+}
+
+.recent-run-fields,
+.recent-run-counts,
+.recent-run-codes {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 0;
+}
+
+.recent-run-fields,
+.recent-run-counts {
+  grid-template-columns: repeat(auto-fit, minmax(var(--summary-card-min), 1fr));
+}
+
+.recent-run-codes {
+  grid-template-columns: repeat(auto-fit, minmax(var(--breakdown-drilldown-min), 1fr));
+}
+
+.recent-run-fields div,
+.recent-run-counts div,
+.recent-run-codes div {
+  border-bottom: 1px solid var(--border-soft);
+  display: grid;
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+}
+
+.recent-run-fields dt,
+.recent-run-counts dt,
+.recent-run-codes dt {
+  color: var(--color-paper-300);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.recent-run-fields dd,
+.recent-run-counts dd,
+.recent-run-codes dd {
+  color: var(--color-paper-100);
+  font-weight: 800;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .breakdown-layout {
   align-items: flex-start;
   gap: var(--space-5);
@@ -549,6 +712,8 @@ p {
 .breakdown-table-wrap {
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-sm);
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
 }
 

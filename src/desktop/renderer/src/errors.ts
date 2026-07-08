@@ -1,6 +1,6 @@
-type RendererErrorCode = 'dashboard_unavailable' | 'refresh_failed';
+export type RendererErrorCode = 'dashboard_unavailable' | 'refresh_failed';
 
-type RendererSafeError = {
+export type RendererSafeError = {
   code: RendererErrorCode;
   message: string;
 };
