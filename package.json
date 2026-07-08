@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Local-first CLI and Ink TUI for AI coding agent token usage metadata.",
   "type": "module",
+  "main": "out/main/main.js",
   "bin": {
     "tokenwatch": "dist/cli.js"
   },
@@ -60,6 +61,7 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "better-sqlite3",
+      "electron",
       "esbuild"
     ]
   }
