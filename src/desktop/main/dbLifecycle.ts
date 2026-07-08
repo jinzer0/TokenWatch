@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { resolveDbPath } from '../../app/paths.js';
 import { openReadonlyDatabase, type TokenWatchDb } from '../../db/client.js';
 import { createServices } from '../../services/container.js';
-import type { DesktopDashboard } from '../shared/contracts.js';
+import type { DesktopDashboard, DesktopDashboardFilters } from '../shared/contracts.js';
 
 export type DesktopDatabaseStatus = 'ready' | 'setup-needed' | 'database-unavailable';
 
@@ -48,14 +48,16 @@ export class DesktopDbLifecycle {
     this.fileExists = dependencies.existsSync ?? existsSync;
   }
 
-  readDashboard(): DesktopDashboardSnapshot {
+  readDashboard(filters?: DesktopDashboardFilters): DesktopDashboardSnapshot {
     const dbPath = this.resolvePath(this.env);
     const databaseState = this.ensureDatabase(dbPath);
     if (databaseState.status !== 'ready') {
       return sanitizedUnavailableSnapshot(databaseState.status);
     }
 
-    const dashboard = this.buildServices(databaseState.db).desktopDashboard.buildDashboard();
+    const dashboard = this.buildServices(databaseState.db).desktopDashboard.buildDashboard({
+      filters
+    });
     return {
       status: 'ready',
       dashboard,

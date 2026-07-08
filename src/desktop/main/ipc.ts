@@ -6,10 +6,12 @@ import type { DesktopDbLifecycle } from './dbLifecycle.js';
 import {
   desktopAppStatusSchema,
   desktopAppVersionSchema,
+  desktopDashboardIpcArgsSchema,
   desktopDashboardSnapshotSchema,
   desktopIpcChannels,
   desktopIpcNoArgsSchema,
   type DesktopAppStatus,
+  type DesktopDashboardFilters,
   type DesktopDashboardSnapshot,
   type DesktopIpcChannel
 } from '../shared/contracts.js';
@@ -38,7 +40,7 @@ type RegisterDesktopIpcHandlersOptions = {
 type HandlerDefinition<T> = {
   channel: DesktopIpcChannel;
   responseSchema: z.ZodType<T>;
-  read: () => T;
+  read: (filters?: DesktopDashboardFilters) => T;
 };
 
 const createStatus = (snapshot: DesktopDashboardSnapshot): DesktopAppStatus => ({
@@ -56,12 +58,12 @@ export const registerDesktopIpcHandlers = ({
     {
       channel: desktopIpcChannels.dashboardGetSnapshot,
       responseSchema: desktopDashboardSnapshotSchema,
-      read: () => dbLifecycle.readDashboard()
+      read: (filters?: DesktopDashboardFilters) => dbLifecycle.readDashboard(filters)
     },
     {
       channel: desktopIpcChannels.dashboardRefresh,
       responseSchema: desktopDashboardSnapshotSchema,
-      read: () => dbLifecycle.readDashboard()
+      read: (filters?: DesktopDashboardFilters) => dbLifecycle.readDashboard(filters)
     },
     {
       channel: desktopIpcChannels.appGetStatus,
@@ -78,8 +80,8 @@ export const registerDesktopIpcHandlers = ({
   for (const definition of definitions) {
     ipcMainTarget.handle(definition.channel, (_event, ...args) => {
       try {
-        desktopIpcNoArgsSchema.parse(args);
-        return definition.responseSchema.parse(definition.read());
+        const [filters] = parseArgs(definition.channel, args);
+        return definition.responseSchema.parse(definition.read(filters));
       } catch (error) {
         throw toDesktopIpcError(error);
       }
@@ -92,3 +94,18 @@ export const registerDesktopIpcHandlers = ({
     }
   };
 };
+
+function parseArgs(
+  channel: DesktopIpcChannel,
+  args: unknown[]
+): [DesktopDashboardFilters | undefined] {
+  if (
+    channel === desktopIpcChannels.dashboardGetSnapshot ||
+    channel === desktopIpcChannels.dashboardRefresh
+  ) {
+    const parsed = desktopDashboardIpcArgsSchema.parse(args);
+    return [parsed[0]];
+  }
+  desktopIpcNoArgsSchema.parse(args);
+  return [undefined];
+}

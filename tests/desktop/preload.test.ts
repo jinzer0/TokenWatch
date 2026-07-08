@@ -1,10 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  desktopIpcChannels,
-  type DesktopAppStatus,
-  type DesktopDashboardSnapshot
-} from '../../src/desktop/shared/contracts.js';
+import { desktopIpcChannels } from '../../src/desktop/shared/contracts.js';
+import type { TokenWatchDesktopApi } from '../../src/desktop/shared/api.js';
 import { containsPrivacySentinel } from '../helpers.js';
 
 const electronMock = vi.hoisted(() => ({
@@ -17,23 +14,12 @@ vi.mock('electron', () => ({
   ipcRenderer: { invoke: electronMock.invoke }
 }));
 
-type PreloadApi = Readonly<{
-  dashboard: Readonly<{
-    getSnapshot: () => Promise<DesktopDashboardSnapshot>;
-    refresh: () => Promise<DesktopDashboardSnapshot>;
-  }>;
-  app: Readonly<{
-    getStatus: () => Promise<DesktopAppStatus>;
-    getVersion: () => Promise<string>;
-  }>;
-}>;
-
-const loadPreloadApi = async (): Promise<PreloadApi> => {
+const loadPreloadApi = async (): Promise<TokenWatchDesktopApi> => {
   vi.resetModules();
   await import('../../src/desktop/preload.js');
   const exposed = electronMock.exposeInMainWorld.mock.calls.at(-1);
   expect(exposed?.[0]).toBe('tokenwatch');
-  return exposed?.[1] as PreloadApi;
+  return exposed?.[1] as TokenWatchDesktopApi;
 };
 
 beforeEach(() => {
@@ -57,7 +43,7 @@ describe('desktop preload API', () => {
     expect(Object.isFrozen(api.app)).toBe(true);
   });
 
-  it('invokes the four allowlisted channels without renderer payloads', async () => {
+  it('invokes the four allowlisted channels and forwards typed dashboard filters only', async () => {
     const api = await loadPreloadApi();
     electronMock.invoke.mockResolvedValueOnce({
       status: 'setup-needed',
@@ -76,14 +62,14 @@ describe('desktop preload API', () => {
     });
     electronMock.invoke.mockResolvedValueOnce('0.1.0');
 
-    await api.dashboard.getSnapshot();
-    await api.dashboard.refresh();
+    await api.dashboard.getSnapshot({ from: '2026-05-01', to: '2026-05-01' });
+    await api.dashboard.refresh({ from: '2026-05-02' });
     await api.app.getStatus();
     await api.app.getVersion();
 
     expect(electronMock.invoke.mock.calls).toEqual([
-      [desktopIpcChannels.dashboardGetSnapshot],
-      [desktopIpcChannels.dashboardRefresh],
+      [desktopIpcChannels.dashboardGetSnapshot, { from: '2026-05-01', to: '2026-05-01' }],
+      [desktopIpcChannels.dashboardRefresh, { from: '2026-05-02' }],
       [desktopIpcChannels.appGetStatus],
       [desktopIpcChannels.appGetVersion]
     ]);

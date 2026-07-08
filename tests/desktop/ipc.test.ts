@@ -104,6 +104,85 @@ describe('desktop IPC handlers', () => {
     expect(JSON.stringify(snapshot)).not.toContain(temp.dir);
   });
 
+  it('parses UTC date-only dashboard filters before reading the database', async () => {
+    const temp = createTempDb();
+    cleanup = temp.cleanup;
+    db = openDatabase(temp.dbPath);
+    new UsageEventsRepository(db).insertMany([
+      createTestEvent({
+        timestamp: '2026-05-01T00:00:00.000Z',
+        rawIdHash: 'raw-ipc-included-start',
+        inputTokens: 4,
+        outputTokens: 6,
+        totalTokens: 10
+      }),
+      createTestEvent({
+        timestamp: '2026-05-01T23:59:59.999Z',
+        rawIdHash: 'raw-ipc-included-end',
+        inputTokens: 8,
+        outputTokens: 12,
+        totalTokens: 20
+      }),
+      createTestEvent({
+        timestamp: '2026-05-02T00:00:00.000Z',
+        rawIdHash: 'raw-ipc-excluded',
+        inputTokens: 500,
+        outputTokens: 499,
+        totalTokens: 999
+      })
+    ]);
+    db.close();
+    db = undefined;
+
+    const { handlers, target } = createIpcTarget();
+    registerDesktopIpcHandlers({
+      dbLifecycle: createDesktopDbLifecycle({ env: { TOKENWATCH_DB_PATH: temp.dbPath } }),
+      ipcMainTarget: target,
+      getVersion: () => '0.1.0'
+    });
+
+    const snapshot = await invoke(handlers, desktopIpcChannels.dashboardGetSnapshot, {
+      from: '2026-05-01',
+      to: '2026-05-01'
+    });
+
+    expect(snapshot).toMatchObject({
+      status: 'ready',
+      dashboard: {
+        filters: { from: '2026-05-01', to: '2026-05-01' },
+        totals: { events: 2, tokens: 30 },
+        dateRange: {
+          start: '2026-05-01T00:00:00.000Z',
+          end: '2026-05-01T23:59:59.999Z'
+        }
+      }
+    });
+    expect(JSON.stringify(snapshot)).not.toContain('raw-ipc-excluded');
+  });
+
+  it('rejects invalid date filter ranges with a stable sanitized error', async () => {
+    const { handlers, target } = createIpcTarget();
+    registerDesktopIpcHandlers({
+      dbLifecycle: createDesktopDbLifecycle({ existsSync: () => false }),
+      ipcMainTarget: target,
+      getVersion: () => '0.1.0'
+    });
+
+    try {
+      await invoke(handlers, desktopIpcChannels.dashboardRefresh, {
+        from: '2026-05-02',
+        to: '2026-05-01'
+      });
+      expect.unreachable('invalid date range should be rejected');
+    } catch (error) {
+      expect(error).toMatchObject({
+        code: 'validation_failed',
+        message: 'error: validation_failed'
+      });
+      expect(containsPrivacySentinel(error)).toBe(false);
+    }
+  });
+
   it('returns setup-needed status without raw missing database paths', async () => {
     const temp = createTempDb();
     cleanup = temp.cleanup;
