@@ -24,6 +24,7 @@ export function createServices(db: TokenWatchDb) {
   const config = new ConfigService(configRepository);
   const aggregator = new AggregatorService();
   const pricingResolver = new PricingResolver(pricingModels);
+  const budget = new BudgetService(budgetThresholds, usageEvents);
   return {
     usageEvents,
     scanRuns,
@@ -34,8 +35,14 @@ export function createServices(db: TokenWatchDb) {
     exporter: new ExporterService(),
     headlessCodex: new HeadlessCodexIngestService(usageEvents),
     importer: new ImporterService(usageEvents, pricingModels),
-    budget: new BudgetService(budgetThresholds, usageEvents),
-    desktopDashboard: new DesktopDashboardService(usageEvents, scanRuns, aggregator),
+    budget,
+    desktopDashboard: new DesktopDashboardService({
+      aggregator,
+      budget,
+      pricingModels,
+      scanRuns,
+      usageEvents
+    }),
     scanner: new ScannerService(usageEvents, scanRuns, config, pricingResolver, pricingModels),
     doctor: new DoctorService(config, usageEvents, scanRuns, aggregator)
   };

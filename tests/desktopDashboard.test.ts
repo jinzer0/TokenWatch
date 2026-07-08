@@ -1,9 +1,15 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { openDatabase, type TokenWatchDb } from '../src/db/client.js';
+import { BudgetThresholdsRepository } from '../src/db/repositories/budgetThresholds.js';
+import { PricingModelsRepository } from '../src/db/repositories/pricingModels.js';
 import { ScanRunsRepository } from '../src/db/repositories/scanRuns.js';
 import { UsageEventsRepository } from '../src/db/repositories/usageEvents.js';
 import type { ScanRun } from '../src/models/scanRun.js';
-import { desktopDashboardSchema } from '../src/desktop/shared/contracts.js';
+import { BudgetService } from '../src/services/budgetService.js';
+import {
+  desktopDashboardFiltersSchema,
+  desktopDashboardSchema
+} from '../src/desktop/shared/contracts.js';
 import { DesktopDashboardService } from '../src/services/desktopDashboard.js';
 import { containsPrivacySentinel, createTempDb, createTestEvent } from './helpers.js';
 
@@ -18,6 +24,8 @@ afterEach(() => {
 });
 
 function createDashboardService(): {
+  budget: BudgetService;
+  pricingModels: PricingModelsRepository;
   usageEvents: UsageEventsRepository;
   scanRuns: ScanRunsRepository;
   service: DesktopDashboardService;
@@ -27,7 +35,16 @@ function createDashboardService(): {
   db = openDatabase(temp.dbPath);
   const usageEvents = new UsageEventsRepository(db);
   const scanRuns = new ScanRunsRepository(db);
-  return { usageEvents, scanRuns, service: new DesktopDashboardService(usageEvents, scanRuns) };
+  const budgetThresholds = new BudgetThresholdsRepository(db);
+  const pricingModels = new PricingModelsRepository(db);
+  const budget = new BudgetService(budgetThresholds, usageEvents);
+  const service = new DesktopDashboardService({
+    budget,
+    pricingModels,
+    scanRuns,
+    usageEvents
+  });
+  return { budget, pricingModels, usageEvents, scanRuns, service };
 }
 
 function createRun(overrides: Partial<ScanRun> = {}): ScanRun {
@@ -84,7 +101,20 @@ describe('desktop dashboard service contract', () => {
       bySource: [],
       bySourceName: [],
       unknownPricingCount: 0,
+      budgetDiagnostics: [],
+      pricingDiagnostics: [],
       recentScanRuns: [],
+      filters: { from: null, to: null },
+      sessionMetrics: {
+        sessionCount: 0,
+        totalWallDurationMs: 0,
+        totalActiveDurationMs: 0,
+        longestSessionMs: 0,
+        longestContinuousMs: 0,
+        maxConcurrentSessions: 0,
+        eventsWithoutSession: 0
+      },
+      sessionIntervals: [],
       privacy: { sanitized: true }
     });
     expect(desktopDashboardSchema.parse(dashboard)).toEqual(dashboard);
@@ -154,6 +184,10 @@ describe('desktop dashboard service contract', () => {
       source: 'codex',
       sourceName: 'local'
     });
+    expect(dashboard.dateRange).toEqual({
+      start: '2026-05-01T00:00:00.000Z',
+      end: '2026-05-02T00:00:00.000Z'
+    });
     expect(dashboard.byModel.map((group) => [group.key, group.totalTokens])).toEqual([
       ['gpt-5.5-fast', 225],
       ['claude-sonnet-4.5', 100]
@@ -185,6 +219,131 @@ describe('desktop dashboard service contract', () => {
         unknownCostEvents: 0
       }
     ]);
+  });
+
+  it('applies inclusive UTC date-only filters and returns session metrics', () => {
+    const { usageEvents, service } = createDashboardService();
+    usageEvents.insertMany([
+      createTestEvent({
+        timestamp: '2026-05-01T00:00:00.000Z',
+        source: 'codex',
+        sessionIdHash: 'hash-may-one',
+        rawIdHash: 'raw-may-one-start',
+        messageCount: 2,
+        inputTokens: 10,
+        outputTokens: 20,
+        cachedTokens: 3,
+        reasoningTokens: 4,
+        totalTokens: 30,
+        estimatedCostUsd: 0.1
+      }),
+      createTestEvent({
+        timestamp: '2026-05-01T23:59:59.999Z',
+        source: 'codex',
+        sessionIdHash: 'hash-may-one',
+        rawIdHash: 'raw-may-one-end',
+        messageCount: 3,
+        inputTokens: 15,
+        outputTokens: 25,
+        cachedTokens: 5,
+        reasoningTokens: 6,
+        totalTokens: 40,
+        estimatedCostUsd: 0.2
+      }),
+      createTestEvent({
+        timestamp: '2026-05-02T00:00:00.000Z',
+        source: 'claude',
+        sessionIdHash: 'hash-may-two',
+        rawIdHash: 'raw-may-two',
+        inputTokens: 500,
+        outputTokens: 499,
+        totalTokens: 999,
+        estimatedCostUsd: 0.9
+      }),
+      {
+        ...createTestEvent({
+          timestamp: '2026-05-01T12:00:00.000Z',
+          source: 'gemini',
+          sessionIdHash: null,
+          rawIdHash: 'raw-missing-session',
+          inputTokens: 3,
+          outputTokens: 4,
+          cachedTokens: 0,
+          reasoningTokens: 0,
+          totalTokens: 7
+        }),
+        estimatedCostUsd: null
+      }
+    ]);
+
+    const filters = desktopDashboardFiltersSchema.parse({ from: '2026-05-01', to: '2026-05-01' });
+    const dashboard = service.buildDashboard({ filters });
+
+    expect(dashboard.filters).toEqual({ from: '2026-05-01', to: '2026-05-01' });
+    expect(dashboard.totals).toMatchObject({ events: 3, tokens: 77, unknownCostEvents: 1 });
+    expect(dashboard.dateRange).toEqual({
+      start: '2026-05-01T00:00:00.000Z',
+      end: '2026-05-01T23:59:59.999Z'
+    });
+    expect(dashboard.sessionMetrics).toEqual({
+      sessionCount: 1,
+      totalWallDurationMs: 86_399_999,
+      totalActiveDurationMs: 0,
+      longestSessionMs: 86_399_999,
+      longestContinuousMs: 0,
+      maxConcurrentSessions: 1,
+      eventsWithoutSession: 1
+    });
+    expect(dashboard.sessionIntervals).toEqual([
+      {
+        source: 'codex',
+        sessionIdHash: 'hash-may-one',
+        startedAt: '2026-05-01T00:00:00.000Z',
+        endedAt: '2026-05-01T23:59:59.999Z',
+        lastSeen: '2026-05-01T23:59:59.999Z',
+        events: 2,
+        messageCount: 5,
+        inputTokens: 25,
+        outputTokens: 45,
+        cachedTokens: 8,
+        reasoningTokens: 10,
+        totalTokens: 70,
+        estimatedCostUsd: 0.3,
+        activeDurationMs: 0,
+        wallDurationMs: 86_399_999
+      }
+    ]);
+    expect(JSON.stringify(dashboard)).not.toContain('hash-may-two');
+  });
+
+  it('keeps ready empty filtered results distinct from setup state', () => {
+    const { usageEvents, service } = createDashboardService();
+    usageEvents.insertMany([
+      createTestEvent({
+        timestamp: '2026-05-01T00:00:00.000Z',
+        rawIdHash: 'raw-existing-event',
+        inputTokens: 10,
+        outputTokens: 10,
+        totalTokens: 20
+      })
+    ]);
+
+    const filters = desktopDashboardFiltersSchema.parse({ from: '2026-05-03', to: '2026-05-03' });
+    const dashboard = service.buildDashboard({ filters });
+
+    expect(dashboard.filters).toEqual({ from: '2026-05-03', to: '2026-05-03' });
+    expect(dashboard.totals.events).toBe(0);
+    expect(dashboard.totals.tokens).toBe(0);
+    expect(dashboard.dateRange).toEqual({ start: null, end: null });
+    expect(dashboard.sessionMetrics.sessionCount).toBe(0);
+    expect(dashboard.sessionIntervals).toEqual([]);
+  });
+
+  it('rejects invalid desktop date filter ranges at the shared contract boundary', () => {
+    expect(() =>
+      desktopDashboardFiltersSchema.parse({ from: '2026-05-02', to: '2026-05-01' })
+    ).toThrow();
+    expect(() => desktopDashboardFiltersSchema.parse({ from: '2026-5-01' })).toThrow();
   });
 
   it('preserves partial unknown cost without coercing it to zero', () => {
@@ -221,6 +380,135 @@ describe('desktop dashboard service contract', () => {
     expect(dashboard.costSeries).toEqual([
       { key: '2026-05-03', estimatedCostUsd: null, unknownCostEvents: 1 }
     ]);
+  });
+
+  it('returns current-month budget diagnostics and filtered pricing diagnostics without network lookup', () => {
+    const { budget, pricingModels, usageEvents, service } = createDashboardService();
+    budget.setThreshold({ scopeKind: 'monthly_total', thresholdUsd: 0.5 });
+    budget.setThreshold({ scopeKind: 'sourceName', sourceName: 'lab-a100', thresholdUsd: 1 });
+    pricingModels.setLookupCache({
+      cacheKey: 'lookup:openai:exact-diagnostic-model',
+      provider: 'openai',
+      model: 'exact-diagnostic-model',
+      matchedSource: 'litellm',
+      matchedKey: 'litellm:openai:exact-diagnostic-model',
+      confidence: 'exact',
+      inputPricePerMillion: 3,
+      outputPricePerMillion: 9,
+      fetchedAt: '2026-07-01T00:00:00.000Z',
+      updatedAt: '2026-07-01T00:00:00.000Z'
+    });
+    pricingModels.setLookupCache({
+      cacheKey: 'lookup:openai:no-match-diagnostic-model',
+      provider: 'openai',
+      model: 'no-match-diagnostic-model',
+      matchedSource: 'unknown',
+      confidence: 'none',
+      fetchedAt: '2026-07-01T00:00:00.000Z',
+      updatedAt: '2026-07-01T00:00:00.000Z',
+      noMatch: true
+    });
+    usageEvents.insertMany([
+      createTestEvent({
+        timestamp: '2026-07-04T10:00:00.000Z',
+        rawIdHash: 'known-current-budget',
+        sourceName: 'lab-a100',
+        model: 'exact-diagnostic-model',
+        normalizedModel: 'exact-diagnostic-model',
+        pricingSource: 'litellm',
+        pricingConfidence: 'exact',
+        inputTokens: 100,
+        outputTokens: 50,
+        totalTokens: 150,
+        estimatedCostUsd: 0.75
+      }),
+      {
+        ...createTestEvent({
+          timestamp: '2026-07-04T11:00:00.000Z',
+          rawIdHash: 'unknown-current-budget',
+          sourceName: 'lab-a100',
+          model: 'no-match-diagnostic-model',
+          normalizedModel: 'no-match-diagnostic-model',
+          pricingSource: 'unknown',
+          pricingConfidence: 'none',
+          inputTokens: 200,
+          outputTokens: 100,
+          totalTokens: 300
+        }),
+        estimatedCostUsd: null
+      },
+      {
+        ...createTestEvent({
+          timestamp: '2026-07-05T10:00:00.000Z',
+          rawIdHash: 'outside-filter-pricing',
+          model: 'outside-filter-model',
+          normalizedModel: 'outside-filter-model',
+          inputTokens: 50,
+          outputTokens: 50,
+          totalTokens: 100
+        }),
+        estimatedCostUsd: null
+      }
+    ]);
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    const filters = desktopDashboardFiltersSchema.parse({ from: '2026-07-04', to: '2026-07-04' });
+    const dashboard = service.buildDashboard({
+      budgetEvaluationDate: new Date(2026, 6, 7),
+      filters
+    });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(dashboard.budgetDiagnostics).toEqual([
+      expect.objectContaining({
+        periodLabel: 'current month',
+        month: '2026-07',
+        scopeKind: 'monthly_total',
+        sourceName: null,
+        knownSpendUsd: 0.75,
+        thresholdUsd: 0.5,
+        status: 'over',
+        unknownCostEventCount: 2,
+        unknownCostTokenCount: 400,
+        warningCodes: ['budget_threshold_exceeded', 'budget_unknown_cost_present'],
+        recommendedAction: 'review budget threshold'
+      }),
+      expect.objectContaining({
+        periodLabel: 'current month',
+        scopeKind: 'sourceName',
+        sourceName: 'lab-a100',
+        status: 'unknown-costs-present',
+        unknownCostEventCount: 1,
+        unknownCostTokenCount: 300,
+        recommendedAction: 'add custom price'
+      })
+    ]);
+    expect(dashboard.pricingDiagnostics.map((row) => row.model)).toEqual([
+      'no-match-diagnostic-model',
+      'exact-diagnostic-model'
+    ]);
+    expect(dashboard.pricingDiagnostics[0]).toMatchObject({
+      cacheStatus: 'negative-cache',
+      diagnosticStatus: 'negative-cache',
+      estimatedCostUsd: null,
+      matchedKey: null,
+      recommendedAction: 'add custom price',
+      totalTokens: 300,
+      unknownCostEventCount: 1,
+      unknownCostTokenCount: 300
+    });
+    expect(dashboard.pricingDiagnostics[1]).toMatchObject({
+      cacheStatus: 'matched-cache',
+      diagnosticStatus: 'exact-match',
+      estimatedCostUsd: 0.75,
+      matchedKey: 'litellm:openai:exact-diagnostic-model',
+      recommendedAction: 'no action',
+      totalTokens: 150,
+      unknownCostEventCount: 0
+    });
+    expect(JSON.stringify(dashboard)).not.toContain('outside-filter-model');
+    expect(containsPrivacySentinel(dashboard)).toBe(false);
+    fetchSpy.mockRestore();
   });
 
   it('includes recent scan-run summaries with path-kind only', () => {
@@ -299,7 +587,7 @@ describe('desktop dashboard service contract', () => {
 
     expect(containsPrivacySentinel(dashboard)).toBe(false);
     expect(JSON.stringify(dashboard)).not.toMatch(
-      /rawSource|rawIdHash|metadata|workspaceHash|sessionIdHash|PROMPT_SENTINEL|RESPONSE_SENTINEL|RAW_SESSION_SENTINEL/
+      /rawSource|rawIdHash|metadata|workspaceHash|PROMPT_SENTINEL|RESPONSE_SENTINEL|RAW_SESSION_SENTINEL/
     );
   });
 
@@ -332,7 +620,20 @@ describe('desktop dashboard service contract', () => {
           bySource: [],
           bySourceName: [],
           unknownPricingCount: 0,
+          budgetDiagnostics: [],
+          pricingDiagnostics: [],
           recentScanRuns: [],
+          filters: { from: null, to: null },
+          sessionMetrics: {
+            sessionCount: 0,
+            totalWallDurationMs: 0,
+            totalActiveDurationMs: 0,
+            longestSessionMs: 0,
+            longestContinuousMs: 0,
+            maxConcurrentSessions: 0,
+            eventsWithoutSession: 0
+          },
+          sessionIntervals: [],
           privacy: { sanitized: true }
         })
       )

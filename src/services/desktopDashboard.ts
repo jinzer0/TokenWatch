@@ -1,3 +1,4 @@
+import type { PricingModelsRepository } from '../db/repositories/pricingModels.js';
 import type { ScanRunsRepository } from '../db/repositories/scanRuns.js';
 import type { UsageEventsRepository } from '../db/repositories/usageEvents.js';
 import type { ScanRun } from '../models/scanRun.js';
@@ -6,35 +7,82 @@ import {
   desktopDashboardSchema,
   type DesktopDashboard,
   type DesktopDashboardBreakdown,
+  type DesktopDashboardFilters,
   type DesktopDashboardScanRun
 } from '../desktop/shared/contracts.js';
 import { localDayBucket, nowIso } from '../utils/time.js';
-import { AggregatorService, type SummaryGroup } from './aggregator.js';
+import { AggregatorService, type SessionSummaryGroup, type SummaryGroup } from './aggregator.js';
+import type { BudgetService } from './budgetService.js';
+import {
+  toDashboardBudgetDiagnostics,
+  toDashboardPricingDiagnostics
+} from './desktopDiagnostics.js';
 import { ReportService } from './reportService.js';
 
 export type BuildDesktopDashboardOptions = {
+  budgetEvaluationDate?: Date;
+  filters?: DesktopDashboardFilters;
   recentScanLimit?: number;
 };
 
+export type DesktopDashboardDependencies = {
+  readonly aggregator?: AggregatorService;
+  readonly budget?: BudgetService;
+  readonly pricingModels?: PricingModelsRepository;
+  readonly reports?: ReportService;
+  readonly scanRuns: ScanRunsRepository;
+  readonly usageEvents: UsageEventsRepository;
+};
+
+const DEFAULT_FILTERS: DesktopDashboardFilters = {
+  from: null,
+  to: null,
+  fromTimestamp: null,
+  toTimestamp: null
+};
+
 export class DesktopDashboardService {
-  constructor(
-    private readonly usageEvents: UsageEventsRepository,
-    private readonly scanRuns: ScanRunsRepository,
-    private readonly aggregator = new AggregatorService(),
-    private readonly reports = new ReportService()
-  ) {}
+  private readonly aggregator: AggregatorService;
+  private readonly budget: BudgetService | undefined;
+  private readonly pricingModels: PricingModelsRepository | undefined;
+  private readonly reports: ReportService;
+  private readonly scanRuns: ScanRunsRepository;
+  private readonly usageEvents: UsageEventsRepository;
+
+  constructor(dependencies: DesktopDashboardDependencies) {
+    this.aggregator = dependencies.aggregator ?? new AggregatorService();
+    this.budget = dependencies.budget;
+    this.pricingModels = dependencies.pricingModels;
+    this.reports = dependencies.reports ?? new ReportService();
+    this.scanRuns = dependencies.scanRuns;
+    this.usageEvents = dependencies.usageEvents;
+  }
 
   buildDashboard(options: BuildDesktopDashboardOptions = {}): DesktopDashboard {
     const events = this.usageEvents.listAll();
     const recentScanRuns = this.scanRuns.listRecent(options.recentScanLimit ?? 5);
-    return this.buildDashboardFromEvents(events, recentScanRuns);
+    return this.buildDashboardFromEvents(events, recentScanRuns, options.filters, options);
   }
 
-  buildDashboardFromEvents(events: UsageEvent[], recentScanRuns: ScanRun[] = []): DesktopDashboard {
-    const totals = this.aggregator.summarize(events);
-    const costReport = this.reports.buildGraphReport(events, { bucket: 'day', metric: 'cost' });
-    const eventsByDay = groupEventsByDay(events);
-    const unknownCostEvents = events.filter((event) => event.estimatedCostUsd === null).length;
+  buildDashboardFromEvents(
+    events: UsageEvent[],
+    recentScanRuns: ScanRun[] = [],
+    filters: DesktopDashboardFilters = DEFAULT_FILTERS,
+    options: Pick<BuildDesktopDashboardOptions, 'budgetEvaluationDate'> = {}
+  ): DesktopDashboard {
+    const filteredEvents = filterEvents(events, filters);
+    const totals = this.aggregator.summarize(filteredEvents);
+    const costReport = this.reports.buildGraphReport(filteredEvents, {
+      bucket: 'day',
+      metric: 'cost'
+    });
+    const eventsByDay = groupEventsByDay(filteredEvents);
+    const unknownCostEvents = filteredEvents.filter(
+      (event) => event.estimatedCostUsd === null
+    ).length;
+    const pricingDiagnostics = this.aggregator.pricingDiagnostics(filteredEvents, {
+      lookupCache: this.pricingModels?.listLookupCache() ?? []
+    });
     const report = {
       version: 1,
       kind: 'desktop-dashboard',
@@ -79,17 +127,33 @@ export class DesktopDashboardService {
           (event) => event.estimatedCostUsd === null
         ).length
       })),
-      byModel: this.aggregator.group(events, 'model').map(toDashboardBreakdown),
-      byAgent: this.aggregator.group(events, 'agent').map(toDashboardBreakdown),
-      bySource: this.aggregator.group(events, 'source').map(toDashboardBreakdown),
-      bySourceName: this.aggregator.group(events, 'sourceName').map(toDashboardBreakdown),
+      byModel: this.aggregator.group(filteredEvents, 'model').map(toDashboardBreakdown),
+      byAgent: this.aggregator.group(filteredEvents, 'agent').map(toDashboardBreakdown),
+      bySource: this.aggregator.group(filteredEvents, 'source').map(toDashboardBreakdown),
+      bySourceName: this.aggregator.group(filteredEvents, 'sourceName').map(toDashboardBreakdown),
       unknownPricingCount: unknownCostEvents,
+      budgetDiagnostics: toDashboardBudgetDiagnostics(
+        this.budget?.evaluateCurrentMonth(options.budgetEvaluationDate) ?? []
+      ),
+      pricingDiagnostics: toDashboardPricingDiagnostics(pricingDiagnostics, filteredEvents),
       recentScanRuns: recentScanRuns.map(toDashboardScanRun),
+      filters: { from: filters.from, to: filters.to },
+      sessionMetrics: this.aggregator.sessionTimeMetrics(filteredEvents),
+      sessionIntervals: this.aggregator.sessions(filteredEvents).map(toDashboardSessionInterval),
       privacy: { sanitized: true }
     };
 
     return desktopDashboardSchema.parse(report);
   }
+}
+
+function filterEvents(events: UsageEvent[], filters: DesktopDashboardFilters): UsageEvent[] {
+  const fromTime = filters.fromTimestamp ? Date.parse(filters.fromTimestamp) : null;
+  const toTime = filters.toTimestamp ? Date.parse(filters.toTimestamp) : null;
+  return events.filter((event) => {
+    const time = Date.parse(event.timestamp);
+    return (fromTime === null || time >= fromTime) && (toTime === null || time <= toTime);
+  });
 }
 
 function toDashboardBreakdown(group: SummaryGroup): DesktopDashboardBreakdown {
@@ -125,6 +189,28 @@ function toDashboardScanRun(run: ScanRun): DesktopDashboardScanRun {
     errorRecords: run.errorRecords,
     warningCodes: run.warningCodes,
     errorCode: run.errorCode
+  };
+}
+
+function toDashboardSessionInterval(
+  group: SessionSummaryGroup
+): DesktopDashboard['sessionIntervals'][number] {
+  return {
+    source: group.source,
+    sessionIdHash: group.sessionIdHash,
+    startedAt: group.startedAt,
+    endedAt: group.endedAt,
+    lastSeen: group.lastSeen,
+    events: group.events,
+    messageCount: group.messageCount,
+    inputTokens: group.inputTokens,
+    outputTokens: group.outputTokens,
+    cachedTokens: group.cachedTokens,
+    reasoningTokens: group.reasoningTokens,
+    totalTokens: group.totalTokens,
+    estimatedCostUsd: group.estimatedCostUsd,
+    activeDurationMs: group.activeDurationMs,
+    wallDurationMs: group.wallDurationMs
   };
 }
 
