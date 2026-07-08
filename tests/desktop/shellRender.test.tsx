@@ -3,177 +3,21 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type {
-  DesktopAppStatus,
-  DesktopDashboardSnapshot
-} from '../../src/desktop/shared/contracts.js';
+import type { DesktopDashboardSnapshot } from '../../src/desktop/shared/contracts.js';
 import { App } from '../../src/desktop/renderer/src/App.js';
 import { containsPrivacySentinel, privacySentinels } from '../helpers.js';
-
-type Deferred<T> = {
-  promise: Promise<T>;
-  resolve: (value: T) => void;
-};
-
-type Dashboard = NonNullable<DesktopDashboardSnapshot['dashboard']>;
-
-type DashboardOverrides = Partial<Dashboard> & {
-  totals?: Partial<Dashboard['totals']>;
-  top?: Partial<Dashboard['top']>;
-};
-
-const createDeferred = <T,>(): Deferred<T> => {
-  let resolve: Deferred<T>['resolve'] = () => undefined;
-  const promise = new Promise<T>((resolver) => {
-    resolve = resolver;
-  });
-  return { promise, resolve };
-};
-
-const setupSnapshot = (): DesktopDashboardSnapshot => ({
-  status: 'setup-needed',
-  dashboard: null,
-  privacy: { sanitized: true }
-});
-
-const appStatus = (status: DesktopAppStatus['database']['status']): DesktopAppStatus => ({
-  app: 'ready',
-  database: { status },
-  privacy: { sanitized: true }
-});
-
-const unsafePath = ['/', 'Users', '/private/', 'tokenwatch', '.db'].join('');
-const unsafeSql = ['select', ' * from ', 'usage_', 'events'].join('');
-
-const breakdown = (
-  key: string,
-  events: number,
-  totalTokens: number
-): Dashboard['byModel'][number] => ({
-  key,
-  events,
-  inputTokens: Math.floor(totalTokens / 2),
-  outputTokens: Math.floor(totalTokens / 3),
-  cachedTokens: totalTokens - Math.floor(totalTokens / 2) - Math.floor(totalTokens / 3),
-  reasoningTokens: 0,
-  totalTokens,
-  estimatedCostUsd: totalTokens / 100000,
-  topModel: 'safe-model',
-  topAgent: 'safe-agent'
-});
-
-const dashboardFixture = (overrides: DashboardOverrides = {}): Dashboard => {
-  const { totals: totalsOverride, top: topOverride, ...dashboardOverrides } = overrides;
-  const totals: Dashboard['totals'] = {
-    events: 42,
-    tokens: 123456,
-    inputTokens: 60000,
-    outputTokens: 40000,
-    cachedTokens: 23456,
-    estimatedCostUsd: 12.34,
-    sources: 3,
-    sourceNames: 2,
-    models: 2,
-    agents: 2,
-    unknownCostEvents: 1,
-    ...totalsOverride
-  };
-  const top: Dashboard['top'] = {
-    model: 'safe-model-alpha',
-    agent: 'safe-agent',
-    source: 'safe-source',
-    sourceName: 'safe-source-name',
-    ...topOverride
-  };
-
-  const baseDashboard: Dashboard = {
-    version: 1,
-    kind: 'desktop-dashboard',
-    generatedAt: '2026-06-07T12:00:00.000Z',
-    totals,
-    dateRange: {
-      start: '2026-06-01T00:00:00.000Z',
-      end: '2026-06-07T12:00:00.000Z'
-    },
-    top,
-    usageSeries: [
-      {
-        key: '2026-06',
-        events: 10,
-        tokens: 1000,
-        inputTokens: 600,
-        outputTokens: 300,
-        cachedTokens: 100,
-        estimatedCostUsd: 1.11,
-        unknownCostEvents: 0
-      },
-      {
-        key: '2026-06-01',
-        events: 12,
-        tokens: 2000,
-        inputTokens: 1200,
-        outputTokens: 600,
-        cachedTokens: 200,
-        estimatedCostUsd: 2.22,
-        unknownCostEvents: 0
-      },
-      {
-        key: '2026-06-07',
-        events: 20,
-        tokens: 4000,
-        inputTokens: 2400,
-        outputTokens: 1200,
-        cachedTokens: 400,
-        estimatedCostUsd: 4.44,
-        unknownCostEvents: 1
-      }
-    ],
-    costSeries: [
-      { key: '2026-06', estimatedCostUsd: 1.11, unknownCostEvents: 0 },
-      { key: '2026-06-01', estimatedCostUsd: 2.22, unknownCostEvents: 0 },
-      { key: '2026-06-07', estimatedCostUsd: 4.44, unknownCostEvents: 1 }
-    ],
-    byModel: [breakdown('safe-model-alpha', 24, 90000), breakdown('safe-model-beta', 18, 33456)],
-    byAgent: [breakdown('safe-agent', 30, 100000), breakdown('safe-agent-alt', 12, 23456)],
-    bySource: [breakdown('safe-source', 32, 100000), breakdown('safe-source-alt', 10, 23456)],
-    bySourceName: [
-      breakdown('safe-source-name', 25, 80000),
-      breakdown('safe-source-name-alt', 17, 43456)
-    ],
-    unknownPricingCount: 1,
-    recentScanRuns: [],
-    privacy: { sanitized: true }
-  };
-
-  return { ...baseDashboard, ...dashboardOverrides, totals, top };
-};
-
-const populatedSnapshot = (overrides: DashboardOverrides = {}): DesktopDashboardSnapshot => ({
-  status: 'ready',
-  dashboard: dashboardFixture(overrides),
-  privacy: { sanitized: true }
-});
-
-const installTokenwatchApi = ({
-  getSnapshot = vi.fn(async () => setupSnapshot()),
-  refresh = vi.fn(async () => setupSnapshot()),
-  getStatus = vi.fn(async () => appStatus('setup-needed')),
-  getVersion = vi.fn(async () => '0.1.0')
-}: {
-  getSnapshot?: () => Promise<DesktopDashboardSnapshot>;
-  refresh?: () => Promise<DesktopDashboardSnapshot>;
-  getStatus?: () => Promise<DesktopAppStatus>;
-  getVersion?: () => Promise<string>;
-} = {}) => {
-  Object.defineProperty(window, 'tokenwatch', {
-    configurable: true,
-    value: Object.freeze({
-      dashboard: Object.freeze({ getSnapshot, refresh }),
-      app: Object.freeze({ getStatus, getVersion })
-    })
-  });
-  return { getSnapshot, refresh, getStatus, getVersion };
-};
+import {
+  appStatus,
+  breakdown,
+  createDeferred,
+  installTokenwatchApi,
+  populatedSnapshot,
+  sessionIntervalFixture,
+  setupSnapshot,
+  unsafePath,
+  unsafeSql
+} from './helpers/rendererFixtures.js';
+import { pricingDiagnosticFixture } from './helpers/diagnosticFixtures.js';
 
 const textOf = (element: HTMLElement): string => element.textContent ?? '';
 
@@ -271,6 +115,181 @@ describe('desktop renderer shell', () => {
     expect(screen.getByLabelText('Unknown pricing warning').textContent).toContain(
       '1 unknown pricing event'
     );
+
+    const filters = screen.getByLabelText('UTC date filters');
+    expect(within(filters).getByLabelText('From date UTC')).toBeTruthy();
+    expect(within(filters).getByLabelText('To date UTC')).toBeTruthy();
+
+    const sessions = screen.getByLabelText('Session metrics panel');
+    expect(textOf(sessions)).toContain('Session count');
+    expect(textOf(sessions)).toContain('2');
+    expect(textOf(sessions)).toContain('Events without session');
+    expect(textOf(sessions)).toContain('1');
+    const sessionTable = screen.getByLabelText('Session interval summaries');
+    expect(textOf(sessionTable)).toContain('hashed-session-alpha');
+    expect(textOf(sessionTable)).toContain('hashed-session-beta');
+    expect(textOf(sessionTable)).toContain('unknown');
+
+    const diagnostics = screen.getByLabelText('Budget and pricing diagnostics panel');
+    expect(textOf(diagnostics)).toContain('Budget and pricing diagnostics');
+    expect(textOf(diagnostics)).toContain('current month');
+    expect(textOf(diagnostics)).toContain('$12.34');
+    expect(textOf(diagnostics)).toContain('$10.00');
+    expect(textOf(diagnostics)).toContain('budget_threshold_exceeded');
+    expect(textOf(diagnostics)).toContain('safe-model-alpha');
+    expect(textOf(diagnostics)).toContain('exact-match');
+    expect(textOf(diagnostics)).toContain('matched-cache');
+    expect(textOf(diagnostics)).toContain('litellm:openai:safe-model-alpha');
+    expect(textOf(diagnostics)).toContain('no action');
+  });
+
+  it('applies valid UTC date filters through the typed preload API', async () => {
+    const getSnapshot = vi
+      .fn()
+      .mockResolvedValueOnce(populatedSnapshot())
+      .mockResolvedValueOnce(
+        populatedSnapshot({
+          filters: { from: '2026-05-01', to: '2026-05-01' },
+          totals: { events: 2, tokens: 300 },
+          dateRange: {
+            start: '2026-05-01T00:00:00.000Z',
+            end: '2026-05-01T23:59:59.999Z'
+          },
+          usageSeries: [
+            {
+              key: '2026-05-01',
+              events: 2,
+              tokens: 300,
+              inputTokens: 100,
+              outputTokens: 150,
+              cachedTokens: 50,
+              estimatedCostUsd: 0.3,
+              unknownCostEvents: 0
+            }
+          ],
+          costSeries: [{ key: '2026-05-01', estimatedCostUsd: 0.3, unknownCostEvents: 0 }]
+        })
+      );
+    installTokenwatchApi({ getSnapshot, getStatus: vi.fn(async () => appStatus('ready')) });
+
+    render(<App />);
+
+    const filters = await screen.findByLabelText('UTC date filters');
+    fireEvent.change(within(filters).getByLabelText('From date UTC'), {
+      target: { value: '2026-05-01' }
+    });
+    fireEvent.change(within(filters).getByLabelText('To date UTC'), {
+      target: { value: '2026-05-01' }
+    });
+    fireEvent.click(within(filters).getByRole('button', { name: 'Apply UTC date filter' }));
+
+    await waitFor(() =>
+      expect(getSnapshot).toHaveBeenLastCalledWith({ from: '2026-05-01', to: '2026-05-01' })
+    );
+    expect(textOf(await screen.findByLabelText('Dashboard summary cards'))).toContain('300');
+    expect(textOf(screen.getByLabelText('UTC date filters'))).toContain('2026-05-01 to 2026-05-01');
+  });
+
+  it('blocks invalid UTC date ranges before calling preload', async () => {
+    const getSnapshot = vi.fn(async () => populatedSnapshot());
+    const refresh = vi.fn(async () => populatedSnapshot());
+    installTokenwatchApi({
+      getSnapshot,
+      refresh,
+      getStatus: vi.fn(async () => appStatus('ready'))
+    });
+
+    render(<App />);
+
+    const filters = await screen.findByLabelText('UTC date filters');
+    fireEvent.change(within(filters).getByLabelText('From date UTC'), {
+      target: { value: '2026-05-02' }
+    });
+    fireEvent.change(within(filters).getByLabelText('To date UTC'), {
+      target: { value: '2026-05-01' }
+    });
+    fireEvent.click(within(filters).getByRole('button', { name: 'Apply UTC date filter' }));
+
+    expect(textOf(screen.getByLabelText('UTC filter validation'))).toContain(
+      'From date must be on or before to date.'
+    );
+    expect(getSnapshot).toHaveBeenCalledTimes(1);
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('renders empty filtered analytics without setup-state confusion', async () => {
+    installTokenwatchApi({
+      getSnapshot: vi.fn(async () =>
+        populatedSnapshot({
+          filters: { from: '2026-05-03', to: '2026-05-03' },
+          totals: {
+            events: 0,
+            tokens: 0,
+            inputTokens: 0,
+            outputTokens: 0,
+            cachedTokens: 0,
+            estimatedCostUsd: null,
+            sources: 0,
+            sourceNames: 0,
+            models: 0,
+            agents: 0,
+            unknownCostEvents: 0
+          },
+          dateRange: { start: null, end: null },
+          top: { model: null, agent: null, source: null, sourceName: null },
+          usageSeries: [],
+          costSeries: [],
+          byModel: [],
+          byAgent: [],
+          bySource: [],
+          bySourceName: [],
+          unknownPricingCount: 0,
+          sessionMetrics: {
+            sessionCount: 0,
+            totalWallDurationMs: 0,
+            totalActiveDurationMs: 0,
+            longestSessionMs: 0,
+            longestContinuousMs: 0,
+            maxConcurrentSessions: 0,
+            eventsWithoutSession: 0
+          },
+          sessionIntervals: []
+        })
+      ),
+      getStatus: vi.fn(async () => appStatus('ready'))
+    });
+
+    render(<App />);
+
+    expect(textOf(await screen.findByLabelText('Filtered empty dashboard state'))).toContain(
+      'No usage events match the current UTC date filter.'
+    );
+    expect(screen.queryByLabelText('Setup needed dashboard state')).toBeNull();
+    expect(textOf(screen.getByLabelText('Session interval summaries'))).toContain(
+      'No session intervals in this filtered window'
+    );
+  });
+
+  it('withholds unsafe session-adjacent labels in the session table', async () => {
+    const rawSessionSentinel = ['RAW_SESSION', '_SENTINEL_DO_NOT_LEAK'].join('');
+    installTokenwatchApi({
+      getSnapshot: vi.fn(async () =>
+        populatedSnapshot({
+          sessionIntervals: [
+            sessionIntervalFixture({ sessionIdHash: rawSessionSentinel, source: unsafePath })
+          ]
+        })
+      ),
+      getStatus: vi.fn(async () => appStatus('ready'))
+    });
+
+    const { container } = render(<App />);
+
+    const sessionTable = await screen.findByLabelText('Session interval summaries');
+    expect(textOf(sessionTable)).toContain('withheld label');
+    expect(container.textContent).not.toContain(rawSessionSentinel);
+    expect(container.textContent).not.toContain(unsafePath);
+    expect(containsPrivacySentinel(container.textContent)).toBe(false);
   });
 
   it('sorts breakdown tables deterministically by numeric and string columns', async () => {
@@ -459,7 +478,21 @@ describe('desktop renderer shell', () => {
             { key: '2026-06', estimatedCostUsd: null, unknownCostEvents: 3 },
             { key: '2026-06-07', estimatedCostUsd: null, unknownCostEvents: 1 }
           ],
-          unknownPricingCount: 3
+          unknownPricingCount: 3,
+          pricingDiagnostics: [
+            pricingDiagnosticFixture({
+              model: 'unknown-price-model',
+              diagnosticStatus: 'unresolved',
+              cacheStatus: 'not-cached',
+              pricingSource: 'unknown',
+              pricingConfidence: 'none',
+              matchedKey: null,
+              estimatedCostUsd: null,
+              unknownCostEventCount: 3,
+              unknownCostTokenCount: 600,
+              recommendedAction: 'add custom price'
+            })
+          ]
         })
       ),
       getStatus: vi.fn(async () => appStatus('ready'))
@@ -472,7 +505,133 @@ describe('desktop renderer shell', () => {
     expect(textOf(summary)).toContain('unknown');
     expect(textOf(summary)).toContain('3 unknown pricing events');
     expect(textOf(screen.getByLabelText('Cost over time chart data'))).toContain('unknown cost');
+    expect(textOf(screen.getByLabelText('Budget and pricing diagnostics panel'))).toContain(
+      'unknown'
+    );
     expect(container.textContent).not.toContain('$0.00');
+  });
+
+  it('renders no-threshold and pricing no-match diagnostics without unsafe labels or refresh controls', async () => {
+    const unsafeMatchedKey = ['RAW_PATH', '_SENTINEL_DO_NOT_LEAK'].join('');
+    installTokenwatchApi({
+      getSnapshot: vi.fn(async () =>
+        populatedSnapshot({
+          budgetDiagnostics: [],
+          pricingDiagnostics: [
+            pricingDiagnosticFixture({
+              provider: unsafePath,
+              model: unsafeMatchedKey,
+              diagnosticStatus: 'negative-cache',
+              cacheStatus: 'negative-cache',
+              pricingSource: 'unknown',
+              pricingConfidence: 'none',
+              matchedKey: unsafeMatchedKey,
+              totalTokens: 300,
+              estimatedCostUsd: null,
+              unknownCostEventCount: 1,
+              unknownCostTokenCount: 300,
+              recommendedAction: 'add custom price'
+            })
+          ]
+        })
+      ),
+      getStatus: vi.fn(async () => appStatus('ready'))
+    });
+
+    const { container } = render(<App />);
+
+    const diagnostics = await screen.findByLabelText('Budget and pricing diagnostics panel');
+    expect(textOf(diagnostics)).toContain('No budget thresholds configured');
+    expect(textOf(diagnostics)).toContain('negative-cache');
+    expect(textOf(diagnostics)).toContain('add custom price');
+    expect(textOf(diagnostics)).toContain('unknown');
+    expect(textOf(diagnostics)).toContain('withheld label');
+    expect(textOf(diagnostics)).not.toContain('pricing refresh');
+    expect(textOf(diagnostics)).not.toContain('provider credentials');
+    expect(container.textContent).not.toContain(unsafePath);
+    expect(container.textContent).not.toContain(unsafeMatchedKey);
+    expect(container.textContent).not.toContain('$0.00');
+    expect(containsPrivacySentinel(container.textContent)).toBe(false);
+  });
+
+  it('renders incomplete date ranges as unknown', async () => {
+    installTokenwatchApi({
+      getSnapshot: vi.fn(async () =>
+        populatedSnapshot({
+          dateRange: { start: null, end: '2026-06-07T12:00:00.000Z' }
+        })
+      ),
+      getStatus: vi.fn(async () => appStatus('ready'))
+    });
+
+    render(<App />);
+
+    const summary = await screen.findByLabelText('Dashboard summary cards');
+    expect(textOf(summary)).toContain('Date range');
+    expect(textOf(summary)).toContain('unknown');
+    expect(textOf(summary)).not.toContain('Jun 7, 2026');
+
+    cleanup();
+    Reflect.deleteProperty(window, 'tokenwatch');
+
+    installTokenwatchApi({
+      getSnapshot: vi.fn(async () =>
+        populatedSnapshot({
+          dateRange: { start: '2026-06-01T00:00:00.000Z', end: null }
+        })
+      ),
+      getStatus: vi.fn(async () => appStatus('ready'))
+    });
+
+    render(<App />);
+
+    const nextSummary = await screen.findByLabelText('Dashboard summary cards');
+    expect(textOf(nextSummary)).toContain('Date range');
+    expect(textOf(nextSummary)).toContain('unknown');
+    expect(textOf(nextSummary)).not.toContain('Jun 1, 2026');
+  });
+
+  it('withholds unsafe chart keys before rendering chart text', async () => {
+    const unsafePrompt = ['PROMPT', '_SENTINEL_DO_NOT_LEAK'].join('');
+    const unsafeRawPath = ['RAW_PATH', '_SENTINEL_DO_NOT_LEAK'].join('');
+    installTokenwatchApi({
+      getSnapshot: vi.fn(async () =>
+        populatedSnapshot({
+          usageSeries: [
+            {
+              key: unsafePath,
+              events: 1,
+              tokens: 100,
+              inputTokens: 40,
+              outputTokens: 50,
+              cachedTokens: 10,
+              estimatedCostUsd: 0.1,
+              unknownCostEvents: 0
+            }
+          ],
+          costSeries: [{ key: unsafePrompt, estimatedCostUsd: 0.1, unknownCostEvents: 0 }],
+          byModel: [breakdown(unsafeRawPath, 2, 200)],
+          bySourceName: [breakdown(unsafeSql, 3, 300)]
+        })
+      ),
+      getStatus: vi.fn(async () => appStatus('ready'))
+    });
+
+    const { container } = render(<App />);
+
+    const usageChartData = await screen.findByLabelText('Usage over time chart data');
+    const costChartData = screen.getByLabelText('Cost over time chart data');
+    const modelChart = screen.getByRole('img', { name: 'Model distribution chart' });
+    const sourceNameChartData = screen.getByLabelText('SourceName distribution chart data');
+    expect(textOf(usageChartData)).toContain('withheld label: 100 tokens across 1 events');
+    expect(textOf(costChartData)).toContain('withheld label: $0.10 estimated');
+    expect(modelChart.textContent).toContain('withheld label');
+    expect(textOf(sourceNameChartData)).toContain('withheld label: 300 tokens, 3 events');
+    expect(container.textContent).not.toContain(unsafePath);
+    expect(container.textContent).not.toContain(unsafeSql);
+    expect(container.textContent).not.toContain(unsafePrompt);
+    expect(container.textContent).not.toContain(unsafeRawPath);
+    expect(containsPrivacySentinel(container.textContent)).toBe(false);
   });
 
   it('renders setup-needed copy without raw local locations', async () => {
@@ -553,6 +712,31 @@ describe('desktop renderer shell', () => {
       expect(screen.getByLabelText('Analytics summary metrics').textContent).toContain('654,321')
     );
     expect(screen.getByLabelText('Database and refresh status').textContent).toContain('13:30 UTC');
+  });
+
+  it('renders sanitized refresh failure without replacing the safe dashboard', async () => {
+    const unsafeSentinel = ['RAW_PATH', '_SENTINEL_DO_NOT_LEAK'].join('');
+    const refresh = vi.fn(async () => {
+      throw new Error(`refresh failed for ${unsafePath} ${unsafeSql} ${unsafeSentinel}`);
+    });
+    installTokenwatchApi({
+      getSnapshot: vi.fn(async () => populatedSnapshot()),
+      refresh,
+      getStatus: vi.fn(async () => appStatus('ready'))
+    });
+
+    const { container } = render(<App />);
+
+    expect(await screen.findByLabelText('Dashboard summary cards')).toBeTruthy();
+    fireEvent.click(await screen.findByRole('button', { name: 'Refresh dashboard snapshot' }));
+
+    const error = await screen.findByLabelText('Sanitized dashboard error');
+    expect(error.textContent).toContain('error: refresh_failed');
+    expect(error.textContent).toContain('Code: refresh_failed');
+    expect(container.textContent).not.toContain(unsafePath);
+    expect(container.textContent).not.toContain(unsafeSql);
+    expect(container.textContent).not.toContain(unsafeSentinel);
+    expect(containsPrivacySentinel(container.textContent)).toBe(false);
   });
 
   it('keeps auto-refresh off by default', async () => {
