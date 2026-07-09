@@ -278,6 +278,8 @@ p {
 .summary-card,
 .breakdown-section,
 .breakdown-drilldown,
+.diagnostics-hub-tile,
+.diagnostics-actions,
 .recent-run-card {
   background: var(--surface-card);
   border: 1px solid var(--border-soft);
@@ -519,6 +521,213 @@ p {
     linear-gradient(145deg, rgba(245, 200, 107, 0.1), transparent 38rem),
     linear-gradient(160deg, rgba(142, 231, 245, 0.08), transparent 46rem), var(--surface-card);
   grid-column: 1 / -1;
+}
+
+.share-report-card {
+  background:
+    linear-gradient(145deg, rgba(142, 231, 245, 0.1), transparent 34rem),
+    linear-gradient(160deg, rgba(245, 200, 107, 0.08), transparent 42rem), var(--surface-card);
+  grid-column: 1 / -1;
+}
+
+.diagnostics-hub-card {
+  background: var(--surface-card);
+  grid-column: 1 / -1;
+}
+
+.diagnostics-hub-grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(var(--summary-card-min), 1fr));
+  margin-top: var(--space-5);
+}
+
+.diagnostics-hub-tile {
+  border-radius: var(--radius-md);
+  min-width: 0;
+  padding: var(--space-5);
+}
+
+.diagnostics-hub-tile.normal {
+  border-color: var(--border-cyan);
+}
+
+.diagnostics-hub-tile.warning {
+  border-color: var(--border-amber);
+}
+
+.diagnostics-hub-tile.error {
+  border-color: var(--border-error);
+}
+
+.diagnostics-hub-tile p,
+.diagnostics-actions span:first-child {
+  color: var(--color-paper-300);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  margin-bottom: var(--space-2);
+  text-transform: uppercase;
+}
+
+.diagnostics-hub-tile strong {
+  color: var(--color-paper-100);
+  display: block;
+  font-family: var(--font-display);
+  font-size: clamp(1.4rem, 2.5vw, 2rem);
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+
+.diagnostics-hub-tile > span {
+  color: var(--color-paper-300);
+  display: block;
+  margin-top: var(--space-3);
+  overflow-wrap: anywhere;
+}
+
+.diagnostics-hub-fields {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 0;
+}
+
+.diagnostics-hub-fields div {
+  border-bottom: 1px solid var(--border-soft);
+  display: grid;
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+}
+
+.diagnostics-hub-fields dt {
+  color: var(--color-paper-300);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.diagnostics-hub-fields dd {
+  color: var(--color-paper-100);
+  font-weight: 800;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.diagnostics-actions {
+  border-radius: var(--radius-md);
+  margin-top: var(--space-5);
+  padding: var(--space-5);
+}
+
+.diagnostics-actions p {
+  color: var(--color-paper-300);
+}
+
+.diagnostics-actions ul {
+  display: grid;
+  gap: var(--space-3);
+  list-style: none;
+  margin: var(--space-4) 0 0;
+  padding: 0;
+}
+
+.diagnostics-action {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+
+.diagnostics-action.high {
+  border-color: var(--border-error);
+}
+
+.diagnostics-action.medium {
+  border-color: var(--border-amber);
+}
+
+.diagnostics-action.low {
+  border-color: var(--border-cyan);
+}
+
+.diagnostics-action code,
+.state-card code {
+  color: var(--color-cyan-300);
+  font-family: var(--font-body);
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.share-report-copy {
+  color: var(--color-paper-300);
+  margin-top: var(--space-3);
+}
+
+.share-format-grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(var(--summary-card-min), 1fr));
+  margin-top: var(--space-5);
+}
+
+.share-format-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  color: var(--color-paper-100);
+  cursor: pointer;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  text-align: left;
+  transition:
+    border-color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.share-format-card:hover:not(:disabled) {
+  border-color: var(--border-amber);
+  transform: translateY(calc(var(--space-1) * -1));
+}
+
+.share-format-card:disabled {
+  cursor: wait;
+  opacity: 0.66;
+}
+
+.share-format-card span {
+  color: var(--color-cyan-300);
+  font-weight: 900;
+}
+
+.share-format-card small {
+  color: var(--color-paper-300);
+}
+
+.share-status {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  color: var(--color-paper-300);
+  margin-top: var(--space-5);
+  overflow-wrap: anywhere;
+  padding: var(--space-4) var(--space-5);
+}
+
+.share-status.exporting,
+.share-status.success {
+  border-color: var(--border-cyan);
+  color: var(--color-paper-100);
+}
+
+.share-status.cancelled {
+  border-color: var(--border-amber);
+  color: var(--color-amber-300);
+}
+
+.share-status.failed {
+  border-color: var(--border-error);
+  color: var(--color-error-300);
 }
 
 .diagnostic-budget-grid {

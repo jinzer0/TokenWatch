@@ -104,7 +104,7 @@ export const Shell = ({
           <h2 id="overview-title">A private command center for usage signals.</h2>
           <p>
             TokenWatch Desktop frames aggregate token usage without exposing prompts, responses,
-            auth material, raw paths, or database internals.
+            auth material, local locations, or database internals.
           </p>
         </div>
         <div className="signal-panel" aria-label="Analytics summary metrics">
