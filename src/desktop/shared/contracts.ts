@@ -5,6 +5,10 @@ import {
   type DesktopDashboardBudgetDiagnostic,
   type DesktopDashboardPricingDiagnostic
 } from './diagnosticContracts.js';
+import {
+  diagnosticsHubSchema,
+  type DesktopDashboardDiagnosticsHub
+} from './diagnosticsHubContracts.js';
 
 const scanRunStatuses = ['running', 'completed', 'failed', 'interrupted'] as const;
 const pathKinds = ['default', 'custom', 'unknown'] as const;
@@ -17,7 +21,7 @@ const dateOnlySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const sanitizedPrivacySchema = z.object({ sanitized: z.literal(true) }).strict();
 
 const unsafePrivacyPattern =
-  /(PROMPT|RESPONSE|FAKE_API_KEY|FAKE_OAUTH|FAKE_CREDENTIAL|AUTH_CONFIG|RAW_SESSION|RAW_WORKSPACE|RAW_PATH|TOKENWATCH_PATH)_SENTINEL_DO_NOT_LEAK|api[_-]?key|oauth|credential|secret|password|bearer\s+[A-Za-z0-9._-]+|sk-[A-Za-z0-9_-]{8,}|ghp_[A-Za-z0-9_]{8,}|xox[baprs]-[A-Za-z0-9-]{8,}|raw[_-]?(record|json|content)|prompt[_-]?sentinel|response[_-]?sentinel|(^~([/\\]|$)|^[A-Za-z]:[/\\]|^\/(Users|home|private|var|tmp|etc)(\/|$)|(^|[/\\])(Users|home|private)([/\\]|$)|(^|[/\\])\.?(ssh|aws|config)([/\\]|$)|[/\\][^/\\]*(secret|credential|oauth|token|key|private)[^/\\]*)/i;
+  /(PROMPT|RESPONSE|FAKE_API_KEY|FAKE_OAUTH|FAKE_CREDENTIAL|AUTH_CONFIG|RAW_SESSION|RAW_WORKSPACE|RAW_PATH|TOKENWATCH_PATH|STACK_TRACE|SQL_PAYLOAD)_SENTINEL_DO_NOT_LEAK|api[_-]?key|oauth|credential|secret|password|bearer\s+[A-Za-z0-9._-]+|sk-[A-Za-z0-9_-]{8,}|ghp_[A-Za-z0-9_]{8,}|xox[baprs]-[A-Za-z0-9-]{8,}|raw[_-]?(record|json|content)|prompt[_-]?sentinel|response[_-]?sentinel|select\s+.+\s+from\s+|insert\s+into\s+|\bat\s+[\w.]+\s+\([^)]*:\d+:\d+\)|(^~([/\\]|$)|^[A-Za-z]:[/\\]|^\/(Users|home|private|var|tmp|etc)(\/|$)|(^|[/\\])(Users|home|private)([/\\]|$)|(^|[/\\])\.?(ssh|aws|config)([/\\]|$)|[/\\][^/\\]*(secret|credential|oauth|token|key|private)[^/\\]*)/i;
 
 const safeLabelSchema = z
   .string()
@@ -96,6 +100,23 @@ const dashboardBreakdownSchema = z
     estimatedCostUsd: nullableCostSchema,
     topModel: safeLabelSchema.nullable(),
     topAgent: safeLabelSchema.nullable()
+  })
+  .strict();
+
+const publicProjectKeySchema = safeLabelSchema.superRefine((value, ctx) => {
+  if (/^[A-Fa-f0-9]{32,128}$/.test(value)) {
+    ctx.addIssue({ code: 'custom', message: 'desktop_dashboard_payload_rejected' });
+  }
+});
+
+const dashboardProjectGroupSchema = z
+  .object({
+    projectKey: publicProjectKeySchema,
+    events: positiveIntegerSchema,
+    inputTokens: positiveIntegerSchema,
+    outputTokens: positiveIntegerSchema,
+    totalTokens: positiveIntegerSchema,
+    estimatedCostUsd: nullableCostSchema
   })
   .strict();
 
@@ -187,10 +208,12 @@ export const desktopDashboardSchema = z
     byAgent: z.array(dashboardBreakdownSchema),
     bySource: z.array(dashboardBreakdownSchema),
     bySourceName: z.array(dashboardBreakdownSchema),
+    projectGroups: z.array(dashboardProjectGroupSchema),
     unknownPricingCount: positiveIntegerSchema,
     budgetDiagnostics: z.array(dashboardBudgetDiagnosticSchema),
     pricingDiagnostics: z.array(dashboardPricingDiagnosticSchema),
     recentScanRuns: z.array(dashboardScanRunSchema),
+    diagnosticsHub: diagnosticsHubSchema,
     filters: dashboardFilterStateSchema,
     sessionMetrics: dashboardSessionMetricsSchema,
     sessionIntervals: z.array(dashboardSessionIntervalSchema),
@@ -243,7 +266,9 @@ export const desktopIpcErrorSchema = z
 
 export type DesktopDashboard = z.infer<typeof desktopDashboardSchema>;
 export type DesktopDashboardBreakdown = z.infer<typeof dashboardBreakdownSchema>;
+export type DesktopDashboardProjectGroup = z.infer<typeof dashboardProjectGroupSchema>;
 export type DesktopDashboardScanRun = z.infer<typeof dashboardScanRunSchema>;
+export type { DesktopDashboardDiagnosticsHub };
 export type { DesktopDashboardBudgetDiagnostic, DesktopDashboardPricingDiagnostic };
 export type DesktopDashboardFilterInput = z.input<typeof desktopDashboardFiltersSchema>;
 export type DesktopDashboardFilters = z.output<typeof desktopDashboardFiltersSchema>;
