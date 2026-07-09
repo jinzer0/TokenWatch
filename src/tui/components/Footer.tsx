@@ -7,12 +7,14 @@ export function Footer({
   settings,
   refreshStatus,
   cacheStatus,
-  message
+  message,
+  statuslineText
 }: {
   settings: TuiSettings;
   refreshStatus: string;
   cacheStatus: string;
   message?: string;
+  statuslineText?: string;
 }) {
   const theme = tuiThemeTokens(settings.theme);
   const reportCommands =
@@ -23,6 +25,7 @@ export function Footer({
       ↑↓ move ←→ view Enter details Space select r refresh e export ? help q quit Esc close s sort S
       reverse
       {` ${theme.statusDivider} ${reportCommands} ${theme.statusDivider} Shell: ${theme.shellLabel} ${theme.statusDivider} Cache: ${cacheStatus} ${theme.statusDivider} Refresh: ${refreshStatus}`}
+      {statuslineText ? ` ${theme.statusDivider} ${statuslineText}` : ''}
     </Text>
   );
 }

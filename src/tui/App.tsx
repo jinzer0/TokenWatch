@@ -8,6 +8,7 @@ import type {
   TuiData
 } from '../services/aggregator.js';
 import type { BudgetEvaluation } from '../services/budgetService.js';
+import { renderStatuslineText } from '../services/statusline.js';
 import type { TuiSettings } from '../services/configService.js';
 import { formatUsd } from '../utils/format.js';
 import { DataTable, type TableRow } from './components/DataTable.js';
@@ -29,6 +30,7 @@ const DEFAULT_TUI_SETTINGS: TuiSettings = {
 
 export function App({
   loadData,
+  loadStatusline,
   onExportView,
   initialViewKey,
   initialDetails,
@@ -41,6 +43,9 @@ export function App({
     initialDataRef.current = loadInitialTuiData(loadData, cache);
   }
   const [data, setData] = useState<TuiData>(initialDataRef.current.data);
+  const [statuslineText, setStatuslineText] = useState(() =>
+    loadStatusline ? renderStatuslineText(loadStatusline()) : undefined
+  );
   const refreshStatus = tuiRefreshLabel(settings);
   const [cacheStatus, setCacheStatus] = useState(initialDataRef.current.cacheStatus);
   const refreshedCachedDataRef = useRef(false);
@@ -57,12 +62,14 @@ export function App({
   const [sortStateByView, setSortStateByView] = useState<Partial<Record<ViewKey, SortState>>>({});
   const refreshData = useCallback(() => {
     const nextData = loadData();
+    const nextStatuslineText = loadStatusline ? renderStatuslineText(loadStatusline()) : undefined;
     setData({ ...nextData });
+    setStatuslineText(nextStatuslineText);
     cache?.write(nextData);
     setCacheStatus('refreshed');
     setMessage('Refresh: just now');
     return nextData;
-  }, [cache, loadData]);
+  }, [cache, loadData, loadStatusline]);
 
   useEffect(() => {
     if (!initialDataRef.current?.usedCache || refreshedCachedDataRef.current) return;
@@ -204,6 +211,7 @@ export function App({
         refreshStatus={refreshStatus}
         cacheStatus={cacheStatus}
         message={message}
+        statuslineText={statuslineText}
       />
     </Layout>
   );

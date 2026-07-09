@@ -1,4 +1,5 @@
 import type { TuiData } from '../services/aggregator.js';
+import type { StatuslineDto } from '../services/statusline.js';
 import type { TuiDataCacheAdapter } from './cache.js';
 import type { TuiSettings } from '../services/configService.js';
 
@@ -34,6 +35,7 @@ export type TuiRow = Record<string, string | number | null>;
 
 export type TuiProps = {
   loadData: () => TuiData;
+  loadStatusline?: () => StatuslineDto;
   onExportView: (viewKey: string, rows: TuiRow[]) => string;
   initialViewKey?: ViewKey;
   initialDetails?: boolean;
