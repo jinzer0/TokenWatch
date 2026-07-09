@@ -9,15 +9,13 @@ const require = createRequire(import.meta.url);
 const { app, BrowserWindow } = require('electron') as typeof import('electron');
 
 let mainWindow: BrowserWindowType | null = null;
+let unregisterDesktopIpcHandlers: (() => void) | null = null;
 const DESKTOP_RENDERER_LOADED_MARKER = 'tokenwatch_desktop_renderer_loaded';
 const shouldWriteDesktopSmokeMarker = (): boolean =>
   process.env['TOKENWATCH_DESKTOP_SMOKE_LOG'] === '1';
 const resolveDesktopSmokeMarkerPath = (): string =>
   process.env['TOKENWATCH_DESKTOP_SMOKE_MARKER_PATH'] ?? '/tmp/tokenwatch-desktop-smoke-marker.log';
 const desktopDbLifecycle = createDesktopDbLifecycle();
-const unregisterDesktopIpcHandlers = registerDesktopIpcHandlers({
-  dbLifecycle: desktopDbLifecycle
-});
 
 const writeDesktopSmokeMarker = (): void => {
   writeSync(1, `${DESKTOP_RENDERER_LOADED_MARKER}\n`);
@@ -40,6 +38,17 @@ const createMainWindow = (): void => {
       preload: join(__dirname, '../preload/preload.cjs')
     }
   });
+
+  unregisterDesktopIpcHandlers?.();
+  unregisterDesktopIpcHandlers = registerDesktopIpcHandlers({
+    dbLifecycle: desktopDbLifecycle,
+    getAllowedWebContents: () => mainWindow?.webContents ?? null
+  });
+
+  mainWindow.webContents.on('will-navigate', (event) => {
+    event.preventDefault();
+  });
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
   let smokeMarkerWritten = false;
   const writeSmokeMarker = (): void => {
@@ -94,6 +103,6 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
-  unregisterDesktopIpcHandlers();
+  unregisterDesktopIpcHandlers?.();
   desktopDbLifecycle.close();
 });

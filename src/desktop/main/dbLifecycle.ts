@@ -3,6 +3,10 @@ import { resolveDbPath } from '../../app/paths.js';
 import { openReadonlyDatabase, type TokenWatchDb } from '../../db/client.js';
 import { createServices } from '../../services/container.js';
 import type { DesktopDashboard, DesktopDashboardFilters } from '../shared/contracts.js';
+import type {
+  DesktopShareReportRequest,
+  DesktopShareReportResult
+} from '../shared/shareContracts.js';
 
 export type DesktopDatabaseStatus = 'ready' | 'setup-needed' | 'database-unavailable';
 
@@ -65,6 +69,32 @@ export class DesktopDbLifecycle {
     };
   }
 
+  async writeShareReport(
+    request: DesktopShareReportRequest,
+    outputPath: string
+  ): Promise<DesktopShareReportResult> {
+    const dbPath = this.resolvePath(this.env);
+    const databaseState = this.ensureDatabase(dbPath);
+    if (databaseState.status !== 'ready') {
+      throw new DesktopDatabaseUnavailableError();
+    }
+
+    const services = this.buildServices(databaseState.db);
+    const events = filterShareEvents(services.usageEvents.listAll(), request.filters);
+    const result = await services.shareReport.write({
+      events,
+      format: request.format,
+      outputPath,
+      report: toShareReportBuildOptions(request)
+    });
+    return {
+      format: result.format,
+      fileName: result.basename,
+      bytesWritten: result.bytesWritten,
+      status: result.status
+    };
+  }
+
   close(): void {
     this.db?.close();
     this.db = null;
@@ -87,6 +117,48 @@ export class DesktopDbLifecycle {
       return { status: 'database-unavailable', db: null };
     }
   }
+}
+
+export class DesktopDatabaseUnavailableError extends Error {
+  readonly name = 'DesktopDatabaseUnavailableError';
+
+  constructor() {
+    super('desktop_database_unavailable');
+  }
+}
+
+function filterShareEvents(
+  events: ReturnType<ReturnType<typeof createServices>['usageEvents']['listAll']>,
+  filters: DesktopShareReportRequest['filters']
+) {
+  if (!filters) return events;
+  return events.filter((event) => {
+    const time = Date.parse(event.timestamp);
+    const fromTime = filters.fromTimestamp ? Date.parse(filters.fromTimestamp) : null;
+    const toTime = filters.toTimestamp ? Date.parse(filters.toTimestamp) : null;
+    return (fromTime === null || time >= fromTime) && (toTime === null || time <= toTime);
+  });
+}
+
+function toShareReportBuildOptions(request: DesktopShareReportRequest) {
+  switch (request.report.kind) {
+    case 'graph':
+      return {
+        kind: 'graph' as const,
+        bucket: request.report.bucket,
+        metric: request.report.metric,
+        from: request.filters?.fromTimestamp ?? undefined,
+        to: request.filters?.toTimestamp ?? undefined
+      };
+    case 'wrapped':
+      return { kind: 'wrapped' as const, year: request.report.year };
+    default:
+      return assertNever(request.report);
+  }
+}
+
+function assertNever(_value: never): never {
+  throw new DesktopDatabaseUnavailableError();
 }
 
 export const createDesktopDbLifecycle = (
