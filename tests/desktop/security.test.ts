@@ -74,6 +74,30 @@ describe('desktop shell security defaults', () => {
     );
     expect(sharedApiTypes).toContain('getStatus: () => Promise<DesktopAppStatus>');
     expect(sharedApiTypes).toContain('getVersion: () => Promise<string>');
+    expect(sharedApiTypes).toContain(
+      'exportReport: (request: DesktopShareReportRequestInput) => Promise<DesktopShareReportResult>'
+    );
+    expect(sharedApiTypes).not.toMatch(/outputPath|filePath|rawPath/);
+  });
+
+  it('prevents unexpected main-window navigation and child windows', () => {
+    const mainSource = readProjectFile('src/desktop/main.ts');
+
+    expect(mainSource).toContain("mainWindow.webContents.on('will-navigate'");
+    expect(mainSource).toContain('event.preventDefault()');
+    expect(mainSource).toContain('mainWindow.webContents.setWindowOpenHandler');
+    expect(mainSource).toContain("action: 'deny'");
+  });
+
+  it('enforces authorized IPC sender frame and renderer URL checks', () => {
+    const ipcSource = readProjectFile('src/desktop/main/ipc.ts');
+
+    expect(ipcSource).toContain('event.senderFrame');
+    expect(ipcSource).toContain('getAllowedWebContents');
+    expect(ipcSource).toContain('isAllowedDesktopRendererUrl');
+    expect(ipcSource).not.toMatch(
+      /senderFrame\.url.*throw new Error|throw new Error.*senderFrame\.url/s
+    );
   });
 
   it('keeps renderer code out of Node, Electron, database, and service modules', () => {

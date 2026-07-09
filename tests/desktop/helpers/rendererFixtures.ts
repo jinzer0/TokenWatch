@@ -5,7 +5,11 @@ import type {
   DesktopAppStatus,
   DesktopDashboardSnapshot
 } from '../../../src/desktop/shared/contracts.js';
-import { budgetDiagnosticFixture, pricingDiagnosticFixture } from './diagnosticFixtures.js';
+import {
+  budgetDiagnosticFixture,
+  diagnosticsHubFixture,
+  pricingDiagnosticFixture
+} from './diagnosticFixtures.js';
 
 export type Deferred<T> = {
   readonly promise: Promise<T>;
@@ -26,6 +30,7 @@ export type TokenwatchApiOverrides = {
   readonly refresh?: TokenWatchDesktopApi['dashboard']['refresh'];
   readonly getStatus?: TokenWatchDesktopApi['app']['getStatus'];
   readonly getVersion?: TokenWatchDesktopApi['app']['getVersion'];
+  readonly exportReport?: TokenWatchDesktopApi['share']['exportReport'];
 };
 
 export const createDeferred = <T>(): Deferred<T> => {
@@ -191,6 +196,7 @@ export const dashboardFixture = (overrides: DashboardOverrides = {}): Dashboard 
     budgetDiagnostics: [budgetDiagnosticFixture()],
     pricingDiagnostics: [pricingDiagnosticFixture()],
     recentScanRuns: [],
+    diagnosticsHub: diagnosticsHubFixture(),
     filters: { from: null, to: null },
     sessionMetrics: {
       sessionCount: 2,
@@ -232,6 +238,12 @@ export const populatedSnapshot = (
 });
 
 export const installTokenwatchApi = ({
+  exportReport = vi.fn(async () => ({
+    format: 'json',
+    fileName: 'tokenwatch-share.json',
+    bytesWritten: 0,
+    status: 'cancelled'
+  })),
   getSnapshot = vi.fn(async () => setupSnapshot()),
   refresh = vi.fn(async () => setupSnapshot()),
   getStatus = vi.fn(async () => appStatus('setup-needed')),
@@ -239,11 +251,12 @@ export const installTokenwatchApi = ({
 }: TokenwatchApiOverrides = {}): TokenwatchApiOverrides => {
   const tokenwatchApi: TokenWatchDesktopApi = Object.freeze({
     dashboard: Object.freeze({ getSnapshot, refresh }),
-    app: Object.freeze({ getStatus, getVersion })
+    app: Object.freeze({ getStatus, getVersion }),
+    share: Object.freeze({ exportReport })
   });
   Object.defineProperty(window, 'tokenwatch', {
     configurable: true,
     value: tokenwatchApi
   });
-  return { getSnapshot, refresh, getStatus, getVersion };
+  return { exportReport, getSnapshot, refresh, getStatus, getVersion };
 };
