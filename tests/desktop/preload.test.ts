@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { desktopIpcChannels } from '../../src/desktop/shared/contracts.js';
+import { desktopShareIpcChannels } from '../../src/desktop/shared/shareContracts.js';
 import type { TokenWatchDesktopApi } from '../../src/desktop/shared/api.js';
 import { containsPrivacySentinel } from '../helpers.js';
 
@@ -31,9 +32,10 @@ describe('desktop preload API', () => {
   it('exposes only typed allowlisted methods and no generic IPC helpers', async () => {
     const api = await loadPreloadApi();
 
-    expect(Object.keys(api)).toEqual(['dashboard', 'app']);
+    expect(Object.keys(api)).toEqual(['dashboard', 'app', 'share']);
     expect(Object.keys(api.dashboard)).toEqual(['getSnapshot', 'refresh']);
     expect(Object.keys(api.app)).toEqual(['getStatus', 'getVersion']);
+    expect(Object.keys(api.share)).toEqual(['exportReport']);
     expect('send' in api).toBe(false);
     expect('invoke' in api).toBe(false);
     expect('on' in api).toBe(false);
@@ -41,9 +43,10 @@ describe('desktop preload API', () => {
     expect(Object.isFrozen(api)).toBe(true);
     expect(Object.isFrozen(api.dashboard)).toBe(true);
     expect(Object.isFrozen(api.app)).toBe(true);
+    expect(Object.isFrozen(api.share)).toBe(true);
   });
 
-  it('invokes the four allowlisted channels and forwards typed dashboard filters only', async () => {
+  it('invokes the allowlisted channels and forwards typed filters and share options only', async () => {
     const api = await loadPreloadApi();
     electronMock.invoke.mockResolvedValueOnce({
       status: 'setup-needed',
@@ -61,17 +64,36 @@ describe('desktop preload API', () => {
       privacy: { sanitized: true }
     });
     electronMock.invoke.mockResolvedValueOnce('0.1.0');
+    electronMock.invoke.mockResolvedValueOnce({
+      format: 'json',
+      fileName: 'usage-share.json',
+      bytesWritten: 42,
+      status: 'written'
+    });
 
     await api.dashboard.getSnapshot({ from: '2026-05-01', to: '2026-05-01' });
     await api.dashboard.refresh({ from: '2026-05-02' });
     await api.app.getStatus();
     await api.app.getVersion();
+    await api.share.exportReport({
+      format: 'json',
+      filters: { from: '2026-05-01' },
+      report: { kind: 'graph', bucket: 'day', metric: 'tokens' }
+    });
 
     expect(electronMock.invoke.mock.calls).toEqual([
       [desktopIpcChannels.dashboardGetSnapshot, { from: '2026-05-01', to: '2026-05-01' }],
       [desktopIpcChannels.dashboardRefresh, { from: '2026-05-02' }],
       [desktopIpcChannels.appGetStatus],
-      [desktopIpcChannels.appGetVersion]
+      [desktopIpcChannels.appGetVersion],
+      [
+        desktopShareIpcChannels.shareExportReport,
+        {
+          format: 'json',
+          filters: { from: '2026-05-01' },
+          report: { kind: 'graph', bucket: 'day', metric: 'tokens' }
+        }
+      ]
     ]);
   });
 
