@@ -6,57 +6,12 @@ import {
   validateSourceName
 } from '../privacy.js';
 import { sha256, stableJson } from '../utils/hash.js';
+import { safeMetadataSchema, sanitizeMetadata } from './usageMetadata.js';
+
+export { sanitizeMetadata } from './usageMetadata.js';
 
 export const sourceSchema = z.enum(parserNames);
 export type SourceType = z.infer<typeof sourceSchema>;
-
-const forbiddenMetadataKeyPattern =
-  /(prompt|response|content|text|raw|path|auth|token|key|secret|credential)/i;
-
-const allowedMetadataKeys = new Set([
-  'parser',
-  'parserVersion',
-  'schemaVariant',
-  'safeCode',
-  'provenanceHash',
-  'recordOrdinalHash'
-]);
-
-const metadataValueSchema: z.ZodType<unknown> = z.union([
-  z.string().max(256),
-  z.number(),
-  z.boolean(),
-  z.null()
-]);
-
-export const safeMetadataSchema = z
-  .record(z.string(), metadataValueSchema)
-  .default({})
-  .superRefine((metadata, ctx) => {
-    for (const [key, value] of Object.entries(metadata)) {
-      if (!allowedMetadataKeys.has(key)) {
-        ctx.addIssue({
-          code: 'custom',
-          message: `Unsupported metadata key: ${key}`,
-          path: [key]
-        });
-      }
-      if (forbiddenMetadataKeyPattern.test(key)) {
-        ctx.addIssue({
-          code: 'custom',
-          message: `Forbidden metadata key: ${key}`,
-          path: [key]
-        });
-      }
-      if (containsForbiddenMetadataValue(value)) {
-        ctx.addIssue({
-          code: 'custom',
-          message: `Forbidden metadata value for key: ${key}`,
-          path: [key]
-        });
-      }
-    }
-  });
 
 const nonNegativeInteger = z.number().int().nonnegative();
 
@@ -182,39 +137,6 @@ export const usageEventDraftSchema = usageEventSchema
 
 export type UsageEvent = z.infer<typeof usageEventSchema>;
 export type UsageEventDraft = z.input<typeof usageEventDraftSchema>;
-
-export function sanitizeMetadata(
-  metadata: Record<string, unknown> | undefined
-): Record<string, unknown> {
-  const candidate = metadata ?? {};
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(candidate)) {
-    if (!allowedMetadataKeys.has(key)) {
-      continue;
-    }
-    if (forbiddenMetadataKeyPattern.test(key)) {
-      continue;
-    }
-    if (containsForbiddenMetadataValue(value)) {
-      continue;
-    }
-    result[key] = value;
-  }
-  return safeMetadataSchema.parse(result);
-}
-
-function containsForbiddenMetadataValue(value: unknown): boolean {
-  if (typeof value === 'string') {
-    return containsUnsafePrivacyShape(value);
-  }
-  if (Array.isArray(value)) {
-    return true;
-  }
-  if (value && typeof value === 'object') {
-    return true;
-  }
-  return false;
-}
 
 export function computeTotalTokens(input: {
   inputTokens: number;
