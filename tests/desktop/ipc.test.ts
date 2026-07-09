@@ -17,17 +17,23 @@ import { TokenWatchDesktopIpcError } from '../../src/desktop/shared/ipcErrors.js
 import { containsPrivacySentinel, createTempDb, createTestEvent } from '../helpers.js';
 
 type RegisteredHandler = (_event: unknown, ...args: unknown[]) => unknown;
-type RegisteredHandlers = Map<DesktopIpcChannel, RegisteredHandler>;
+type RegisteredHandlers = Map<string, RegisteredHandler>;
+
+const allowedWebContents = { id: 1 };
+const authorizedEvent = {
+  sender: allowedWebContents,
+  senderFrame: { url: 'file:///Applications/TokenWatch.app/Contents/Resources/renderer/index.html' }
+};
 
 const createIpcTarget = () => {
   const handlers: RegisteredHandlers = new Map();
   return {
     handlers,
     target: {
-      handle: (channel: DesktopIpcChannel, listener: RegisteredHandler): void => {
+      handle: (channel: string, listener: RegisteredHandler): void => {
         handlers.set(channel, listener);
       },
-      removeHandler: (channel: DesktopIpcChannel): void => {
+      removeHandler: (channel: string): void => {
         handlers.delete(channel);
       }
     }
@@ -36,12 +42,12 @@ const createIpcTarget = () => {
 
 const invoke = async (
   handlers: RegisteredHandlers,
-  channel: DesktopIpcChannel,
+  channel: DesktopIpcChannel | DesktopShareIpcChannel,
   ...args: unknown[]
 ) => {
   const handler = handlers.get(channel);
   expect(handler).toBeDefined();
-  return await Promise.resolve(handler?.({}, ...args));
+  return await Promise.resolve(handler?.(authorizedEvent, ...args));
 };
 
 let cleanup: (() => void) | undefined;
@@ -68,7 +74,8 @@ describe('desktop IPC handlers', () => {
         desktopIpcChannels.appGetStatus,
         desktopIpcChannels.appGetVersion,
         desktopIpcChannels.dashboardGetSnapshot,
-        desktopIpcChannels.dashboardRefresh
+        desktopIpcChannels.dashboardRefresh,
+        'share:exportReport'
       ].sort()
     );
 
