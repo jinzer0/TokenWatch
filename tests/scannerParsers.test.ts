@@ -9,6 +9,7 @@ import { sourceSchema } from '../src/models/usageEvent.js';
 import { parserNames, type ParserName } from '../src/parsers/base.js';
 import { isParserName, listParserMetadata, listParsers } from '../src/parsers/registry.js';
 import { createServices } from '../src/services/container.js';
+import { sha256 } from '../src/utils/hash.js';
 import { containsPrivacySentinel, createTempDb } from './helpers.js';
 
 let cleanup: (() => void) | undefined;
@@ -279,8 +280,9 @@ describe('scanner and parser fixtures', () => {
       if ('durationMs' in testCase) expect(firstEvent?.durationMs).toBe(testCase.durationMs);
       if ('messageCount' in testCase) expect(firstEvent?.messageCount).toBe(testCase.messageCount);
       if (testCase.workspace) {
-        expect(firstEvent?.workspaceHash).toMatch(/^[a-f0-9]{64}$/);
-        expect(firstEvent?.workspaceLabel).toBe(testCase.source);
+        expect(firstEvent?.workspaceHash).toBeNull();
+        expect(firstEvent?.workspaceLabel).toBeNull();
+        expect(firstEvent?.metadata.projectLabelSource).toBeUndefined();
       }
       expect(containsPrivacySentinel(result)).toBe(false);
       expect(containsPrivacySentinel(events)).toBe(false);
@@ -436,8 +438,9 @@ describe('scanner and parser fixtures', () => {
       expect(firstEvent?.metadata.provenanceHash).toMatch(/^[a-f0-9]{64}$/);
       expect(firstEvent?.metadata.recordOrdinalHash).toMatch(/^[a-f0-9]{64}$/);
       if (testCase.workspace) {
-        expect(firstEvent?.workspaceHash).toMatch(/^[a-f0-9]{64}$/);
-        expect(firstEvent?.workspaceLabel).toBe(testCase.source);
+        expect(firstEvent?.workspaceHash).toBeNull();
+        expect(firstEvent?.workspaceLabel).toBeNull();
+        expect(firstEvent?.metadata.projectLabelSource).toBeUndefined();
       }
       expect(containsPrivacySentinel(result)).toBe(false);
       expect(containsPrivacySentinel(events)).toBe(false);
@@ -1112,6 +1115,73 @@ describe('scanner and parser fixtures', () => {
     expect(containsPrivacySentinel(events)).toBe(false);
     expect(containsPrivacySentinel(services.exporter.createExport(events))).toBe(false);
     expect(containsPrivacySentinel(services.doctor.report())).toBe(false);
+  });
+
+  it('applies explicit scan project labels without trusting parser-derived workspace fields', async () => {
+    const temp = createTempDb();
+    cleanup = temp.cleanup;
+    db = openDatabase(temp.dbPath);
+    const services = createServices(db);
+    const fixture = join(process.cwd(), 'tests', 'fixtures', 'mux');
+
+    const result = await services.scanner.scan({
+      source: 'mux',
+      path: fixture,
+      sourceName: 'mux-lab',
+      projectLabel: ' client-a '
+    });
+    const events = services.usageEvents.listAll();
+
+    expect(result.insertedEvents).toBe(2);
+    expect(events).toHaveLength(2);
+    expect(events.map((event) => event.workspaceLabel)).toEqual(['client-a', 'client-a']);
+    expect(events.map((event) => event.workspaceHash)).toEqual([
+      sha256('client-a'),
+      sha256('client-a')
+    ]);
+    expect(events.map((event) => event.metadata.projectLabelSource)).toEqual([
+      'scan-option',
+      'scan-option'
+    ]);
+    expect(containsPrivacySentinel(events)).toBe(false);
+  });
+
+  it('uses config project labels for scan attribution and lets scan options override them', async () => {
+    const temp = createTempDb();
+    cleanup = temp.cleanup;
+    db = openDatabase(temp.dbPath);
+    const services = createServices(db);
+    const fixture = join(process.cwd(), 'tests', 'fixtures', 'codex', 'sessions.jsonl');
+
+    services.config.setProjectLabel('config-client');
+    await services.scanner.scan({ source: 'codex', path: fixture, sourceName: 'first-source' });
+    await services.scanner.scan({
+      source: 'codex',
+      path: fixture,
+      sourceName: 'second-source',
+      projectLabel: 'scan-client'
+    });
+    const events = services.usageEvents.listAll();
+
+    expect(events.filter((event) => event.sourceName === 'first-source')).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          workspaceLabel: 'config-client',
+          workspaceHash: sha256('config-client'),
+          metadata: expect.objectContaining({ projectLabelSource: 'config' })
+        })
+      ])
+    );
+    expect(events.filter((event) => event.sourceName === 'second-source')).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          workspaceLabel: 'scan-client',
+          workspaceHash: sha256('scan-client'),
+          metadata: expect.objectContaining({ projectLabelSource: 'scan-option' })
+        })
+      ])
+    );
+    expect(containsPrivacySentinel(events)).toBe(false);
   });
 
   it('refuses direct auth/config-like custom paths before reading them', async () => {
