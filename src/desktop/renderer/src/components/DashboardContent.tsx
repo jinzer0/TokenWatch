@@ -21,10 +21,12 @@ import { BreakdownDrilldown } from './BreakdownDrilldown.js';
 import { BreakdownTable } from './BreakdownTable.js';
 import { BudgetPricingDiagnosticsPanel } from './BudgetPricingDiagnosticsPanel.js';
 import { DateFilterPanel } from './DateFilterPanel.js';
+import { DiagnosticsHub } from './DiagnosticsHub.js';
 import { DistributionChart } from './DistributionChart.js';
 import { LineChart } from './LineChart.js';
 import { RecentScanRunsPanel } from './RecentScanRunsPanel.js';
 import { SessionMetricsPanel } from './SessionMetricsPanel.js';
+import { ShareReportPanel } from './ShareReportPanel.js';
 import { SummaryCards } from './SummaryCards.js';
 
 export const DashboardContent = ({
@@ -96,6 +98,8 @@ export const DashboardContent = ({
         filters={dashboard.filters}
         onApply={(filters) => void onApplyFilters(filters)}
       />
+      <ShareReportPanel disabled={refreshing} filters={dashboard.filters} />
+      <DiagnosticsHub dashboard={dashboard} />
       {isFilteredEmpty ? (
         <article
           className="analytics-card filtered-empty-card"

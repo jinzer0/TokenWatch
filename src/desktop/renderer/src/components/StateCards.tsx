@@ -22,8 +22,9 @@ export const SetupState = ({
     <div>
       <h2>{databaseStatus === 'database-unavailable' ? 'Database unavailable' : 'Setup needed'}</h2>
       <p>
-        No TokenWatch database data is available yet. Run a scan or seed data from the CLI, then
-        refresh this private analytics shell.
+        No TokenWatch database data is available yet. Run{' '}
+        <code>tokenwatch scan --source &lt;source&gt; --path &lt;path&gt;</code> or{' '}
+        <code>tokenwatch doctor --sources</code>, then refresh this private analytics shell.
       </p>
     </div>
   </section>
