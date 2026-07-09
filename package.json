@@ -10,7 +10,8 @@
   "files": [
     "dist",
     "README.md",
-    "docs/design.md"
+    "docs/design.md",
+    "docs/desktop-diagnostics-export-attribution-statusline.md"
   ],
   "scripts": {
     "build": "tsc && chmod +x dist/cli.js",

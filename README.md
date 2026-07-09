@@ -14,6 +14,7 @@ TokenWatch는 프롬프트, 응답, API 키, OAuth 토큰, 자격 증명, 원본
 - `sessionIdHash` 기반 session interval, active/wall duration, longest continuous activity, max concurrency, no-session event count
 - SQLite 기반 로컬 저장소와 JSON 가져오기/내보내기
 - Ink 기반 로컬 TUI: Usage, Minutely, Stats, Agents view, theme/refresh 설정, 정렬, current-view export
+- 명시적 project label, `statusline`, 데스크톱 diagnostics hub, 로컬 safe share/export workflow
 - custom/LiteLLM/OpenRouter 가격 메타데이터, 항상 켜진 가격 lookup, 지속 캐시, fallback warning
 - native SQLite, DB, 마이그레이션 상태를 점검하는 privacy-safe `doctor`
 
@@ -55,6 +56,8 @@ tokenwatch tui --theme green --refresh 60000
 tokenwatch tui --theme mono --refresh off
 ```
 
+Project label, statusline, 데스크톱 diagnostics hub, 로컬 safe share/export 사용법은 [desktop diagnostics and statusline guide](docs/desktop-diagnostics-export-attribution-statusline.md)를 보세요.
+
 ## 데스크톱 프리뷰
 
 CLI와 Ink TUI는 계속 지원됩니다. Electron 데스크톱 첫 릴리스는 읽기 전용 analytics 화면이며, scan과 import workflow는 당분간 CLI와 TUI에서 실행합니다. 데스크톱에서 scan/import 관리, signing, notarization, auto-update는 아직 포함하지 않습니다.
@@ -89,6 +92,7 @@ TOKENWATCH_DB_PATH=/tmp/tokenwatch.db tokenwatch seed
 
 ```bash
 tokenwatch scan --source codex --path tests/fixtures/codex/sessions.jsonl
+tokenwatch scan --source codex --path <usage-file> --project-label client-a
 tokenwatch scan --source opencode --path tests/fixtures/opencode/events.json
 tokenwatch scan --source claude --path usage.jsonl
 tokenwatch scan --source gemini --path gemini-chat.json
@@ -96,6 +100,7 @@ tokenwatch scan --source amp --path amp-thread.json
 tokenwatch scan --source cursor --path cursor-artifacts
 tokenwatch summary
 tokenwatch summary --group-by sourceName
+tokenwatch summary --group-by project --json
 tokenwatch summary --group-by month
 tokenwatch summary --group-by session
 tokenwatch summary --group-by sessionInterval --json
@@ -123,6 +128,9 @@ tokenwatch pricing refresh --source litellm
 tokenwatch doctor
 tokenwatch config get
 tokenwatch config set source_name gpu-a100-01
+tokenwatch config set project_label client-a
+tokenwatch statusline --window today --json
+tokenwatch statusline --window month
 tokenwatch reset --yes
 ```
 
@@ -166,6 +174,21 @@ Real parser도 프롬프트, 응답, credentials, 원본 경로, 원본 session 
 ```bash
 tokenwatch config set source_name gpu-a100-01
 tokenwatch scan --source codex --source-name lab-server --path usage.jsonl
+```
+
+`project_label`은 사용자나 명령이 직접 지정한 안전한 project label만 공개 그룹 이름으로 씁니다. Parser가 추론한 workspace field, legacy workspace field, hash-only row는 공개 project 이름이 아니며 `unknown`으로 묶입니다. 기존 import 파일을 다시 라벨링하는 workflow는 이 릴리스 범위에 없습니다.
+
+```bash
+tokenwatch config set project_label client-a
+tokenwatch scan --source codex --path <usage-file> --project-label client-a
+tokenwatch summary --group-by project --json
+```
+
+`statusline`은 셸 prompt나 editor statusline에서 쓰기 좋은 짧은 사용량 요약입니다. `today`와 `month` window는 로컬 날짜와 로컬 월을 기준으로 계산합니다.
+
+```bash
+tokenwatch statusline --window today --json
+tokenwatch statusline --window month
 ```
 
 ## 개인정보 보호

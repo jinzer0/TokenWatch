@@ -318,6 +318,47 @@ column, and the drilldown loses sticky positioning.
 - Empty/no-threshold state renders `No budget thresholds configured` inside the
   panel while pricing diagnostics may still render filtered usage rows.
 
+### Desktop Diagnostics Hub
+
+- `.diagnostics-hub-card` is a full-width analytics card for the sanitized
+  `dashboard.diagnosticsHub` DTO. It summarizes readiness and actions across
+  database, scan/source health, pricing, budgets, sessions, project labeling,
+  and the privacy boundary without importing services or DB modules.
+- The header follows `.chart-heading` with an eyebrow, title, and UTC filter
+  chip. Active filters must say `UTC filter active` and show date-only UTC
+  bounds; local statusline window semantics must not be reused here.
+- `.diagnostics-hub-grid` uses the existing summary-card minimum and spacing
+  scale. `.diagnostics-hub-tile` reuses the card surface, soft border,
+  `--radius-md`, `--shadow-card`, and `var(--space-5)` padding.
+- Healthy/ready tiles use the cyan border token, warning/action-needed tiles use
+  the amber border token, and failed/error tiles use the error border token.
+- Each tile uses definition-list rows for normalized counts and sanitized labels
+  only. Commands are rendered as safe CLI templates such as
+  `tokenwatch scan --source <source> --path <path>`, `tokenwatch doctor
+--sources`, `tokenwatch pricing set ...`, `tokenwatch budget ...`, and
+  `tokenwatch config set project_label <label>`.
+- Empty/no-data hub states must point to exact CLI actions instead of showing raw
+  local locations, stack traces, SQL, or logs.
+
+### Local Share Report Panel
+
+- `.share-report-card` is a full-width analytics card for local-only JSON,
+  Markdown, and PNG report export. It never suggests upload, collaboration,
+  cloud links, accounts, clipboard, scan, import, or external services.
+- The header follows `.chart-heading` with an eyebrow, title, and `local only`
+  chip. Body copy must name the preload boundary and the safe display fields:
+  format, safe file name, byte count, and status.
+- `.share-format-grid` uses the existing summary-card minimum and spacing scale.
+  `.share-format-card` is a native button with card surface, soft border,
+  shadow, `--radius-md`, `var(--space-5)` padding, cyan action text, muted detail
+  text, and amber hover border/lift matching the refresh affordance.
+- Disabled and exporting states mirror refresh disabled opacity and wait cursor.
+  The active exporting button changes its accessible label to `Exporting {format}`.
+- `.share-status` is a tokenized status pill/card using soft border by default,
+  cyan for preparing/success, amber for cancellation, and error tokens for
+  failure. It may display only the safe format, sanitized basename, byte count,
+  status, and stable sanitized error code/message.
+
 ## 5. States
 
 ### Shell States
@@ -352,6 +393,13 @@ date filter.` in analytics content and keep zero totals/session state visible.
   inside the session interval table.
 - Empty budget thresholds render `No budget thresholds configured` inside the
   budget/pricing diagnostics panel, not setup guidance.
+- Diagnostics hub empty/setup guidance renders exact safe CLI templates for scan,
+  doctor, pricing, budget, and project labeling actions. Unsafe action payloads
+  or labels render as `withheld label`.
+- Share export idle state asks the user to choose a safe local report format;
+  exporting state says `Preparing {format} local report.`; success states show
+  format, safe file name, and byte count; cancellation states say no local report
+  was written; failure states show only sanitized error message and code.
 - Unknown pricing sets summary tone to warning, colors details amber, and shows
   a full-width pricing warning.
 - Missing estimated cost renders as `unknown`, never `$0.00`.
@@ -368,6 +416,9 @@ date filter.` in analytics content and keep zero totals/session state visible.
 - Drilldown default state asks the user to select an aggregate row; selected
   state shows aggregate-only details.
 - All buttons receive the global amber focus-visible outline.
+- Share format buttons disable while dashboard refresh or another share export is
+  in progress; no export action auto-opens files, copies content, uploads data,
+  or reveals local output paths.
 
 ## 6. Accessibility
 
@@ -424,6 +475,12 @@ Error surfaces must stay sanitized. They may show the protected error message
 and code returned by `formatRendererError`; they must not render raw exceptions,
 native stack traces, SQLite payloads, local paths, raw IPC payloads, or parser
 records.
+
+Share export surfaces follow the same privacy boundary. They may show only the
+requested safe format, sanitized basename, byte count, cancellation/success
+status, and stable sanitized error codes/messages. They must never render raw
+output paths, save-dialog paths, IPC rejection details, stack traces, SQL-like
+payloads, or service exceptions.
 
 ## 9. Dependency Policy
 
