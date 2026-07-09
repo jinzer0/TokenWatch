@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ScanRun } from '../src/models/scanRun.js';
 import { AggregatorService } from '../src/services/aggregator.js';
 import type { BudgetEvaluation } from '../src/services/budgetService.js';
+import { StatuslineService, renderStatuslineText } from '../src/services/statusline.js';
 import { App } from '../src/tui/App.js';
 import { createFileTuiDataCache, readTuiDataCache } from '../src/tui/cache.js';
 import { localMinuteBucket, localMonthBucket } from '../src/utils/time.js';
@@ -232,6 +233,59 @@ describe('aggregation and TUI', () => {
     expect(app.lastFrame()).toContain('Shell: amber shell');
     expect(app.lastFrame()).toContain('Refresh: auto 120000ms');
     expect(app.lastFrame()).toContain('Cache: live');
+    expect(containsPrivacySentinel(app.lastFrame())).toBe(false);
+  });
+
+  it('renders statusline footer from the shared service and updates it on refresh', async () => {
+    const aggregator = new AggregatorService();
+    const statusline = new StatuslineService();
+    const firstEvents = [
+      createTestEvent({
+        timestamp: '2026-05-30T00:00:00.000Z',
+        rawIdHash: 'statusline-first-row',
+        totalTokens: 100,
+        estimatedCostUsd: 0.01
+      })
+    ];
+    const nextEvents = [
+      ...firstEvents,
+      {
+        ...createTestEvent({
+          timestamp: '2026-05-30T00:01:00.000Z',
+          rawIdHash: 'statusline-second-row',
+          totalTokens: 250,
+          metadata: { parser: 'test', prompt: 'PROMPT_SENTINEL_DO_NOT_LEAK' }
+        }),
+        estimatedCostUsd: null
+      }
+    ];
+    const now = new Date('2026-05-30T12:00:00.000Z');
+    let refreshCount = 0;
+    const app = render(
+      <App
+        loadData={() => {
+          refreshCount += 1;
+          return aggregator.buildTuiData(refreshCount === 1 ? firstEvents : nextEvents, []);
+        }}
+        loadStatusline={() =>
+          statusline.build(refreshCount <= 1 ? firstEvents : nextEvents, { window: 'today', now })
+        }
+        onExportView={() => 'tokenwatch-current-view.json'}
+      />
+    );
+
+    expect(normalizedFrame(app.lastFrame())).toContain(
+      renderStatuslineText(statusline.build(firstEvents, { window: 'today', now }))
+    );
+
+    app.stdin.write('r');
+
+    await vi.waitFor(() =>
+      expect(normalizedFrame(app.lastFrame())).toContain(
+        renderStatuslineText(statusline.build(nextEvents, { window: 'today', now }))
+      )
+    );
+    expect(app.lastFrame()).toContain('cost unknown');
     expect(containsPrivacySentinel(app.lastFrame())).toBe(false);
   });
 
@@ -1695,4 +1749,8 @@ function expectExportedPrimitiveRows(entry: unknown) {
       expect(value === null || ['string', 'number', 'boolean'].includes(typeof value)).toBe(true);
     }
   }
+}
+
+function normalizedFrame(frame: string | undefined): string {
+  return (frame ?? '').replace(/\s+/g, ' ');
 }
