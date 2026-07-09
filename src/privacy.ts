@@ -14,6 +14,7 @@ export type ScanWarningCode =
 
 export type ScanErrorCode =
   | 'invalid_source_name'
+  | 'invalid_project_label'
   | 'invalid_canonical_field'
   | 'scan_failed'
   | 'parser_failed'
@@ -28,6 +29,7 @@ export type ScanErrorCode =
   | 'invalid_report_option'
   | 'invalid_output_path'
   | 'invalid_wrapped_year'
+  | 'invalid_statusline_window'
   | 'invalid_provider'
   | 'headless_payload_rejected'
   | 'unsupported_config_key'
