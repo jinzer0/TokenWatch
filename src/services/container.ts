@@ -13,6 +13,8 @@ import { ExporterService } from './exporter.js';
 import { HeadlessCodexIngestService } from './headlessCodex.js';
 import { ImporterService } from './importer.js';
 import { ScannerService } from './scanner.js';
+import { ShareReportService } from './shareReport.js';
+import { StatuslineService } from './statusline.js';
 import { PricingResolver } from '../pricing/pricing.js';
 
 export function createServices(db: TokenWatchDb) {
@@ -36,6 +38,8 @@ export function createServices(db: TokenWatchDb) {
     headlessCodex: new HeadlessCodexIngestService(usageEvents),
     importer: new ImporterService(usageEvents, pricingModels),
     budget,
+    shareReport: new ShareReportService(),
+    statusline: new StatuslineService(),
     desktopDashboard: new DesktopDashboardService({
       aggregator,
       budget,
