@@ -19,12 +19,19 @@ import {
   type PricingResolver
 } from '../pricing/pricing.js';
 import { nowIso } from '../utils/time.js';
+import { sha256 } from '../utils/hash.js';
 import { ConfigService } from './configService.js';
+
+type ProjectLabelAttribution = {
+  readonly label: string;
+  readonly source: 'config' | 'scan-option';
+};
 
 export type ScanOptions = {
   source?: SourceType;
   path?: string;
   sourceName?: string;
+  projectLabel?: string;
 };
 
 export type ScanResult = {
@@ -52,6 +59,7 @@ export class ScannerService {
     const sourceName = options.sourceName
       ? this.configService.resolveSourceName(options.sourceName)
       : this.configService.getSourceName() || DEFAULT_SOURCE_NAME;
+    const projectLabelAttribution = this.resolveProjectLabelAttribution(options.projectLabel);
     const parsers = options.source ? [getParser(options.source)] : listParsers();
     const result: ScanResult = {
       discoveredFiles: 0,
@@ -108,7 +116,12 @@ export class ScannerService {
         const events: UsageEvent[] = [];
         for (const draft of drafts) {
           try {
-            events.push(withPricing(draft, this.pricingResolver));
+            events.push(
+              withPricing(
+                applyProjectLabelAttribution(draft, projectLabelAttribution),
+                this.pricingResolver
+              )
+            );
           } catch {
             run.rejectedRecords += 1;
             result.rejectedRecords += 1;
@@ -147,6 +160,41 @@ export class ScannerService {
 
     return result;
   }
+
+  private resolveProjectLabelAttribution(projectLabel?: string): ProjectLabelAttribution | null {
+    if (projectLabel && projectLabel.trim().length > 0) {
+      const label = this.configService.resolveProjectLabel(projectLabel);
+      return label ? { label, source: 'scan-option' } : null;
+    }
+    const configured = this.configService.getProjectLabel();
+    return configured ? { label: configured, source: 'config' } : null;
+  }
+}
+
+function applyProjectLabelAttribution(
+  draft: UsageEventDraft,
+  attribution: ProjectLabelAttribution | null
+): UsageEventDraft {
+  if (attribution === null) {
+    return {
+      ...draft,
+      workspaceHash: null,
+      workspaceLabel: null,
+      metadata: stripProjectLabelSource(draft.metadata)
+    };
+  }
+  return {
+    ...draft,
+    workspaceHash: sha256(attribution.label),
+    workspaceLabel: attribution.label,
+    metadata: { ...(draft.metadata ?? {}), projectLabelSource: attribution.source }
+  };
+}
+
+function stripProjectLabelSource(metadata: UsageEventDraft['metadata']): Record<string, unknown> {
+  const result = { ...(metadata ?? {}) };
+  delete result.projectLabelSource;
+  return result;
 }
 
 function withPricing(draft: UsageEventDraft, pricingResolver: PricingResolver): UsageEvent {

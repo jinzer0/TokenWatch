@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { openDatabase } from '../src/db/client.js';
 import { UsageEventsRepository } from '../src/db/repositories/usageEvents.js';
+import { sha256 } from '../src/utils/hash.js';
 import { containsPrivacySentinel, createTempDb } from './helpers.js';
 
 async function loadHeadlessCodex(): Promise<Record<string, unknown>> {
@@ -83,6 +84,52 @@ describe('headless Codex explicit ingest contract', () => {
       });
       expect(repo.listAll()).toHaveLength(3);
       expect(containsPrivacySentinel(repo.listAll())).toBe(false);
+    } finally {
+      db.close();
+      temp.cleanup();
+    }
+  });
+
+  it('stores explicit headless input project labels as workspace attribution', async () => {
+    const temp = createTempDb();
+    const db = openDatabase(temp.dbPath);
+    try {
+      const repo = new UsageEventsRepository(db);
+      const service = createService(await loadHeadlessCodex(), repo);
+
+      expect(
+        service.ingestJsonValue({ ...codexPayload('codex-project'), projectLabel: ' client-a ' })
+      ).toMatchObject({ inserted: 1, rejected: 0 });
+      const events = repo.listAll();
+
+      expect(events).toEqual([
+        expect.objectContaining({
+          workspaceLabel: 'client-a',
+          workspaceHash: sha256('client-a'),
+          metadata: expect.objectContaining({ projectLabelSource: 'headless-input' })
+        })
+      ]);
+      expect(containsPrivacySentinel(events)).toBe(false);
+    } finally {
+      db.close();
+      temp.cleanup();
+    }
+  });
+
+  it('rejects invalid headless project labels without storing partial rows', async () => {
+    const temp = createTempDb();
+    const db = openDatabase(temp.dbPath);
+    try {
+      const repo = new UsageEventsRepository(db);
+      const service = createService(await loadHeadlessCodex(), repo);
+
+      expect(() =>
+        service.ingestJsonValue({
+          ...codexPayload('codex-project-invalid'),
+          projectLabel: 'RAW_PATH_SENTINEL_DO_NOT_LEAK'
+        })
+      ).toThrow('headless_payload_rejected');
+      expect(repo.listAll()).toEqual([]);
     } finally {
       db.close();
       temp.cleanup();
