@@ -1,6 +1,7 @@
 import { DEFAULT_SOURCE_NAME, DEFAULT_SESSION_IDLE_GAP_MS } from '../app/constants.js';
 import {
   ConfigRepository,
+  validateProjectLabel,
   validateSessionIdleGapMs,
   validateSourceName,
   validateTuiAutoRefreshEnabled,
@@ -29,6 +30,10 @@ export class ConfigService {
 
   getSourceName(): string {
     return this.configRepository.get('source_name') ?? DEFAULT_SOURCE_NAME;
+  }
+
+  getProjectLabel(): string | null {
+    return this.configRepository.get('project_label');
   }
 
   getSessionIdleGapMs(): number {
@@ -82,10 +87,22 @@ export class ConfigService {
     this.configRepository.set('source_name', value);
   }
 
+  setProjectLabel(value: string): void {
+    validateProjectLabel(value);
+    this.configRepository.set('project_label', value);
+  }
+
   resolveSourceName(override?: string): string {
     if (override && override.trim().length > 0) {
       return validateSourceName(override);
     }
     return this.getSourceName();
+  }
+
+  resolveProjectLabel(override?: string): string | null {
+    if (override && override.trim().length > 0) {
+      return validateProjectLabel(override);
+    }
+    return this.getProjectLabel();
   }
 }

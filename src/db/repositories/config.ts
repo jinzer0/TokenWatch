@@ -1,12 +1,14 @@
 import type { TokenWatchDb } from '../client.js';
 import { DEFAULT_SESSION_IDLE_GAP_MS } from '../../app/constants.js';
 import { validateSourceName as validateSourceNameValue } from '../../privacy.js';
+import { requireExplicitProjectLabel } from '../../projectLabel.js';
 
 export const TUI_THEMES = ['blue', 'green', 'amber', 'mono'] as const;
 export type TuiTheme = (typeof TUI_THEMES)[number];
 
 const ALLOWED_KEYS = new Set([
   'source_name',
+  'project_label',
   'schemaVersion',
   'session_idle_gap_ms',
   'tui_theme',
@@ -34,6 +36,18 @@ export class ConfigRepository {
     if (key === 'source_name') {
       try {
         const normalized = validateSourceName(row.value);
+        if (normalized !== row.value) {
+          this.db.prepare('UPDATE app_config SET value = ? WHERE key = ?').run(normalized, key);
+        }
+        return normalized;
+      } catch {
+        this.db.prepare('DELETE FROM app_config WHERE key = ?').run(key);
+        return null;
+      }
+    }
+    if (key === 'project_label') {
+      try {
+        const normalized = validateProjectLabel(row.value);
         if (normalized !== row.value) {
           this.db.prepare('UPDATE app_config SET value = ? WHERE key = ?').run(normalized, key);
         }
@@ -87,6 +101,9 @@ export class ConfigRepository {
     if (key === 'source_name') {
       storedValue = validateSourceName(value);
     }
+    if (key === 'project_label') {
+      storedValue = validateProjectLabel(value);
+    }
     if (key === 'session_idle_gap_ms') {
       storedValue = validateSessionIdleGapMs(value);
     }
@@ -126,6 +143,22 @@ export class ConfigRepository {
         } catch {
           this.db.prepare('DELETE FROM app_config WHERE key = ?').run(row.key);
           result.source_name_status = 'invalid_source_name';
+          continue;
+        }
+      }
+      if (row.key === 'project_label') {
+        try {
+          const normalized = validateProjectLabel(row.value);
+          if (normalized !== row.value) {
+            this.db
+              .prepare('UPDATE app_config SET value = ? WHERE key = ?')
+              .run(normalized, row.key);
+          }
+          result[row.key] = normalized;
+          continue;
+        } catch {
+          this.db.prepare('DELETE FROM app_config WHERE key = ?').run(row.key);
+          result.project_label_status = 'invalid_project_label';
           continue;
         }
       }
@@ -189,6 +222,10 @@ export class ConfigRepository {
 
 export function validateSourceName(value: string): string {
   return validateSourceNameValue(value);
+}
+
+export function validateProjectLabel(value: string): string {
+  return requireExplicitProjectLabel(value);
 }
 
 export function validateSessionIdleGapMs(value: string): string {
