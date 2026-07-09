@@ -8,16 +8,24 @@ import {
   type DesktopDashboard,
   type DesktopDashboardBreakdown,
   type DesktopDashboardFilters,
+  type DesktopDashboardProjectGroup,
   type DesktopDashboardScanRun
 } from '../desktop/shared/contracts.js';
-import { localDayBucket, nowIso } from '../utils/time.js';
+import { nowIso } from '../utils/time.js';
 import { AggregatorService, type SessionSummaryGroup, type SummaryGroup } from './aggregator.js';
 import type { BudgetService } from './budgetService.js';
 import {
   toDashboardBudgetDiagnostics,
   toDashboardPricingDiagnostics
 } from './desktopDiagnostics.js';
+import { buildDesktopDiagnosticsHub } from './desktopDiagnosticsHub.js';
+import { groupEventsByDay, sumNumericEventField } from './desktopDashboardUtils.js';
 import { ReportService } from './reportService.js';
+import {
+  groupEventsByPublicProject,
+  projectAttributionDiagnostics,
+  type PublicProjectGroup
+} from './projectAttribution.js';
 
 export type BuildDesktopDashboardOptions = {
   budgetEvaluationDate?: Date;
@@ -83,6 +91,17 @@ export class DesktopDashboardService {
     const pricingDiagnostics = this.aggregator.pricingDiagnostics(filteredEvents, {
       lookupCache: this.pricingModels?.listLookupCache() ?? []
     });
+    const budgetDiagnostics = toDashboardBudgetDiagnostics(
+      this.budget?.evaluateCurrentMonth(options.budgetEvaluationDate) ?? []
+    );
+    const projectGroups = groupEventsByPublicProject(filteredEvents).map(toDashboardProjectGroup);
+    const projectDiagnostics = projectAttributionDiagnostics(filteredEvents);
+    const dashboardPricingDiagnostics = toDashboardPricingDiagnostics(
+      pricingDiagnostics,
+      filteredEvents
+    );
+    const dashboardScanRuns = recentScanRuns.map(toDashboardScanRun);
+    const sessionMetrics = this.aggregator.sessionTimeMetrics(filteredEvents);
     const report = {
       version: 1,
       kind: 'desktop-dashboard',
@@ -113,9 +132,9 @@ export class DesktopDashboardService {
           key: point.key,
           events: point.events,
           tokens: point.tokens,
-          inputTokens: sum(bucketEvents, 'inputTokens'),
-          outputTokens: sum(bucketEvents, 'outputTokens'),
-          cachedTokens: sum(bucketEvents, 'cachedTokens'),
+          inputTokens: sumNumericEventField(bucketEvents, 'inputTokens'),
+          outputTokens: sumNumericEventField(bucketEvents, 'outputTokens'),
+          cachedTokens: sumNumericEventField(bucketEvents, 'cachedTokens'),
           estimatedCostUsd: point.estimatedCostUsd,
           unknownCostEvents: bucketEvents.filter((event) => event.estimatedCostUsd === null).length
         };
@@ -131,14 +150,23 @@ export class DesktopDashboardService {
       byAgent: this.aggregator.group(filteredEvents, 'agent').map(toDashboardBreakdown),
       bySource: this.aggregator.group(filteredEvents, 'source').map(toDashboardBreakdown),
       bySourceName: this.aggregator.group(filteredEvents, 'sourceName').map(toDashboardBreakdown),
+      projectGroups,
       unknownPricingCount: unknownCostEvents,
-      budgetDiagnostics: toDashboardBudgetDiagnostics(
-        this.budget?.evaluateCurrentMonth(options.budgetEvaluationDate) ?? []
-      ),
-      pricingDiagnostics: toDashboardPricingDiagnostics(pricingDiagnostics, filteredEvents),
-      recentScanRuns: recentScanRuns.map(toDashboardScanRun),
+      budgetDiagnostics,
+      pricingDiagnostics: dashboardPricingDiagnostics,
+      recentScanRuns: dashboardScanRuns,
+      diagnosticsHub: buildDesktopDiagnosticsHub({
+        eventCount: filteredEvents.length,
+        scanRunCount: recentScanRuns.length,
+        recentScanRuns: dashboardScanRuns,
+        budgetDiagnostics,
+        pricingDiagnostics: dashboardPricingDiagnostics,
+        projectGroups,
+        projectDiagnostics,
+        sessionMetrics
+      }),
       filters: { from: filters.from, to: filters.to },
-      sessionMetrics: this.aggregator.sessionTimeMetrics(filteredEvents),
+      sessionMetrics,
       sessionIntervals: this.aggregator.sessions(filteredEvents).map(toDashboardSessionInterval),
       privacy: { sanitized: true }
     };
@@ -168,6 +196,17 @@ function toDashboardBreakdown(group: SummaryGroup): DesktopDashboardBreakdown {
     estimatedCostUsd: group.estimatedCostUsd,
     topModel: group.topModel ?? null,
     topAgent: group.topAgent ?? null
+  };
+}
+
+function toDashboardProjectGroup(group: PublicProjectGroup): DesktopDashboardProjectGroup {
+  return {
+    projectKey: group.projectKey,
+    events: group.events,
+    inputTokens: group.inputTokens,
+    outputTokens: group.outputTokens,
+    totalTokens: group.totalTokens,
+    estimatedCostUsd: group.estimatedCostUsd
   };
 }
 
@@ -212,22 +251,4 @@ function toDashboardSessionInterval(
     activeDurationMs: group.activeDurationMs,
     wallDurationMs: group.wallDurationMs
   };
-}
-
-function groupEventsByDay(events: UsageEvent[]): Map<string, UsageEvent[]> {
-  const groups = new Map<string, UsageEvent[]>();
-  for (const event of events) {
-    const key = localDayBucket(event.timestamp);
-    const group = groups.get(key) ?? [];
-    group.push(event);
-    groups.set(key, group);
-  }
-  return groups;
-}
-
-function sum(events: UsageEvent[], field: keyof UsageEvent): number {
-  return events.reduce((total, event) => {
-    const value = event[field];
-    return typeof value === 'number' ? total + value : total;
-  }, 0);
 }

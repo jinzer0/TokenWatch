@@ -8,10 +8,12 @@ import type { ScanRun } from '../src/models/scanRun.js';
 import { BudgetService } from '../src/services/budgetService.js';
 import {
   desktopDashboardFiltersSchema,
-  desktopDashboardSchema
+  desktopDashboardSchema,
+  desktopDashboardSnapshotSchema
 } from '../src/desktop/shared/contracts.js';
 import { DesktopDashboardService } from '../src/services/desktopDashboard.js';
 import { containsPrivacySentinel, createTempDb, createTestEvent } from './helpers.js';
+import { assertJsonOutputPrivacy } from './privacyOutput.js';
 
 let cleanup: (() => void) | undefined;
 let db: TokenWatchDb | undefined;
@@ -70,6 +72,11 @@ function createRun(overrides: Partial<ScanRun> = {}): ScanRun {
   };
 }
 
+function serviceSafeDashboardFixture() {
+  const { service } = createDashboardService();
+  return service.buildDashboard();
+}
+
 describe('desktop dashboard service contract', () => {
   it('returns a strict sanitized empty dashboard', () => {
     const { service } = createDashboardService();
@@ -100,10 +107,75 @@ describe('desktop dashboard service contract', () => {
       byAgent: [],
       bySource: [],
       bySourceName: [],
+      projectGroups: [],
       unknownPricingCount: 0,
       budgetDiagnostics: [],
       pricingDiagnostics: [],
       recentScanRuns: [],
+      diagnosticsHub: {
+        database: { readiness: 'ready', eventCount: 0, scanRunCount: 0 },
+        latestScan: {
+          status: 'none',
+          startedAt: null,
+          finishedAt: null,
+          sourceName: null,
+          parserName: null,
+          warningCount: 0,
+          errorCode: null
+        },
+        sourceHealth: {
+          status: 'no-runs',
+          sourcesWithRuns: 0,
+          failedRuns: 0,
+          warningRuns: 0,
+          interruptedRuns: 0
+        },
+        pricingSummary: {
+          status: 'no-events',
+          diagnosticCount: 0,
+          unknownCostEventCount: 0,
+          unknownCostTokenCount: 0,
+          unresolvedModelCount: 0
+        },
+        budgetSummary: {
+          status: 'not-configured',
+          diagnosticCount: 0,
+          overBudgetCount: 0,
+          unknownCostBudgetCount: 0
+        },
+        sessionSummary: {
+          status: 'no-sessions',
+          sessionCount: 0,
+          eventsWithoutSession: 0,
+          maxConcurrentSessions: 0,
+          longestContinuousMs: 0
+        },
+        projectSummary: {
+          status: 'no-events',
+          publicProjectCount: 0,
+          labeledEventCount: 0,
+          unknownProjectEventCount: 0,
+          unlabeledWorkspaceHashCount: 0
+        },
+        privacy: {
+          sanitized: true,
+          boundaryCopyKey: 'desktop.diagnostics.privacyBoundary'
+        },
+        recommendedActions: [
+          {
+            code: 'run-scan',
+            priority: 'high',
+            copyKey: 'desktop.diagnostics.action.runScan',
+            command: 'tokenwatch scan --source <source> --path <path>'
+          },
+          {
+            code: 'set-budget-threshold',
+            priority: 'low',
+            copyKey: 'desktop.diagnostics.action.setBudgetThreshold',
+            command: 'tokenwatch budget set --scope monthly_total --threshold <usd>'
+          }
+        ]
+      },
       filters: { from: null, to: null },
       sessionMetrics: {
         sessionCount: 0,
@@ -119,6 +191,7 @@ describe('desktop dashboard service contract', () => {
     });
     expect(desktopDashboardSchema.parse(dashboard)).toEqual(dashboard);
     expect(containsPrivacySentinel(dashboard)).toBe(false);
+    assertJsonOutputPrivacy({ diagnosticsHub: dashboard.diagnosticsHub });
   });
 
   it('aggregates multi-model, multi-agent, multi-sourceName data', () => {
@@ -219,6 +292,195 @@ describe('desktop dashboard service contract', () => {
         unknownCostEvents: 0
       }
     ]);
+  });
+
+  it('publishes only explicit project groups and collapses legacy or hash-only rows into unknown', () => {
+    const { usageEvents, service } = createDashboardService();
+    usageEvents.insertMany([
+      createTestEvent({
+        id: 'explicit-config-alpha',
+        timestamp: '2026-05-01T00:00:00.000Z',
+        workspaceLabel: 'client-alpha',
+        metadata: { parser: 'test', projectLabelSource: 'config' },
+        inputTokens: 40,
+        outputTokens: 20,
+        totalTokens: 60,
+        estimatedCostUsd: 0.6
+      }),
+      createTestEvent({
+        id: 'explicit-scan-alpha',
+        timestamp: '2026-05-01T01:00:00.000Z',
+        workspaceLabel: 'client-alpha',
+        metadata: { parser: 'test', projectLabelSource: 'scan-option' },
+        inputTokens: 20,
+        outputTokens: 10,
+        totalTokens: 30,
+        estimatedCostUsd: 0.3
+      }),
+      createTestEvent({
+        id: 'explicit-headless-beta',
+        timestamp: '2026-05-01T02:00:00.000Z',
+        workspaceLabel: 'batch-beta',
+        metadata: { parser: 'test', projectLabelSource: 'headless-input' },
+        inputTokens: 15,
+        outputTokens: 5,
+        totalTokens: 20,
+        estimatedCostUsd: 0.2
+      }),
+      {
+        ...createTestEvent({
+          id: 'explicit-hash-like-label',
+          timestamp: '2026-05-01T02:30:00.000Z',
+          workspaceLabel: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
+          metadata: { parser: 'test', projectLabelSource: 'scan-option' },
+          inputTokens: 8,
+          outputTokens: 3,
+          totalTokens: 11
+        }),
+        estimatedCostUsd: null
+      },
+      {
+        ...createTestEvent({
+          id: 'legacy-parser-label',
+          timestamp: '2026-05-01T03:00:00.000Z',
+          workspaceHash: 'workspace-hash-legacy',
+          workspaceLabel: 'codex',
+          metadata: { parser: 'test', projectLabelSource: 'parser' },
+          inputTokens: 9,
+          outputTokens: 1,
+          totalTokens: 10
+        }),
+        estimatedCostUsd: null
+      },
+      {
+        ...createTestEvent({
+          id: 'hash-only-row-event',
+          timestamp: '2026-05-01T04:00:00.000Z',
+          workspaceHash: 'workspace-hash-only',
+          inputTokens: 6,
+          outputTokens: 4,
+          totalTokens: 10
+        }),
+        estimatedCostUsd: null
+      },
+      {
+        ...createTestEvent({
+          id: 'unlabeled-row-event',
+          timestamp: '2026-05-01T05:00:00.000Z',
+          inputTokens: 3,
+          outputTokens: 2,
+          totalTokens: 5
+        }),
+        estimatedCostUsd: null
+      }
+    ]);
+
+    const dashboard = service.buildDashboard();
+
+    expect(dashboard.projectGroups).toEqual([
+      {
+        projectKey: 'client-alpha',
+        events: 2,
+        inputTokens: 60,
+        outputTokens: 30,
+        totalTokens: 90,
+        estimatedCostUsd: 0.9
+      },
+      {
+        projectKey: 'unknown',
+        events: 4,
+        inputTokens: 26,
+        outputTokens: 10,
+        totalTokens: 36,
+        estimatedCostUsd: null
+      },
+      {
+        projectKey: 'batch-beta',
+        events: 1,
+        inputTokens: 15,
+        outputTokens: 5,
+        totalTokens: 20,
+        estimatedCostUsd: 0.2
+      }
+    ]);
+    expect(dashboard.diagnosticsHub.projectSummary).toEqual({
+      status: 'needs-labels',
+      publicProjectCount: 2,
+      labeledEventCount: 3,
+      unknownProjectEventCount: 4,
+      unlabeledWorkspaceHashCount: 2
+    });
+    expect(dashboard.diagnosticsHub.recommendedActions).toContainEqual({
+      code: 'label-projects',
+      priority: 'medium',
+      copyKey: 'desktop.diagnostics.action.labelProjects',
+      command: 'tokenwatch config set project_label <label>'
+    });
+    expect(JSON.stringify(dashboard.projectGroups)).not.toMatch(/workspace-hash|codex/);
+    assertJsonOutputPrivacy({ projectGroups: dashboard.projectGroups });
+  });
+
+  it('does not count the unknown project bucket as a public project', () => {
+    const { usageEvents, service } = createDashboardService();
+    usageEvents.insertMany([
+      createTestEvent({
+        id: 'all-unknown-legacy-label',
+        workspaceHash: 'workspace-hash-legacy-only',
+        workspaceLabel: 'codex',
+        metadata: { parser: 'test', projectLabelSource: 'parser' }
+      }),
+      createTestEvent({
+        id: 'all-unknown-hash-only',
+        workspaceHash: 'workspace-hash-only-row'
+      })
+    ]);
+
+    const dashboard = service.buildDashboard();
+
+    expect(dashboard.projectGroups.map((group) => group.projectKey)).toEqual(['unknown']);
+    expect(dashboard.diagnosticsHub.projectSummary).toMatchObject({
+      status: 'needs-labels',
+      publicProjectCount: 0,
+      labeledEventCount: 0,
+      unknownProjectEventCount: 2,
+      unlabeledWorkspaceHashCount: 2
+    });
+    expect(JSON.stringify(dashboard.projectGroups)).not.toMatch(/workspace-hash|codex/);
+    assertJsonOutputPrivacy({ projectGroups: dashboard.projectGroups });
+  });
+
+  it('keeps desktop date filters on UTC boundaries instead of statusline local windows', () => {
+    const { usageEvents, service } = createDashboardService();
+    usageEvents.insertMany([
+      createTestEvent({
+        timestamp: '2026-04-30T23:30:00.000Z',
+        rawIdHash: 'utc-previous-day-row',
+        inputTokens: 100,
+        outputTokens: 100,
+        totalTokens: 200
+      }),
+      createTestEvent({
+        timestamp: '2026-05-01T00:30:00.000Z',
+        rawIdHash: 'utc-filtered-row',
+        inputTokens: 7,
+        outputTokens: 8,
+        totalTokens: 15
+      })
+    ]);
+
+    const filters = desktopDashboardFiltersSchema.parse({ from: '2026-05-01', to: '2026-05-01' });
+    const dashboard = service.buildDashboard({ filters });
+
+    expect(filters).toMatchObject({
+      fromTimestamp: '2026-05-01T00:00:00.000Z',
+      toTimestamp: '2026-05-01T23:59:59.999Z'
+    });
+    expect(dashboard.totals).toMatchObject({ events: 1, tokens: 15 });
+    expect(dashboard.dateRange).toEqual({
+      start: '2026-05-01T00:30:00.000Z',
+      end: '2026-05-01T00:30:00.000Z'
+    });
+    expect(JSON.stringify(dashboard)).not.toContain('utc-previous-day-row');
   });
 
   it('applies inclusive UTC date-only filters and returns session metrics', () => {
@@ -506,9 +768,82 @@ describe('desktop dashboard service contract', () => {
       totalTokens: 150,
       unknownCostEventCount: 0
     });
+    expect(dashboard.diagnosticsHub.pricingSummary).toEqual({
+      status: 'unknown-costs',
+      diagnosticCount: 2,
+      unknownCostEventCount: 1,
+      unknownCostTokenCount: 300,
+      unresolvedModelCount: 1
+    });
+    expect(dashboard.diagnosticsHub.budgetSummary).toEqual({
+      status: 'over',
+      diagnosticCount: 2,
+      overBudgetCount: 1,
+      unknownCostBudgetCount: 1
+    });
+    expect(dashboard.diagnosticsHub.recommendedActions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'add-custom-price',
+          command:
+            'tokenwatch pricing set --provider <provider> --model <model> --input <usd> --output <usd>'
+        }),
+        expect.objectContaining({
+          code: 'review-budget-threshold',
+          command: 'tokenwatch budget list'
+        })
+      ])
+    );
     expect(JSON.stringify(dashboard)).not.toContain('outside-filter-model');
     expect(containsPrivacySentinel(dashboard)).toBe(false);
+    assertJsonOutputPrivacy({ diagnosticsHub: dashboard.diagnosticsHub });
     fetchSpy.mockRestore();
+  });
+
+  it('summarizes failed recent scans without raw error text or paths', () => {
+    const { scanRuns, service } = createDashboardService();
+    scanRuns.create(
+      createRun({
+        id: 'failed-private-run',
+        startedAt: '2026-06-01T00:00:00.000Z',
+        finishedAt: '2026-06-01T00:00:01.000Z',
+        sourceName: 'lab-runner',
+        parserName: 'codex',
+        status: 'failed',
+        errorRecords: 2,
+        warningCodes: ['unsupported_usage_artifact'],
+        errorCode: 'parser_failed'
+      })
+    );
+
+    const dashboard = service.buildDashboard();
+
+    expect(dashboard.diagnosticsHub.latestScan).toEqual({
+      status: 'failed',
+      startedAt: '2026-06-01T00:00:00.000Z',
+      finishedAt: '2026-06-01T00:00:01.000Z',
+      sourceName: 'lab-runner',
+      parserName: 'codex',
+      warningCount: 1,
+      errorCode: 'parser_failed'
+    });
+    expect(dashboard.diagnosticsHub.sourceHealth).toEqual({
+      status: 'failing',
+      sourcesWithRuns: 1,
+      failedRuns: 1,
+      warningRuns: 1,
+      interruptedRuns: 0
+    });
+    expect(dashboard.diagnosticsHub.recommendedActions).toContainEqual({
+      code: 'review-failed-scan',
+      priority: 'high',
+      copyKey: 'desktop.diagnostics.action.reviewFailedScan',
+      command: 'tokenwatch doctor --sources'
+    });
+    expect(JSON.stringify(dashboard.diagnosticsHub)).not.toMatch(
+      /Users|TOKENWATCH_PATH|STACK_TRACE|select\s+.+from/i
+    );
+    assertJsonOutputPrivacy({ diagnosticsHub: dashboard.diagnosticsHub });
   });
 
   it('includes recent scan-run summaries with path-kind only', () => {
@@ -589,6 +924,81 @@ describe('desktop dashboard service contract', () => {
     expect(JSON.stringify(dashboard)).not.toMatch(
       /rawSource|rawIdHash|metadata|workspaceHash|PROMPT_SENTINEL|RESPONSE_SENTINEL|RAW_SESSION_SENTINEL/
     );
+    assertJsonOutputPrivacy({ diagnosticsHub: dashboard.diagnosticsHub });
+  });
+
+  it('fails closed when diagnostics hub labels or actions contain unsafe raw text', () => {
+    const unsafeDashboard = serviceSafeDashboardFixture();
+
+    expect(() =>
+      desktopDashboardSchema.parse({
+        ...unsafeDashboard,
+        projectGroups: [
+          {
+            projectKey: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
+            events: 1,
+            inputTokens: 1,
+            outputTokens: 1,
+            totalTokens: 2,
+            estimatedCostUsd: null
+          }
+        ]
+      })
+    ).toThrow();
+    expect(() =>
+      desktopDashboardSchema.parse({
+        ...unsafeDashboard,
+        diagnosticsHub: {
+          ...unsafeDashboard.diagnosticsHub,
+          recommendedActions: [
+            {
+              code: 'review-failed-scan',
+              priority: 'high',
+              copyKey: 'desktop.diagnostics.action.reviewFailedScan',
+              command: 'tokenwatch doctor --sources --db /Users/private/tokenwatch.db'
+            }
+          ]
+        }
+      })
+    ).toThrow();
+    expect(() =>
+      desktopDashboardSchema.parse({
+        ...unsafeDashboard,
+        diagnosticsHub: {
+          ...unsafeDashboard.diagnosticsHub,
+          latestScan: {
+            ...unsafeDashboard.diagnosticsHub.latestScan,
+            errorCode: 'STACK_TRACE_SENTINEL_DO_NOT_LEAK at parser (/tmp/raw.ts:1:1)'
+          }
+        }
+      })
+    ).toThrow();
+  });
+
+  it('keeps unavailable desktop database snapshots sanitized without raw setup diagnostics', () => {
+    const setupNeeded = desktopDashboardSnapshotSchema.parse({
+      status: 'setup-needed',
+      dashboard: null,
+      privacy: { sanitized: true }
+    });
+    const unavailable = desktopDashboardSnapshotSchema.parse({
+      status: 'database-unavailable',
+      dashboard: null,
+      privacy: { sanitized: true }
+    });
+
+    expect(setupNeeded).toEqual({
+      status: 'setup-needed',
+      dashboard: null,
+      privacy: { sanitized: true }
+    });
+    expect(unavailable).toEqual({
+      status: 'database-unavailable',
+      dashboard: null,
+      privacy: { sanitized: true }
+    });
+    assertJsonOutputPrivacy(setupNeeded);
+    assertJsonOutputPrivacy(unavailable);
   });
 
   it('keeps shared dashboard contracts renderer-safe', () => {
@@ -619,10 +1029,12 @@ describe('desktop dashboard service contract', () => {
           byAgent: [],
           bySource: [],
           bySourceName: [],
+          projectGroups: [],
           unknownPricingCount: 0,
           budgetDiagnostics: [],
           pricingDiagnostics: [],
           recentScanRuns: [],
+          diagnosticsHub: serviceSafeDashboardFixture().diagnosticsHub,
           filters: { from: null, to: null },
           sessionMetrics: {
             sessionCount: 0,
