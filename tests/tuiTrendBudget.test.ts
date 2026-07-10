@@ -44,9 +44,7 @@ describe('TUI trend budget pressure propagation', () => {
       expect.objectContaining({ budgets, window: '7d' })
     );
 
-    const budgetPressureRow = tuiData.insightsRows.find(
-      (row) => row.metric === 'budget_pressure'
-    );
+    const budgetPressureRow = tuiData.insightsRows.find((row) => row.metric === 'budget_pressure');
 
     expect(budgetPressureRow).toEqual(
       expect.objectContaining({
