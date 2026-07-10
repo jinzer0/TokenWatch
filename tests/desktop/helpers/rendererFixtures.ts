@@ -69,6 +69,9 @@ export const breakdown = (
   reasoningTokens: 0,
   totalTokens,
   estimatedCostUsd: totalTokens / 100000,
+  knownEstimatedCostUsd: totalTokens / 100000,
+  unknownCostEvents: 0,
+  unknownCostTokens: 0,
   topModel: 'safe-model',
   topAgent: 'safe-agent'
 });
@@ -109,6 +112,9 @@ export const sessionIntervalFixture = (
   reasoningTokens: 50,
   totalTokens: 1000,
   estimatedCostUsd: 1.23,
+  knownEstimatedCostUsd: 1.23,
+  unknownCostEvents: 0,
+  unknownCostTokens: 0,
   activeDurationMs: 300_000,
   wallDurationMs: 300_000,
   ...overrides
@@ -122,12 +128,14 @@ export const dashboardFixture = (overrides: DashboardOverrides = {}): Dashboard 
     inputTokens: 60000,
     outputTokens: 40000,
     cachedTokens: 23456,
-    estimatedCostUsd: 12.34,
+    estimatedCostUsd: null,
+    knownEstimatedCostUsd: 12.34,
     sources: 3,
     sourceNames: 2,
     models: 2,
     agents: 2,
     unknownCostEvents: 1,
+    unknownCostTokens: 140,
     ...totalsOverride
   };
   const top: Dashboard['top'] = {
@@ -157,7 +165,9 @@ export const dashboardFixture = (overrides: DashboardOverrides = {}): Dashboard 
         outputTokens: 300,
         cachedTokens: 100,
         estimatedCostUsd: 1.11,
-        unknownCostEvents: 0
+        knownEstimatedCostUsd: 1.11,
+        unknownCostEvents: 0,
+        unknownCostTokens: 0
       },
       {
         key: '2026-06-01',
@@ -167,7 +177,9 @@ export const dashboardFixture = (overrides: DashboardOverrides = {}): Dashboard 
         outputTokens: 600,
         cachedTokens: 200,
         estimatedCostUsd: 2.22,
-        unknownCostEvents: 0
+        knownEstimatedCostUsd: 2.22,
+        unknownCostEvents: 0,
+        unknownCostTokens: 0
       },
       {
         key: '2026-06-07',
@@ -176,15 +188,270 @@ export const dashboardFixture = (overrides: DashboardOverrides = {}): Dashboard 
         inputTokens: 2400,
         outputTokens: 1200,
         cachedTokens: 400,
-        estimatedCostUsd: 4.44,
-        unknownCostEvents: 1
+        estimatedCostUsd: null,
+        knownEstimatedCostUsd: 4.44,
+        unknownCostEvents: 1,
+        unknownCostTokens: 140
       }
     ],
     costSeries: [
-      { key: '2026-06', estimatedCostUsd: 1.11, unknownCostEvents: 0 },
-      { key: '2026-06-01', estimatedCostUsd: 2.22, unknownCostEvents: 0 },
-      { key: '2026-06-07', estimatedCostUsd: 4.44, unknownCostEvents: 1 }
+      {
+        key: '2026-06',
+        estimatedCostUsd: 1.11,
+        knownEstimatedCostUsd: 1.11,
+        unknownCostEvents: 0,
+        unknownCostTokens: 0
+      },
+      {
+        key: '2026-06-01',
+        estimatedCostUsd: 2.22,
+        knownEstimatedCostUsd: 2.22,
+        unknownCostEvents: 0,
+        unknownCostTokens: 0
+      },
+      {
+        key: '2026-06-07',
+        estimatedCostUsd: null,
+        knownEstimatedCostUsd: 4.44,
+        unknownCostEvents: 1,
+        unknownCostTokens: 140
+      }
     ],
+    insights: {
+      window: '7d',
+      range: {
+        from: '2026-05-31T12:00:00.000Z',
+        to: '2026-06-07T12:00:00.000Z'
+      },
+      cards: {
+        totals: {
+          events: 42,
+          tokens: 123456,
+          inputTokens: 60000,
+          outputTokens: 40000,
+          cachedTokens: 23456,
+          reasoningTokens: 0,
+          estimatedCostUsd: null,
+          knownEstimatedCostUsd: 12.34,
+          unknownCostEvents: 1,
+          unknownCostTokens: 140
+        },
+        cacheHitRatio: { status: 'ok', value: 0.28 },
+        reasoningToOutputRatio: { status: 'ok', value: 0 },
+        budgetPressure: {
+          status: 'over',
+          ratio: 1.23,
+          knownSpendUsd: 12.34,
+          thresholdUsd: 10,
+          unknownCostEvents: 1,
+          unknownCostTokens: 140
+        }
+      },
+      topRows: {
+        models: [],
+        sources: [],
+        sourceNames: [],
+        projects: []
+      },
+      costDriverCandidates: [
+        {
+          label: 'safe-model-alpha',
+          pricingStatus: 'known',
+          knownTokens: 90000,
+          knownCostUsd: 9.87,
+          effectiveCostPerMillionTokens: 109.67,
+          knownSpendShare: 0.8,
+          expensiveRelativeToMedian: true,
+          spendDriverCandidate: true
+        }
+      ],
+      warnings: ['unknown_pricing_present'],
+      confidence: { level: 'medium', reasons: ['mixed_pricing_confidence'] },
+      privacy: { sanitized: true }
+    },
+    trends: {
+      trendScope: 'all-events-rolling',
+      label: 'all-events rolling trend',
+      windows: [
+        {
+          window: '7d',
+          trendScope: 'all-events-rolling',
+          range: {
+            current: {
+              from: '2026-05-31T12:00:00.000Z',
+              to: '2026-06-07T12:00:00.000Z'
+            },
+            previous: {
+              from: '2026-05-24T12:00:00.000Z',
+              to: '2026-05-31T12:00:00.000Z'
+            }
+          },
+          totals: {
+            current: {
+              events: 42,
+              tokens: 123456,
+              estimatedCostUsd: null,
+              knownEstimatedCostUsd: 12.34,
+              unknownCostEvents: 1,
+              unknownCostTokens: 140
+            },
+            previous: {
+              events: 30,
+              tokens: 90000,
+              estimatedCostUsd: 8.5,
+              knownEstimatedCostUsd: 8.5,
+              unknownCostEvents: 0,
+              unknownCostTokens: 0
+            },
+            deltaPercent: 0.37,
+            direction: 'up'
+          },
+          cards: [
+            {
+              window: '7d',
+              metric: 'tokens',
+              trendScope: 'all-events-rolling',
+              label: 'all-events rolling trend',
+              current: {
+                events: 42,
+                tokens: 123456,
+                estimatedCostUsd: null,
+                knownEstimatedCostUsd: 12.34,
+                unknownCostEvents: 1,
+                unknownCostTokens: 140
+              },
+              previous: {
+                events: 30,
+                tokens: 90000,
+                estimatedCostUsd: 8.5,
+                knownEstimatedCostUsd: 8.5,
+                unknownCostEvents: 0,
+                unknownCostTokens: 0
+              },
+              deltaPercent: 0.37,
+              direction: 'up'
+            },
+            {
+              window: '7d',
+              metric: 'cost',
+              trendScope: 'all-events-rolling',
+              label: 'all-events rolling trend',
+              current: {
+                events: 42,
+                tokens: 123456,
+                estimatedCostUsd: null,
+                knownEstimatedCostUsd: 12.34,
+                unknownCostEvents: 1,
+                unknownCostTokens: 140
+              },
+              previous: {
+                events: 30,
+                tokens: 90000,
+                estimatedCostUsd: 8.5,
+                knownEstimatedCostUsd: 8.5,
+                unknownCostEvents: 0,
+                unknownCostTokens: 0
+              },
+              deltaPercent: null,
+              direction: 'unknown'
+            }
+          ],
+          chartRows: [],
+          warnings: ['unknown_pricing_present'],
+          confidence: { level: 'medium', reasons: ['mixed_pricing_confidence'] },
+          privacy: { sanitized: true }
+        },
+        {
+          window: '30d',
+          trendScope: 'all-events-rolling',
+          range: {
+            current: {
+              from: '2026-05-08T12:00:00.000Z',
+              to: '2026-06-07T12:00:00.000Z'
+            },
+            previous: {
+              from: '2026-04-08T12:00:00.000Z',
+              to: '2026-05-08T12:00:00.000Z'
+            }
+          },
+          totals: {
+            current: {
+              events: 120,
+              tokens: 250000,
+              estimatedCostUsd: 22.5,
+              knownEstimatedCostUsd: 22.5,
+              unknownCostEvents: 0,
+              unknownCostTokens: 0
+            },
+            previous: {
+              events: 140,
+              tokens: 300000,
+              estimatedCostUsd: 25,
+              knownEstimatedCostUsd: 25,
+              unknownCostEvents: 0,
+              unknownCostTokens: 0
+            },
+            deltaPercent: -0.17,
+            direction: 'down'
+          },
+          cards: [
+            {
+              window: '30d',
+              metric: 'tokens',
+              trendScope: 'all-events-rolling',
+              label: 'all-events rolling trend',
+              current: {
+                events: 120,
+                tokens: 250000,
+                estimatedCostUsd: 22.5,
+                knownEstimatedCostUsd: 22.5,
+                unknownCostEvents: 0,
+                unknownCostTokens: 0
+              },
+              previous: {
+                events: 140,
+                tokens: 300000,
+                estimatedCostUsd: 25,
+                knownEstimatedCostUsd: 25,
+                unknownCostEvents: 0,
+                unknownCostTokens: 0
+              },
+              deltaPercent: -0.17,
+              direction: 'down'
+            },
+            {
+              window: '30d',
+              metric: 'cost',
+              trendScope: 'all-events-rolling',
+              label: 'all-events rolling trend',
+              current: {
+                events: 120,
+                tokens: 250000,
+                estimatedCostUsd: 22.5,
+                knownEstimatedCostUsd: 22.5,
+                unknownCostEvents: 0,
+                unknownCostTokens: 0
+              },
+              previous: {
+                events: 140,
+                tokens: 300000,
+                estimatedCostUsd: 25,
+                knownEstimatedCostUsd: 25,
+                unknownCostEvents: 0,
+                unknownCostTokens: 0
+              },
+              deltaPercent: -0.1,
+              direction: 'down'
+            }
+          ],
+          chartRows: [],
+          warnings: [],
+          confidence: { level: 'high', reasons: [] },
+          privacy: { sanitized: true }
+        }
+      ],
+      privacy: { sanitized: true }
+    },
     byModel: [breakdown('safe-model-alpha', 24, 90000), breakdown('safe-model-beta', 18, 33456)],
     byAgent: [breakdown('safe-agent', 30, 100000), breakdown('safe-agent-alt', 12, 23456)],
     bySource: [breakdown('safe-source', 32, 100000), breakdown('safe-source-alt', 10, 23456)],
@@ -219,6 +486,9 @@ export const dashboardFixture = (overrides: DashboardOverrides = {}): Dashboard 
         messageCount: 4,
         totalTokens: 2000,
         estimatedCostUsd: null,
+        knownEstimatedCostUsd: null,
+        unknownCostEvents: 4,
+        unknownCostTokens: 2000,
         activeDurationMs: 300_000,
         wallDurationMs: 600_000
       })

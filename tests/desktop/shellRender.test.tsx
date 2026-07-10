@@ -10,6 +10,7 @@ import {
   appStatus,
   breakdown,
   createDeferred,
+  dashboardFixture,
   installTokenwatchApi,
   populatedSnapshot,
   sessionIntervalFixture,
@@ -72,7 +73,7 @@ describe('desktop renderer shell', () => {
     expect(textOf(summary)).toContain('Total tokens');
     expect(textOf(summary)).toContain('123,456');
     expect(textOf(summary)).toContain('Estimated cost');
-    expect(textOf(summary)).toContain('$12.34');
+    expect(textOf(summary)).toContain('unknown');
     expect(textOf(summary)).toContain('1 unknown pricing event');
     expect(textOf(summary)).toContain('Event count');
     expect(textOf(summary)).toContain('Date range');
@@ -141,6 +142,173 @@ describe('desktop renderer shell', () => {
     expect(textOf(diagnostics)).toContain('matched-cache');
     expect(textOf(diagnostics)).toContain('litellm:openai:safe-model-alpha');
     expect(textOf(diagnostics)).toContain('no action');
+  });
+
+  it('renders populated insights and all-events rolling trend cards from the dashboard DTO', async () => {
+    installTokenwatchApi({
+      getSnapshot: vi.fn(async () => populatedSnapshot()),
+      getStatus: vi.fn(async () => appStatus('ready'))
+    });
+
+    render(<App />);
+
+    const panel = await screen.findByLabelText('Insights and trends panel');
+    expect(textOf(panel)).toContain('Cache efficiency');
+    expect(textOf(panel)).toContain('28%');
+    expect(textOf(panel)).toContain('Unknown pricing impact');
+    expect(textOf(panel)).toContain('unknown');
+    expect(textOf(panel)).toContain('1 events / 140 tokens');
+    expect(textOf(panel)).toContain('Top cost driver');
+    expect(textOf(panel)).toContain('safe-model-alpha');
+    expect(textOf(panel)).toContain('known');
+    expect(textOf(panel)).toContain('spend driver');
+    expect(textOf(panel)).toContain('all-events rolling trend');
+    expect(textOf(panel)).toContain('7d tokens');
+    expect(textOf(panel)).toContain('up 37%');
+    expect(textOf(panel)).toContain('7d cost');
+    expect(textOf(panel)).toContain('unknown');
+    expect(textOf(panel)).toContain('30d tokens');
+    expect(textOf(panel)).toContain('down 17%');
+    expect(textOf(panel)).toContain('30d cost');
+    expect(textOf(panel)).toContain('down 10%');
+    expect(textOf(panel)).not.toContain('$0.00');
+    expect(containsPrivacySentinel(textOf(panel))).toBe(false);
+  });
+
+  it('renders no-data and unknown-price insight DTOs without zero-dollar fallback', async () => {
+    installTokenwatchApi({
+      getSnapshot: vi.fn(async () =>
+        populatedSnapshot({
+          insights: {
+            window: '7d',
+            range: {
+              from: '2026-05-31T12:00:00.000Z',
+              to: '2026-06-07T12:00:00.000Z'
+            },
+            cards: {
+              totals: {
+                events: 0,
+                tokens: 0,
+                inputTokens: 0,
+                outputTokens: 0,
+                cachedTokens: 0,
+                reasoningTokens: 0,
+                estimatedCostUsd: null,
+                knownEstimatedCostUsd: null,
+                unknownCostEvents: 0,
+                unknownCostTokens: 0
+              },
+              cacheHitRatio: { status: 'insufficient-data', value: null },
+              reasoningToOutputRatio: { status: 'insufficient-data', value: null },
+              budgetPressure: {
+                status: 'unknown-costs-present',
+                ratio: null,
+                knownSpendUsd: null,
+                thresholdUsd: null,
+                unknownCostEvents: 2,
+                unknownCostTokens: 600
+              }
+            },
+            topRows: { models: [], sources: [], sourceNames: [], projects: [] },
+            costDriverCandidates: [],
+            warnings: ['unknown_pricing_present'],
+            confidence: { level: 'low', reasons: ['insufficient_data'] },
+            privacy: { sanitized: true }
+          },
+          trends: {
+            trendScope: 'all-events-rolling',
+            label: 'all-events rolling trend',
+            windows: [],
+            privacy: { sanitized: true }
+          }
+        })
+      ),
+      getStatus: vi.fn(async () => appStatus('ready'))
+    });
+
+    const { container } = render(<App />);
+
+    const panel = await screen.findByLabelText('Insights and trends panel');
+    expect(textOf(panel)).toContain('Cache efficiency');
+    expect(textOf(panel)).toContain('insufficient-data');
+    expect(textOf(panel)).toContain('Unknown pricing impact');
+    expect(textOf(panel)).toContain('unknown');
+    expect(textOf(panel)).toContain('2 events / 600 tokens');
+    expect(textOf(panel)).toContain('No cost-driver candidates');
+    expect(textOf(panel)).toContain('No all-events rolling trend windows available');
+    expect(container.textContent).not.toContain('$0.00');
+    expect(containsPrivacySentinel(container.textContent)).toBe(false);
+  });
+
+  it('withholds privacy sentinels from insight labels and trend rows', async () => {
+    const unsafeSentinel = ['RAW_PATH', '_SENTINEL_DO_NOT_LEAK'].join('');
+    const dashboard = dashboardFixture();
+    const firstTrendWindow = dashboard.trends.windows[0];
+    if (!firstTrendWindow) throw new Error('missing trend fixture window');
+    installTokenwatchApi({
+      getSnapshot: vi.fn(async () =>
+        populatedSnapshot({
+          insights: {
+            ...dashboard.insights,
+            costDriverCandidates: [
+              {
+                label: unsafeSentinel,
+                pricingStatus: 'unknown',
+                knownTokens: 0,
+                knownCostUsd: null,
+                effectiveCostPerMillionTokens: null,
+                knownSpendShare: null,
+                expensiveRelativeToMedian: false,
+                spendDriverCandidate: false
+              }
+            ]
+          },
+          trends: {
+            trendScope: 'all-events-rolling',
+            label: 'all-events rolling trend',
+            windows: [
+              {
+                ...firstTrendWindow,
+                chartRows: [
+                  {
+                    category: 'model',
+                    label: unsafePath,
+                    metric: 'tokens',
+                    current: {
+                      events: 1,
+                      tokens: 100,
+                      estimatedCostUsd: null,
+                      knownEstimatedCostUsd: null,
+                      unknownCostEvents: 1,
+                      unknownCostTokens: 100
+                    },
+                    previous: {
+                      events: 0,
+                      tokens: 0,
+                      estimatedCostUsd: null,
+                      knownEstimatedCostUsd: null,
+                      unknownCostEvents: 0,
+                      unknownCostTokens: 0
+                    },
+                    deltaPercent: null,
+                    direction: 'new'
+                  }
+                ]
+              }
+            ]
+          }
+        })
+      ),
+      getStatus: vi.fn(async () => appStatus('ready'))
+    });
+
+    const { container } = render(<App />);
+
+    const panel = await screen.findByLabelText('Insights and trends panel');
+    expect(textOf(panel)).toContain('withheld label');
+    expect(container.textContent).not.toContain(unsafeSentinel);
+    expect(container.textContent).not.toContain(unsafePath);
+    expect(containsPrivacySentinel(container.textContent)).toBe(false);
   });
 
   it('applies valid UTC date filters through the typed preload API', async () => {

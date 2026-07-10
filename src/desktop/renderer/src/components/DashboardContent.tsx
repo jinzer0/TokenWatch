@@ -23,6 +23,7 @@ import { BudgetPricingDiagnosticsPanel } from './BudgetPricingDiagnosticsPanel.j
 import { DateFilterPanel } from './DateFilterPanel.js';
 import { DiagnosticsHub } from './DiagnosticsHub.js';
 import { DistributionChart } from './DistributionChart.js';
+import { InsightsTrendPanel } from './InsightsTrendPanel.js';
 import { LineChart } from './LineChart.js';
 import { RecentScanRunsPanel } from './RecentScanRunsPanel.js';
 import { SessionMetricsPanel } from './SessionMetricsPanel.js';
@@ -100,6 +101,7 @@ export const DashboardContent = ({
       />
       <ShareReportPanel disabled={refreshing} filters={dashboard.filters} />
       <DiagnosticsHub dashboard={dashboard} />
+      <InsightsTrendPanel dashboard={dashboard} />
       {isFilteredEmpty ? (
         <article
           className="analytics-card filtered-empty-card"
