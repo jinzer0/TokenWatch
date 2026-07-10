@@ -1,9 +1,10 @@
+// allow: SIZE_OK - CLI suite intentionally keeps default and opt-in preset statusline regressions together.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { main } from '../src/cli.js';
 import { openDatabase, type TokenWatchDb } from '../src/db/client.js';
 import { UsageEventsRepository } from '../src/db/repositories/usageEvents.js';
 import type { UsageEvent } from '../src/models/usageEvent.js';
-import type { StatuslineDto } from '../src/services/statusline.js';
+import type { StatuslineDto, StatuslinePresetDto } from '../src/services/statusline.js';
 import { assertCliOutputPrivacy, assertJsonOutputPrivacy } from './privacyOutput.js';
 import { createTempDb, createTestEvent } from './helpers.js';
 
@@ -84,6 +85,10 @@ describe('statusline CLI', () => {
         privacy: { sanitized: true }
       });
       expect(payload.range.label).toMatch(/^\d{4}-\d{2}$/);
+      expect(payload).not.toHaveProperty('preset');
+      expect(payload).not.toHaveProperty('recent');
+      expect(payload).not.toHaveProperty('tokensPerMinute');
+      expect(payload).not.toHaveProperty('budgetPressure');
       assertJsonOutputPrivacy(payload);
       assertCliOutputPrivacy(result);
     } finally {
@@ -143,6 +148,123 @@ describe('statusline CLI', () => {
       expect(result.status).not.toBe(0);
       expect(result.stdout).toBe('');
       expect(result.stderr).toBe('error: invalid_statusline_window\n');
+      assertCliOutputPrivacy(result);
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('emits compact preset text only when the preset flag is used', async () => {
+    const temp = createTempDb();
+    try {
+      insertEvents(temp.dbPath, [
+        createTestEvent({
+          timestamp: new Date().toISOString(),
+          rawIdHash: 'compact-row',
+          totalTokens: 250,
+          estimatedCostUsd: 0.5
+        })
+      ]);
+
+      const result = await runCli(['statusline', '--preset', 'compact'], temp.dbPath);
+
+      expect(result).toMatchObject({ status: 0, stderr: '' });
+      expect(result.stdout).toContain('TokenWatch | compact | today');
+      expect(result.stdout).toContain('250 tokens');
+      expect(result.stdout).toContain('budget ok');
+      assertCliOutputPrivacy(result);
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('emits live preset JSON with recent token rate and strict preset shape', async () => {
+    const temp = createTempDb();
+    const now = new Date(2026, 4, 20, 12, 0, 0, 0);
+    vi.setSystemTime(now);
+    try {
+      insertEvents(temp.dbPath, [
+        createTestEvent({
+          timestamp: new Date(2026, 4, 20, 11, 55).toISOString(),
+          rawIdHash: 'live-recent-row',
+          totalTokens: 300,
+          estimatedCostUsd: 0.75
+        }),
+        createUnknownCostEvent({
+          timestamp: new Date(2026, 4, 20, 11, 40).toISOString(),
+          rawIdHash: 'live-older-unknown-row',
+          totalTokens: 120
+        })
+      ]);
+
+      const result = await runCli(['statusline', '--preset', 'live', '--json'], temp.dbPath);
+      const payload = JSON.parse(result.stdout) as StatuslinePresetDto;
+
+      expect(result).toMatchObject({ status: 0, stderr: '' });
+      expect(payload).toMatchObject({
+        version: 1,
+        kind: 'statusline-preset',
+        preset: 'live',
+        window: 'today',
+        recent: { minutes: 10, tokens: 300, tokensPerMinute: 30 },
+        unknownCostEvents: 1,
+        privacy: { sanitized: true }
+      });
+      expect(payload).toHaveProperty('budgetPressure');
+      assertJsonOutputPrivacy(payload);
+      assertCliOutputPrivacy(result);
+    } finally {
+      vi.useRealTimers();
+      temp.cleanup();
+    }
+  });
+
+  it('reports budget pressure and unknown costs in preset JSON', async () => {
+    const temp = createTempDb();
+    try {
+      await runCli(
+        ['budget', 'set', '--scope', 'monthly_total', '--threshold', '0.5'],
+        temp.dbPath
+      );
+      insertEvents(temp.dbPath, [
+        createTestEvent({
+          timestamp: new Date().toISOString(),
+          rawIdHash: 'known-budget-row',
+          totalTokens: 100,
+          estimatedCostUsd: 1
+        }),
+        createUnknownCostEvent({
+          timestamp: new Date().toISOString(),
+          rawIdHash: 'unknown-budget-row',
+          totalTokens: 75
+        })
+      ]);
+
+      const result = await runCli(['statusline', '--preset', 'compact', '--json'], temp.dbPath);
+      const payload = JSON.parse(result.stdout) as StatuslinePresetDto;
+
+      expect(payload.budgetPressure).toMatchObject({
+        status: 'over',
+        maxPercent: 200,
+        unknownCostCount: 0,
+        unknownCostEvents: 1,
+        unknownCostTokens: 75
+      });
+      expect(payload.unknownCostEvents).toBe(1);
+      assertJsonOutputPrivacy(payload);
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('sanitizes invalid preset input', async () => {
+    const temp = createTempDb();
+    try {
+      const result = await runCli(['statusline', '--preset', 'wide'], temp.dbPath);
+
+      expect(result.status).not.toBe(0);
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toBe('error: invalid_report_option\n');
       assertCliOutputPrivacy(result);
     } finally {
       temp.cleanup();

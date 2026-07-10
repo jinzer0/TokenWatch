@@ -10,11 +10,22 @@ import { containsUnsafeOutputPathShape } from './privacy.js';
 import { probeProviderUsage } from './services/providerUsage.js';
 import { writeReportPng } from './services/pngRenderer.js';
 import {
+  buildInsightsCommandReport,
+  planInsightsOutput,
+  renderInsightsText,
+  writeInsightsReportFile,
+  type InsightsCommandOptions
+} from './services/insightsCommandReport.js';
+import {
   ReportService,
   type BuildGraphReportOptions,
   type BuildWrappedReportOptions
 } from './services/reportService.js';
-import { StatuslineError, renderStatuslineText } from './services/statusline.js';
+import {
+  StatuslineError,
+  renderStatuslinePresetText,
+  renderStatuslineText
+} from './services/statusline.js';
 import { formatInteger, formatTable, formatUsd } from './utils/format.js';
 import { defaultPrices } from './pricing/defaultPrices.js';
 import {
@@ -72,12 +83,20 @@ export async function main(argv = process.argv): Promise<void> {
     .command('statusline')
     .description('Print a compact token usage status line')
     .option('--window <window>', 'statusline window: today or month', 'today')
+    .option('--preset <preset>', 'statusline preset: default, compact, or live')
     .option('--json', 'output JSON')
-    .action(async (options: { window?: string; json?: boolean }) => {
+    .action(async (options: { window?: string; preset?: string; json?: boolean }) => {
       const services = await createCliServices();
-      const dto = buildCliStatusline(services, options.window);
+      const dto = buildCliStatusline(services, options.window, options.preset);
+      if (dto.kind === 'statusline-preset') {
+        console.log(options.json ? JSON.stringify(dto, null, 2) : renderStatuslinePresetText(dto));
+        return;
+      }
       console.log(options.json ? JSON.stringify(dto, null, 2) : renderStatuslineText(dto));
     });
+
+  registerInsightsCommand(program, 'insights', 'Show privacy-safe local usage insights');
+  registerInsightsCommand(program, 'optimize', 'Alias for insights');
 
   program
     .command('usage')
@@ -574,6 +593,55 @@ function normalizeScriptRunnerArgv(argv: string[]): string[] {
   return argv;
 }
 
+function registerInsightsCommand(
+  program: Command,
+  name: 'insights' | 'optimize',
+  description: string
+): void {
+  program
+    .command(name)
+    .description(description)
+    .option('--window <window>', 'insights window: 7d or 30d', '7d')
+    .option('--json', 'output JSON')
+    .option('--out <path>', 'write JSON or Markdown report')
+    .option('--format <format>', 'output format for --out: json or markdown')
+    .action(async (options: InsightsCommandOptions) => {
+      await runInsightsCommand(options);
+    });
+}
+
+async function runInsightsCommand(options: InsightsCommandOptions): Promise<void> {
+  try {
+    const plan = planInsightsOutput(options);
+    const services = await createCliServices();
+    const events = services.usageEvents.listAll();
+    const report = buildInsightsCommandReport({
+      services,
+      events,
+      budgets: services.budget.evaluateCurrentMonth(),
+      window: options.window
+    });
+    if (plan.kind === 'stdout-json') {
+      console.log(JSON.stringify(report, null, 2));
+      return;
+    }
+    if (plan.kind === 'stdout-text') {
+      console.log(renderInsightsText(report));
+      return;
+    }
+    const outputName = writeInsightsReportFile(report, plan);
+    console.log(`Wrote insights ${plan.format === 'json' ? 'JSON' : 'Markdown'}: ${outputName}`);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('invalid_report_option')) {
+      throw new TokenWatchError('invalid_report_option', 1, 'invalid_report_option');
+    }
+    if (error instanceof Error && error.message === 'invalid_output_path') {
+      throw new TokenWatchError('invalid_output_path', 1, 'invalid_output_path');
+    }
+    throw error;
+  }
+}
+
 function resolveCliTuiSettings(
   config: Awaited<ReturnType<typeof createCliServices>>['config'],
   options: { theme?: string; refresh?: string }
@@ -660,16 +728,24 @@ async function createCliServices() {
 
 function buildCliStatusline(
   services: Awaited<ReturnType<typeof createCliServices>>,
-  window: string | undefined
+  window: string | undefined,
+  preset: string | undefined
 ) {
   try {
-    return services.statusline.build(services.usageEvents.listAll(), {
+    const events = services.usageEvents.listAll();
+    const options = {
       window: window ?? 'today',
       budgets: services.budget.evaluateCurrentMonth()
-    });
+    };
+    if (preset === undefined || preset === 'default') {
+      return services.statusline.build(events, options);
+    }
+    return services.statusline.buildPreset(events, { ...options, preset });
   } catch (error) {
     if (error instanceof StatuslineError) {
-      throw new TokenWatchError(error.code, 1, error.code);
+      const code =
+        error.code === 'invalid_statusline_preset' ? 'invalid_report_option' : error.code;
+      throw new TokenWatchError(code, 1, code);
     }
     throw error;
   }
