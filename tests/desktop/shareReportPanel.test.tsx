@@ -20,6 +20,7 @@ const renderPanel = ({ disabled = false }: { readonly disabled?: boolean } = {})
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   Reflect.deleteProperty(window, 'tokenwatch');
 });
 
@@ -63,6 +64,34 @@ describe('desktop share report panel', () => {
     assertDomTextPrivacy(container.textContent ?? '');
   });
 
+  it('withholds unsafe returned file names from successful export status text', async () => {
+    const unsafeFileName = [
+      'RAW_PATH_SENTINEL_DO_NOT_LEAK',
+      'SQL_PAYLOAD_SENTINEL_DO_NOT_LEAK',
+      'STACK_TRACE_SENTINEL_DO_NOT_LEAK at save (/tmp/raw.ts:1:2)'
+    ].join('-');
+    installTokenwatchApi({
+      exportReport: vi.fn(
+        async (): Promise<DesktopShareReportResult> => ({
+          format: 'json',
+          fileName: unsafeFileName,
+          bytesWritten: 64,
+          status: 'written'
+        })
+      )
+    });
+    const { container } = renderPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export local JSON' }));
+
+    const status = await screen.findByLabelText('Local export status');
+    expect(textOf(status)).toContain('Export complete');
+    expect(textOf(status)).toContain('File withheld label');
+    expect(textOf(status)).not.toContain(unsafeFileName);
+    expect(textOf(status)).not.toContain('$0.00');
+    assertDomTextPrivacy(container.textContent ?? '');
+  });
+
   it('passes active UTC filters without exposing local paths', async () => {
     const exportReport = vi.fn(
       async (): Promise<DesktopShareReportResult> => ({
@@ -90,6 +119,67 @@ describe('desktop share report panel', () => {
       })
     );
     expect(textOf(screen.getByLabelText('Local export status'))).toContain('filtered-report.json');
+    assertDomTextPrivacy(container.textContent ?? '');
+  });
+
+  it('offers JSON and Markdown only for standalone insights and trend reports', async () => {
+    const exportReport = vi.fn(
+      async (request): Promise<DesktopShareReportResult> => ({
+        format: request.format,
+        fileName: `safe-${request.report.kind}.${request.format === 'markdown' ? 'md' : 'json'}`,
+        bytesWritten: 128,
+        status: 'written'
+      })
+    );
+    installTokenwatchApi({ exportReport });
+    const { container } = renderPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select Insights report' }));
+
+    expect(screen.queryByRole('button', { name: 'Export local PNG' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Export local JSON' }));
+    await waitFor(() =>
+      expect(exportReport).toHaveBeenLastCalledWith({
+        format: 'json',
+        report: { kind: 'insights', window: '7d' }
+      })
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select Trend report' }));
+
+    expect(screen.queryByRole('button', { name: 'Export local PNG' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Export local Markdown' }));
+    await waitFor(() =>
+      expect(exportReport).toHaveBeenLastCalledWith({
+        format: 'markdown',
+        report: { kind: 'trend', window: '7d' }
+      })
+    );
+    assertDomTextPrivacy(container.textContent ?? '');
+  });
+
+  it('offers wrapped reports with PNG through the preload API', async () => {
+    const year = new Date().getUTCFullYear();
+    const exportReport = vi.fn(
+      async (request): Promise<DesktopShareReportResult> => ({
+        format: request.format,
+        fileName: `safe-${request.report.kind}.${request.format}`,
+        bytesWritten: 256,
+        status: 'written'
+      })
+    );
+    installTokenwatchApi({ exportReport });
+    const { container } = renderPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select Wrapped report' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Export local PNG' }));
+
+    await waitFor(() =>
+      expect(exportReport).toHaveBeenLastCalledWith({
+        format: 'png',
+        report: { kind: 'wrapped', year }
+      })
+    );
     assertDomTextPrivacy(container.textContent ?? '');
   });
 

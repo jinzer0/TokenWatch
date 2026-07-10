@@ -5,6 +5,7 @@ const shareReportFormats = ['json', 'markdown', 'png'] as const;
 const shareReportStatuses = ['written', 'cancelled'] as const;
 const graphBuckets = ['hour', 'day', 'month'] as const;
 const graphMetrics = ['tokens', 'cost', 'events'] as const;
+const reportWindows = ['7d', '30d'] as const;
 
 const graphShareReportSchema = z
   .object({
@@ -18,11 +19,24 @@ const wrappedShareReportSchema = z
   .object({ kind: z.literal('wrapped'), year: z.number() })
   .strict();
 
+const insightsShareReportSchema = z
+  .object({ kind: z.literal('insights'), window: z.enum(reportWindows).optional() })
+  .strict();
+
+const trendShareReportSchema = z
+  .object({ kind: z.literal('trend'), window: z.enum(reportWindows).optional() })
+  .strict();
+
 export const desktopShareReportRequestSchema = z
   .object({
     format: z.enum(shareReportFormats),
     filters: desktopDashboardFiltersSchema.optional(),
-    report: z.discriminatedUnion('kind', [graphShareReportSchema, wrappedShareReportSchema])
+    report: z.discriminatedUnion('kind', [
+      graphShareReportSchema,
+      insightsShareReportSchema,
+      trendShareReportSchema,
+      wrappedShareReportSchema
+    ])
   })
   .strict();
 

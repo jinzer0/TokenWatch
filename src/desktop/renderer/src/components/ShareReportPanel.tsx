@@ -10,10 +10,16 @@ import { formatCount } from '../utils/formatters.js';
 import { formatSafeLabel } from '../utils/privacyLabels.js';
 
 type ShareFormat = DesktopShareReportRequestInput['format'];
+type ShareReportKind = DesktopShareReportRequestInput['report']['kind'];
 type ShareErrorCode = 'desktop_dashboard_unavailable' | 'desktop_ipc_failed' | 'validation_failed';
 type ShareAction = {
   readonly detail: string;
   readonly format: ShareFormat;
+  readonly label: string;
+};
+type ShareReportAction = {
+  readonly detail: string;
+  readonly kind: ShareReportKind;
   readonly label: string;
 };
 type ShareState =
@@ -29,7 +35,12 @@ const SHARE_ACTIONS: readonly ShareAction[] = [
   { detail: 'Local visual report', format: 'png', label: 'PNG' }
 ] as const;
 
-const SHARE_REPORT = { kind: 'graph', bucket: 'day', metric: 'tokens' } as const;
+const SHARE_REPORTS: readonly ShareReportAction[] = [
+  { detail: 'Daily token graph', kind: 'graph', label: 'Graph' },
+  { detail: 'Standalone optimization insights', kind: 'insights', label: 'Insights' },
+  { detail: 'All-events rolling trend', kind: 'trend', label: 'Trend' },
+  { detail: 'Yearly aggregate recap', kind: 'wrapped', label: 'Wrapped' }
+] as const;
 
 const SAFE_SHARE_ERROR_MESSAGES: Record<ShareErrorCode, string> = {
   desktop_dashboard_unavailable: 'error: desktop_dashboard_unavailable',
@@ -62,13 +73,33 @@ const safeShareError = (
 
 const shareRequest = (
   format: ShareFormat,
-  filters: Dashboard['filters']
+  filters: Dashboard['filters'],
+  reportKind: ShareReportKind
 ): DesktopShareReportRequestInput => {
   const activeFilters = shareFilters(filters);
-  return activeFilters
-    ? { format, filters: activeFilters, report: SHARE_REPORT }
-    : { format, report: SHARE_REPORT };
+  const report = shareReport(reportKind);
+  return activeFilters ? { format, filters: activeFilters, report } : { format, report };
 };
+
+const shareReport = (kind: ShareReportKind): DesktopShareReportRequestInput['report'] => {
+  switch (kind) {
+    case 'graph':
+      return { kind: 'graph', bucket: 'day', metric: 'tokens' };
+    case 'insights':
+      return { kind: 'insights', window: '7d' };
+    case 'trend':
+      return { kind: 'trend', window: '7d' };
+    case 'wrapped':
+      return { kind: 'wrapped', year: new Date().getUTCFullYear() };
+    default:
+      return assertNever(kind);
+  }
+};
+
+const shareFormats = (kind: ShareReportKind): readonly ShareAction[] =>
+  kind === 'graph' || kind === 'wrapped'
+    ? SHARE_ACTIONS
+    : SHARE_ACTIONS.filter((action) => action.format !== 'png');
 
 const statusClassName = (state: ShareState): string => {
   switch (state.kind) {
@@ -134,13 +165,17 @@ export const ShareReportPanel = ({
   readonly disabled: boolean;
   readonly filters: Dashboard['filters'];
 }): ReactElement => {
+  const [reportKind, setReportKind] = useState<ShareReportKind>('graph');
   const [state, setState] = useState<ShareState>({ kind: 'idle' });
   const exporting = state.kind === 'exporting';
+  const formatActions = shareFormats(reportKind);
 
   const exportReport = async (format: ShareFormat): Promise<void> => {
     setState({ format, kind: 'exporting' });
     try {
-      const result = await window.tokenwatch.share.exportReport(shareRequest(format, filters));
+      const result = await window.tokenwatch.share.exportReport(
+        shareRequest(format, filters, reportKind)
+      );
       setState(
         result.status === 'cancelled' ? { format, kind: 'cancelled' } : { kind: 'written', result }
       );
@@ -162,8 +197,23 @@ export const ShareReportPanel = ({
         Write a sanitized aggregate report through the preload boundary. The renderer shows only
         format, safe file name, byte count, and status.
       </p>
+      <div className="share-format-grid" aria-label="Report selector">
+        {SHARE_REPORTS.map((action) => (
+          <button
+            aria-label={`Select ${action.label} report`}
+            className="share-format-card"
+            disabled={disabled || exporting}
+            key={action.kind}
+            type="button"
+            onClick={() => setReportKind(action.kind)}
+          >
+            <span>{action.label}</span>
+            <small>{action.detail}</small>
+          </button>
+        ))}
+      </div>
       <div className="share-format-grid">
-        {SHARE_ACTIONS.map((action) => {
+        {formatActions.map((action) => {
           const active = exporting && state.format === action.format;
           return (
             <button
