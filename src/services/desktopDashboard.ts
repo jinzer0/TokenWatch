@@ -6,13 +6,10 @@ import type { UsageEvent } from '../models/usageEvent.js';
 import {
   desktopDashboardSchema,
   type DesktopDashboard,
-  type DesktopDashboardBreakdown,
-  type DesktopDashboardFilters,
-  type DesktopDashboardProjectGroup,
-  type DesktopDashboardScanRun
+  type DesktopDashboardFilters
 } from '../desktop/shared/contracts.js';
 import { nowIso } from '../utils/time.js';
-import { AggregatorService, type SessionSummaryGroup, type SummaryGroup } from './aggregator.js';
+import { AggregatorService } from './aggregator.js';
 import type { BudgetService } from './budgetService.js';
 import {
   toDashboardBudgetDiagnostics,
@@ -20,12 +17,20 @@ import {
 } from './desktopDiagnostics.js';
 import { buildDesktopDiagnosticsHub } from './desktopDiagnosticsHub.js';
 import { groupEventsByDay, sumNumericEventField } from './desktopDashboardUtils.js';
-import { ReportService } from './reportService.js';
 import {
-  groupEventsByPublicProject,
-  projectAttributionDiagnostics,
-  type PublicProjectGroup
-} from './projectAttribution.js';
+  filterEvents,
+  strictCostFields,
+  toDashboardBreakdown,
+  toDashboardProjectGroup,
+  toDashboardScanRun,
+  toDashboardSessionInterval,
+  toDesktopInsights,
+  toDesktopTrends
+} from './desktopDashboardMappers.js';
+import { InsightsService } from './insightsService.js';
+import { ReportService } from './reportService.js';
+import { groupEventsByPublicProject, projectAttributionDiagnostics } from './projectAttribution.js';
+import { TrendService } from './trendService.js';
 
 export type BuildDesktopDashboardOptions = {
   budgetEvaluationDate?: Date;
@@ -36,9 +41,11 @@ export type BuildDesktopDashboardOptions = {
 export type DesktopDashboardDependencies = {
   readonly aggregator?: AggregatorService;
   readonly budget?: BudgetService;
+  readonly insights?: InsightsService;
   readonly pricingModels?: PricingModelsRepository;
   readonly reports?: ReportService;
   readonly scanRuns: ScanRunsRepository;
+  readonly trend?: TrendService;
   readonly usageEvents: UsageEventsRepository;
 };
 
@@ -52,17 +59,21 @@ const DEFAULT_FILTERS: DesktopDashboardFilters = {
 export class DesktopDashboardService {
   private readonly aggregator: AggregatorService;
   private readonly budget: BudgetService | undefined;
+  private readonly insights: InsightsService;
   private readonly pricingModels: PricingModelsRepository | undefined;
   private readonly reports: ReportService;
   private readonly scanRuns: ScanRunsRepository;
+  private readonly trend: TrendService;
   private readonly usageEvents: UsageEventsRepository;
 
   constructor(dependencies: DesktopDashboardDependencies) {
     this.aggregator = dependencies.aggregator ?? new AggregatorService();
     this.budget = dependencies.budget;
+    this.insights = dependencies.insights ?? new InsightsService();
     this.pricingModels = dependencies.pricingModels;
     this.reports = dependencies.reports ?? new ReportService();
     this.scanRuns = dependencies.scanRuns;
+    this.trend = dependencies.trend ?? new TrendService();
     this.usageEvents = dependencies.usageEvents;
   }
 
@@ -80,6 +91,7 @@ export class DesktopDashboardService {
   ): DesktopDashboard {
     const filteredEvents = filterEvents(events, filters);
     const totals = this.aggregator.summarize(filteredEvents);
+    const strictTotals = strictCostFields(filteredEvents);
     const costReport = this.reports.buildGraphReport(filteredEvents, {
       bucket: 'day',
       metric: 'cost'
@@ -91,10 +103,11 @@ export class DesktopDashboardService {
     const pricingDiagnostics = this.aggregator.pricingDiagnostics(filteredEvents, {
       lookupCache: this.pricingModels?.listLookupCache() ?? []
     });
-    const budgetDiagnostics = toDashboardBudgetDiagnostics(
-      this.budget?.evaluateCurrentMonth(options.budgetEvaluationDate) ?? []
+    const budgetEvaluations = this.budget?.evaluateCurrentMonth(options.budgetEvaluationDate) ?? [];
+    const budgetDiagnostics = toDashboardBudgetDiagnostics(budgetEvaluations);
+    const projectGroups = groupEventsByPublicProject(filteredEvents).map((group) =>
+      toDashboardProjectGroup(group, filteredEvents)
     );
-    const projectGroups = groupEventsByPublicProject(filteredEvents).map(toDashboardProjectGroup);
     const projectDiagnostics = projectAttributionDiagnostics(filteredEvents);
     const dashboardPricingDiagnostics = toDashboardPricingDiagnostics(
       pricingDiagnostics,
@@ -112,12 +125,13 @@ export class DesktopDashboardService {
         inputTokens: totals.totalInputTokens,
         outputTokens: totals.totalOutputTokens,
         cachedTokens: totals.totalCachedTokens,
-        estimatedCostUsd: totals.estimatedTotalCostUsd,
+        ...strictTotals,
         sources: totals.sourceCount,
         sourceNames: totals.sourceNameCount,
         models: totals.modelCount,
         agents: totals.agentCount,
-        unknownCostEvents
+        unknownCostEvents: strictTotals.unknownCostEvents,
+        unknownCostTokens: strictTotals.unknownCostTokens
       },
       dateRange: totals.dateRange,
       top: {
@@ -135,21 +149,37 @@ export class DesktopDashboardService {
           inputTokens: sumNumericEventField(bucketEvents, 'inputTokens'),
           outputTokens: sumNumericEventField(bucketEvents, 'outputTokens'),
           cachedTokens: sumNumericEventField(bucketEvents, 'cachedTokens'),
-          estimatedCostUsd: point.estimatedCostUsd,
-          unknownCostEvents: bucketEvents.filter((event) => event.estimatedCostUsd === null).length
+          ...strictCostFields(bucketEvents)
         };
       }),
       costSeries: costReport.series.map((point) => ({
         key: point.key,
-        estimatedCostUsd: point.estimatedCostUsd,
-        unknownCostEvents: (eventsByDay.get(point.key) ?? []).filter(
-          (event) => event.estimatedCostUsd === null
-        ).length
+        ...strictCostFields(eventsByDay.get(point.key) ?? [])
       })),
-      byModel: this.aggregator.group(filteredEvents, 'model').map(toDashboardBreakdown),
-      byAgent: this.aggregator.group(filteredEvents, 'agent').map(toDashboardBreakdown),
-      bySource: this.aggregator.group(filteredEvents, 'source').map(toDashboardBreakdown),
-      bySourceName: this.aggregator.group(filteredEvents, 'sourceName').map(toDashboardBreakdown),
+      byModel: this.aggregator.group(filteredEvents, 'model').map((group) =>
+        toDashboardBreakdown(
+          group,
+          filteredEvents.filter((event) => event.model === group.key)
+        )
+      ),
+      byAgent: this.aggregator.group(filteredEvents, 'agent').map((group) =>
+        toDashboardBreakdown(
+          group,
+          filteredEvents.filter((event) => event.agent === group.key)
+        )
+      ),
+      bySource: this.aggregator.group(filteredEvents, 'source').map((group) =>
+        toDashboardBreakdown(
+          group,
+          filteredEvents.filter((event) => event.source === group.key)
+        )
+      ),
+      bySourceName: this.aggregator.group(filteredEvents, 'sourceName').map((group) =>
+        toDashboardBreakdown(
+          group,
+          filteredEvents.filter((event) => event.sourceName === group.key)
+        )
+      ),
       projectGroups,
       unknownPricingCount: unknownCostEvents,
       budgetDiagnostics,
@@ -167,88 +197,19 @@ export class DesktopDashboardService {
       }),
       filters: { from: filters.from, to: filters.to },
       sessionMetrics,
-      sessionIntervals: this.aggregator.sessions(filteredEvents).map(toDashboardSessionInterval),
+      sessionIntervals: this.aggregator
+        .sessions(filteredEvents)
+        .map((group) => toDashboardSessionInterval(group, filteredEvents)),
+      insights: toDesktopInsights(
+        this.insights.build(filteredEvents, { window: '7d' }, budgetEvaluations)
+      ),
+      trends: toDesktopTrends([
+        this.trend.build(events, { budgets: budgetEvaluations, window: '7d' }),
+        this.trend.build(events, { budgets: budgetEvaluations, window: '30d' })
+      ]),
       privacy: { sanitized: true }
     };
 
     return desktopDashboardSchema.parse(report);
   }
-}
-
-function filterEvents(events: UsageEvent[], filters: DesktopDashboardFilters): UsageEvent[] {
-  const fromTime = filters.fromTimestamp ? Date.parse(filters.fromTimestamp) : null;
-  const toTime = filters.toTimestamp ? Date.parse(filters.toTimestamp) : null;
-  return events.filter((event) => {
-    const time = Date.parse(event.timestamp);
-    return (fromTime === null || time >= fromTime) && (toTime === null || time <= toTime);
-  });
-}
-
-function toDashboardBreakdown(group: SummaryGroup): DesktopDashboardBreakdown {
-  return {
-    key: group.key,
-    events: group.events,
-    inputTokens: group.inputTokens,
-    outputTokens: group.outputTokens,
-    cachedTokens: group.cachedTokens,
-    reasoningTokens: group.reasoningTokens,
-    totalTokens: group.totalTokens,
-    estimatedCostUsd: group.estimatedCostUsd,
-    topModel: group.topModel ?? null,
-    topAgent: group.topAgent ?? null
-  };
-}
-
-function toDashboardProjectGroup(group: PublicProjectGroup): DesktopDashboardProjectGroup {
-  return {
-    projectKey: group.projectKey,
-    events: group.events,
-    inputTokens: group.inputTokens,
-    outputTokens: group.outputTokens,
-    totalTokens: group.totalTokens,
-    estimatedCostUsd: group.estimatedCostUsd
-  };
-}
-
-function toDashboardScanRun(run: ScanRun): DesktopDashboardScanRun {
-  return {
-    startedAt: run.startedAt,
-    finishedAt: run.finishedAt,
-    sourceName: run.sourceName,
-    parserName: run.parserName,
-    pathKind: run.pathKind,
-    status: run.status,
-    discoveredFiles: run.discoveredFiles,
-    parsedEvents: run.parsedEvents,
-    insertedEvents: run.insertedEvents,
-    duplicateEvents: run.duplicateEvents,
-    conflictEvents: run.conflictEvents,
-    skippedRecords: run.skippedRecords,
-    rejectedRecords: run.rejectedRecords,
-    errorRecords: run.errorRecords,
-    warningCodes: run.warningCodes,
-    errorCode: run.errorCode
-  };
-}
-
-function toDashboardSessionInterval(
-  group: SessionSummaryGroup
-): DesktopDashboard['sessionIntervals'][number] {
-  return {
-    source: group.source,
-    sessionIdHash: group.sessionIdHash,
-    startedAt: group.startedAt,
-    endedAt: group.endedAt,
-    lastSeen: group.lastSeen,
-    events: group.events,
-    messageCount: group.messageCount,
-    inputTokens: group.inputTokens,
-    outputTokens: group.outputTokens,
-    cachedTokens: group.cachedTokens,
-    reasoningTokens: group.reasoningTokens,
-    totalTokens: group.totalTokens,
-    estimatedCostUsd: group.estimatedCostUsd,
-    activeDurationMs: group.activeDurationMs,
-    wallDurationMs: group.wallDurationMs
-  };
 }

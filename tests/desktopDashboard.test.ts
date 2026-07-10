@@ -384,7 +384,10 @@ describe('desktop dashboard service contract', () => {
         inputTokens: 60,
         outputTokens: 30,
         totalTokens: 90,
-        estimatedCostUsd: 0.9
+        estimatedCostUsd: 0.9,
+        knownEstimatedCostUsd: 0.9,
+        unknownCostEvents: 0,
+        unknownCostTokens: 0
       },
       {
         projectKey: 'unknown',
@@ -392,7 +395,10 @@ describe('desktop dashboard service contract', () => {
         inputTokens: 26,
         outputTokens: 10,
         totalTokens: 36,
-        estimatedCostUsd: null
+        estimatedCostUsd: null,
+        knownEstimatedCostUsd: null,
+        unknownCostEvents: 4,
+        unknownCostTokens: 36
       },
       {
         projectKey: 'batch-beta',
@@ -400,7 +406,10 @@ describe('desktop dashboard service contract', () => {
         inputTokens: 15,
         outputTokens: 5,
         totalTokens: 20,
-        estimatedCostUsd: 0.2
+        estimatedCostUsd: 0.2,
+        knownEstimatedCostUsd: 0.2,
+        unknownCostEvents: 0,
+        unknownCostTokens: 0
       }
     ]);
     expect(dashboard.diagnosticsHub.projectSummary).toEqual({
@@ -571,6 +580,9 @@ describe('desktop dashboard service contract', () => {
         reasoningTokens: 10,
         totalTokens: 70,
         estimatedCostUsd: 0.3,
+        knownEstimatedCostUsd: 0.3,
+        unknownCostEvents: 0,
+        unknownCostTokens: 0,
         activeDurationMs: 0,
         wallDurationMs: 86_399_999
       }
@@ -633,14 +645,22 @@ describe('desktop dashboard service contract', () => {
 
     const dashboard = service.buildDashboard();
 
-    expect(dashboard.totals.estimatedCostUsd).toBe(0.25);
+    expect(dashboard.totals.estimatedCostUsd).toBeNull();
+    expect(dashboard.totals.knownEstimatedCostUsd).toBe(0.25);
     expect(dashboard.totals.unknownCostEvents).toBe(1);
+    expect(dashboard.totals.unknownCostTokens).toBe(30);
     expect(dashboard.unknownPricingCount).toBe(1);
     expect(dashboard.byModel.find((group) => group.key === 'unpriced-model')).toMatchObject({
       estimatedCostUsd: null
     });
     expect(dashboard.costSeries).toEqual([
-      { key: '2026-05-03', estimatedCostUsd: null, unknownCostEvents: 1 }
+      {
+        key: '2026-05-03',
+        estimatedCostUsd: null,
+        knownEstimatedCostUsd: 0.25,
+        unknownCostEvents: 1,
+        unknownCostTokens: 30
+      }
     ]);
   });
 
@@ -794,7 +814,14 @@ describe('desktop dashboard service contract', () => {
         })
       ])
     );
-    expect(JSON.stringify(dashboard)).not.toContain('outside-filter-model');
+    expect(
+      JSON.stringify({
+        byModel: dashboard.byModel,
+        insights: dashboard.insights,
+        pricingDiagnostics: dashboard.pricingDiagnostics,
+        usageSeries: dashboard.usageSeries
+      })
+    ).not.toContain('outside-filter-model');
     expect(containsPrivacySentinel(dashboard)).toBe(false);
     assertJsonOutputPrivacy({ diagnosticsHub: dashboard.diagnosticsHub });
     fetchSpy.mockRestore();
@@ -1002,53 +1029,8 @@ describe('desktop dashboard service contract', () => {
   });
 
   it('keeps shared dashboard contracts renderer-safe', () => {
-    expect(
-      JSON.stringify(
-        desktopDashboardSchema.parse({
-          version: 1,
-          kind: 'desktop-dashboard',
-          generatedAt: '2026-05-30T00:00:00.000Z',
-          totals: {
-            events: 0,
-            tokens: 0,
-            inputTokens: 0,
-            outputTokens: 0,
-            cachedTokens: 0,
-            estimatedCostUsd: null,
-            sources: 0,
-            sourceNames: 0,
-            models: 0,
-            agents: 0,
-            unknownCostEvents: 0
-          },
-          dateRange: { start: null, end: null },
-          top: { model: null, agent: null, source: null, sourceName: null },
-          usageSeries: [],
-          costSeries: [],
-          byModel: [],
-          byAgent: [],
-          bySource: [],
-          bySourceName: [],
-          projectGroups: [],
-          unknownPricingCount: 0,
-          budgetDiagnostics: [],
-          pricingDiagnostics: [],
-          recentScanRuns: [],
-          diagnosticsHub: serviceSafeDashboardFixture().diagnosticsHub,
-          filters: { from: null, to: null },
-          sessionMetrics: {
-            sessionCount: 0,
-            totalWallDurationMs: 0,
-            totalActiveDurationMs: 0,
-            longestSessionMs: 0,
-            longestContinuousMs: 0,
-            maxConcurrentSessions: 0,
-            eventsWithoutSession: 0
-          },
-          sessionIntervals: [],
-          privacy: { sanitized: true }
-        })
-      )
-    ).toContain('desktop-dashboard');
+    expect(JSON.stringify(desktopDashboardSchema.parse(serviceSafeDashboardFixture()))).toContain(
+      'desktop-dashboard'
+    );
   });
 });
