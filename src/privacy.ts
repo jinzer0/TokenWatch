@@ -48,7 +48,7 @@ export class PrivacyValidationError extends Error {
 }
 
 const PRIVACY_SENTINEL_PATTERN =
-  /(PROMPT|RESPONSE|FAKE_API_KEY|FAKE_OAUTH|FAKE_CREDENTIAL|AUTH_CONFIG|RAW_SESSION|RAW_WORKSPACE|RAW_PATH|TOKENWATCH_PATH)_SENTINEL_DO_NOT_LEAK/i;
+  /(PROMPT|RESPONSE|FAKE_API_KEY|FAKE_OAUTH|FAKE_CREDENTIAL|AUTH_CONFIG|RAW_SESSION|RAW_WORKSPACE|RAW_PATH|TOKENWATCH_PATH|SQL_PAYLOAD|STACK_TRACE)_SENTINEL_DO_NOT_LEAK/i;
 const SECRET_SHAPE_PATTERN =
   /(api[_-]?key|oauth|credential|secret|password|bearer\s+[A-Za-z0-9._-]+|sk-[A-Za-z0-9_-]{8,}|ghp_[A-Za-z0-9_]{8,}|xox[baprs]-[A-Za-z0-9-]{8,})/i;
 const RAW_CONTENT_PATTERN =
@@ -57,6 +57,9 @@ const PATH_SHAPE_PATTERN =
   /(^~([/\\]|$)|^[A-Za-z]:[/\\]|^\/(Users|home|private|var|tmp|etc)(\/|$)|(^|[/\\])(Users|home|private)([/\\]|$)|(^|[/\\])\.?(ssh|aws|config)([/\\]|$)|[/\\][^/\\]*(secret|credential|oauth|token|key|private)[^/\\]*)/i;
 const OUTPUT_PATH_SECRET_PATTERN =
   /(api[_-]?key|oauth|credential|secret|password|bearer\s+[A-Za-z0-9._-]+|(^|[^a-z0-9])sk-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9_]{8,}|xox[baprs]-[A-Za-z0-9-]{8,})/i;
+const SQL_LIKE_PATTERN =
+  /\b(select\s+.+\s+from|insert\s+into|update\s+[a-z0-9_]+\s+set|delete\s+from|drop\s+table)\b/i;
+const STACK_LIKE_PATTERN = /\bat\s+[\w.]+\s+\([^)]*:\d+:\d+\)|^\s*at\s+[^\n]+:\d+:\d+/i;
 
 const SOURCE_NAME_PATTERN = /^[A-Za-z0-9_.:-]+$/;
 const CANONICAL_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/@+ -]*[A-Za-z0-9]$|^[A-Za-z0-9]$/;
@@ -116,6 +119,14 @@ export function containsUnsafeOutputPathShape(value: string): boolean {
     PRIVACY_SENTINEL_PATTERN.test(value) ||
     OUTPUT_PATH_SECRET_PATTERN.test(value) ||
     RAW_CONTENT_PATTERN.test(value)
+  );
+}
+
+export function containsUnsafeOutputLabelShape(value: string): boolean {
+  return (
+    containsUnsafePrivacyShape(value) ||
+    SQL_LIKE_PATTERN.test(value) ||
+    STACK_LIKE_PATTERN.test(value)
   );
 }
 

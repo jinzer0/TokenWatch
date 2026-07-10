@@ -202,6 +202,17 @@ describe('report contract schemas', () => {
     );
   });
 
+  it('exports central insights and trend schemas without changing graph and wrapped contracts', async () => {
+    const contracts = await loadReportContracts();
+
+    expect(contracts.safeOutputLabelSchema).toMatchObject({ parse: expect.any(Function) });
+    expect(contracts.insightsReportSchema).toMatchObject({ parse: expect.any(Function) });
+    expect(contracts.trendReportSchema).toMatchObject({ parse: expect.any(Function) });
+    expect(contracts.insightsCommandReportSchema).toMatchObject({ parse: expect.any(Function) });
+    expect(contracts.insightsReportOptionsSchema).toMatchObject({ parse: expect.any(Function) });
+    expect(contracts.trendReportOptionsSchema).toMatchObject({ parse: expect.any(Function) });
+  });
+
   it('validates headless Codex input as fixed sanitized object or array contracts', async () => {
     const contracts = await loadReportContracts();
     const parse = parser(contracts.headlessCodexInputSchema);

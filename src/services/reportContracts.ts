@@ -7,6 +7,22 @@ import {
 } from '../privacy.js';
 import { parserNames } from '../parsers/base.js';
 import { validateExplicitProjectLabel } from '../projectLabel.js';
+export {
+  assertSafeOutputText,
+  insightsCommandReportSchema,
+  insightsReportOptionsSchema,
+  insightsReportSchema,
+  safeOutputLabel,
+  safeOutputLabelSchema,
+  trendReportOptionsSchema,
+  trendReportSchema,
+  type InsightsCommandReport,
+  type InsightsReport,
+  type InsightsReportOptions,
+  type SafeOutputLabel,
+  type TrendReport,
+  type TrendReportOptions
+} from './insightsContracts.js';
 
 export const reportErrorCodes = [
   'invalid_report_option',
