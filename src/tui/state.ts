@@ -7,6 +7,8 @@ export type ViewKey =
   | 'overview'
   | 'usage'
   | 'stats'
+  | 'insights'
+  | 'trends'
   | 'reports'
   | 'source'
   | 'sourceName'
@@ -47,6 +49,8 @@ export const views: ViewDefinition[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'usage', label: 'Usage' },
   { key: 'stats', label: 'Stats' },
+  { key: 'insights', label: 'Insights' },
+  { key: 'trends', label: 'Trends' },
   { key: 'reports', label: 'Reports' },
   { key: 'source', label: 'By Source' },
   { key: 'sourceName', label: 'By Source Name' },
