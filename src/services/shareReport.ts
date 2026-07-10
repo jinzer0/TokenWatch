@@ -3,33 +3,49 @@ import { writeFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import type { UsageEvent } from '../models/usageEvent.js';
 import { containsUnsafeOutputPathShape, containsUnsafePrivacyShape } from '../privacy.js';
+import type { BudgetEvaluation } from './budgetService.js';
+import { InsightsService } from './insightsService.js';
 import { writeReportPng } from './pngRenderer.js';
-import type { GraphReport, WrappedReport } from './reportContracts.js';
+import {
+  assertSafeOutputText,
+  type GraphReport,
+  type InsightsReport,
+  type InsightsReportOptions,
+  type TrendReport,
+  type TrendReportOptions,
+  type WrappedReport
+} from './reportContracts.js';
 import {
   ReportService,
   type BuildGraphReportOptions,
   type BuildWrappedReportOptions
 } from './reportService.js';
-
-const graphMarkdownRows = 12;
-const wrappedMarkdownRows = 8;
-const sqlLikePattern = /\bselect\s+.+\s+from\s+|\binsert\s+into\s+/i;
-const stackLikePattern = /\bat\s+[\w.]+\s+\([^)]*:\d+:\d+\)/i;
+import { renderMarkdownShareReport } from './shareReportMarkdown.js';
+import { TrendService } from './trendService.js';
 
 export type ShareReportFormat = 'json' | 'markdown' | 'png';
 export type ShareReportStatus = 'written';
-export type ShareReport = GraphReport | WrappedReport;
+export type ShareReport = GraphReport | WrappedReport | InsightsReport | TrendReport;
 
 export type ShareReportOptions = {
+  readonly budgets?: readonly BudgetEvaluation[];
   readonly events: readonly UsageEvent[];
   readonly format: ShareReportFormat;
   readonly outputPath: string;
   readonly report: ShareReportBuildOptions;
 };
 
+type BuildReportContext = {
+  readonly budgets: readonly BudgetEvaluation[];
+  readonly events: readonly UsageEvent[];
+  readonly options: ShareReportBuildOptions;
+};
+
 export type ShareReportBuildOptions =
   | ({ readonly kind: 'graph' } & BuildGraphReportOptions)
-  | ({ readonly kind: 'wrapped' } & BuildWrappedReportOptions);
+  | ({ readonly kind: 'wrapped' } & BuildWrappedReportOptions)
+  | { readonly kind: 'insights'; readonly window?: InsightsReportOptions['window'] }
+  | { readonly kind: 'trend'; readonly window?: TrendReportOptions['window'] };
 
 export type ShareReportResult = {
   readonly basename: string;
@@ -47,11 +63,20 @@ export class ShareReportError extends Error {
 }
 
 export class ShareReportService {
+  private readonly insights = new InsightsService();
   private readonly reports = new ReportService();
+  private readonly trend = new TrendService();
 
-  buildReport(events: readonly UsageEvent[], options: ShareReportBuildOptions): ShareReport {
+  buildReport(
+    events: readonly UsageEvent[],
+    options: ShareReportBuildOptions,
+    budgets: readonly BudgetEvaluation[] = []
+  ): ShareReport {
     try {
-      const report = buildReportWith(this.reports, events, options);
+      const report = buildReportWith(
+        { insights: this.insights, reports: this.reports, trend: this.trend },
+        { budgets, events, options }
+      );
       validateShareSafeValue(report);
       return report;
     } catch (error) {
@@ -62,7 +87,7 @@ export class ShareReportService {
 
   async write(options: ShareReportOptions): Promise<ShareReportResult> {
     const filename = parseShareOutputBasename(options.outputPath);
-    const report = this.buildReport(options.events, options.report);
+    const report = this.buildReport(options.events, options.report, options.budgets ?? []);
     const bytesWritten = await writeShareFile(options.format, options.outputPath, report);
     return { basename: filename, format: options.format, bytesWritten, status: 'written' };
   }
@@ -70,22 +95,29 @@ export class ShareReportService {
 
 export function renderShareReportMarkdown(report: ShareReport): string {
   validateShareSafeValue(report);
-  const markdown =
-    report.kind === 'graph' ? renderGraphMarkdown(report) : renderWrappedMarkdown(report);
+  const markdown = renderMarkdownShareReport(report);
   validateShareSafeString(markdown);
   return markdown;
 }
 
 function buildReportWith(
-  service: ReportService,
-  events: readonly UsageEvent[],
-  options: ShareReportBuildOptions
+  services: {
+    readonly insights: InsightsService;
+    readonly reports: ReportService;
+    readonly trend: TrendService;
+  },
+  context: BuildReportContext
 ): ShareReport {
+  const { budgets, events, options } = context;
   switch (options.kind) {
     case 'graph':
-      return service.buildGraphReport([...events], options);
+      return services.reports.buildGraphReport([...events], options);
     case 'wrapped':
-      return service.buildWrappedReport([...events], options);
+      return services.reports.buildWrappedReport([...events], options);
+    case 'insights':
+      return services.insights.build(events, { window: options.window ?? '7d' }, budgets);
+    case 'trend':
+      return services.trend.build(events, { budgets, window: options.window });
     default:
       return assertNever(options);
   }
@@ -119,6 +151,9 @@ async function writeTextFile(outputPath: string, contents: string): Promise<numb
 }
 
 async function writePngFile(outputPath: string, report: ShareReport): Promise<number> {
+  if (report.kind === 'insights' || report.kind === 'trend') {
+    throw new ShareReportError('invalid_report_option');
+  }
   try {
     const bytes = await writeReportPng({ report, outputPath, width: 800, height: 600 });
     return bytes.length;
@@ -143,72 +178,6 @@ function parseShareOutputBasename(outputPath: string): string {
   return filename;
 }
 
-function renderGraphMarkdown(report: GraphReport): string {
-  return [
-    `# TokenWatch ${capitalize(report.metric)} Graph`,
-    '',
-    renderTotals(report),
-    '',
-    `Bucket: ${report.bucket}`,
-    `Range: ${report.range.from ?? 'all'} to ${report.range.to ?? 'all'}`,
-    '',
-    '| Bucket | Events | Tokens | Estimated cost |',
-    '| --- | ---: | ---: | ---: |',
-    ...report.series.slice(0, graphMarkdownRows).map(renderReportPoint),
-    '',
-    privacyFooter()
-  ].join('\n');
-}
-
-function renderWrappedMarkdown(report: WrappedReport): string {
-  return [
-    `# TokenWatch Wrapped ${report.year}`,
-    '',
-    renderTotals(report),
-    '',
-    '## Top Models',
-    ...renderRankingRows(report.topModels),
-    '',
-    '## Top Projects',
-    ...renderRankingRows(report.topProjects),
-    '',
-    '## Top Source Names',
-    ...renderRankingRows(report.topSourceNames),
-    '',
-    privacyFooter()
-  ].join('\n');
-}
-
-function renderTotals(report: ShareReport): string {
-  return [
-    `Events: ${report.totals.events}`,
-    `Tokens: ${report.totals.tokens}`,
-    `Estimated cost: ${formatCost(report.totals.estimatedCostUsd)}`,
-    `Unknown cost events: ${report.unknownCostEvents}`
-  ].join('\n');
-}
-
-function renderRankingRows(rows: readonly GraphReport['series'][number][]): readonly string[] {
-  if (rows.length === 0) return ['No aggregate rows.'];
-  return [
-    '| Label | Events | Tokens | Estimated cost |',
-    '| --- | ---: | ---: | ---: |',
-    ...rows.slice(0, wrappedMarkdownRows).map(renderReportPoint)
-  ];
-}
-
-function renderReportPoint(point: GraphReport['series'][number]): string {
-  return `| ${point.key} | ${point.events} | ${point.tokens} | ${formatCost(point.estimatedCostUsd)} |`;
-}
-
-function formatCost(value: number | null): string {
-  return value === null ? 'unknown' : `$${value.toFixed(2)}`;
-}
-
-function privacyFooter(): string {
-  return 'Privacy: sanitized aggregate report. Aggregate fields only.';
-}
-
 function validateShareSafeValue(value: unknown): void {
   if (typeof value === 'string') {
     validateShareSafeString(value);
@@ -227,17 +196,12 @@ function validateShareSafeValue(value: unknown): void {
 }
 
 function validateShareSafeString(value: string): void {
-  if (
-    containsUnsafePrivacyShape(value) ||
-    sqlLikePattern.test(value) ||
-    stackLikePattern.test(value)
-  ) {
-    throw new ShareReportError('invalid_report_option');
+  try {
+    assertSafeOutputText(value);
+  } catch (error) {
+    if (error instanceof Error) throw new ShareReportError('invalid_report_option');
+    throw error;
   }
-}
-
-function capitalize(value: string): string {
-  return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
 }
 
 function assertNever(_value: never): never {

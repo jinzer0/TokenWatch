@@ -1,6 +1,6 @@
 import { mkdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ShareReportService, renderShareReportMarkdown } from '../src/services/shareReport.js';
 import { validatePngSignatureAndIhdr } from '../src/services/reportContracts.js';
 import { createTempDb, createTestEvent } from './helpers.js';
@@ -28,7 +28,9 @@ function createEvents() {
       estimatedCostUsd: 0.25,
       metadata: {
         prompt: 'PROMPT_SENTINEL_DO_NOT_LEAK',
-        rawPath: 'RAW_PATH_SENTINEL_DO_NOT_LEAK'
+        rawPath: 'RAW_PATH_SENTINEL_DO_NOT_LEAK',
+        apiKey: 'FAKE_API_KEY_SENTINEL_DO_NOT_LEAK',
+        oauth: 'FAKE_OAUTH_SENTINEL_DO_NOT_LEAK'
       }
     }),
     {
@@ -44,7 +46,10 @@ function createEvents() {
         totalTokens: 400,
         metadata: {
           response: 'RESPONSE_SENTINEL_DO_NOT_LEAK',
-          rawRecord: 'RAW_RECORD_SENTINEL_DO_NOT_LEAK'
+          rawRecord: 'RAW_RECORD_SENTINEL_DO_NOT_LEAK',
+          credential: 'FAKE_CREDENTIAL_SENTINEL_DO_NOT_LEAK',
+          sql: 'SQL_PAYLOAD_SENTINEL_DO_NOT_LEAK',
+          stack: 'STACK_TRACE_SENTINEL_DO_NOT_LEAK at share (/tmp/raw.ts:1:2)'
         }
       }),
       estimatedCostUsd: null
@@ -53,6 +58,10 @@ function createEvents() {
 }
 
 describe('safe share report service', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('writes aggregate-only JSON with a basename-only desktop result', async () => {
     const temp = createTempDb();
     try {
@@ -88,6 +97,7 @@ describe('safe share report service', () => {
       expect(contents).not.toContain('rawIdHash');
       expect(contents).not.toContain('sessionIdHash');
       expect(contents).not.toContain('$0.00');
+      expect(JSON.stringify(result)).not.toContain('$0.00');
       expect(result.bytesWritten).toBe(Buffer.byteLength(contents, 'utf8'));
       assertJsonOutputPrivacy(payload);
       assertExportFilePrivacy(contents);
@@ -128,6 +138,7 @@ describe('safe share report service', () => {
       expect(markdown).not.toContain('metadata');
       expect(markdown).not.toContain('rawIdHash');
       expect(markdown).not.toContain('sessionIdHash');
+      expect(JSON.stringify(result)).not.toContain('$0.00');
       assertExportFilePrivacy(markdown);
       assertNoForbiddenOutput(result);
     } finally {
@@ -171,6 +182,125 @@ describe('safe share report service', () => {
     }
   });
 
+  it('writes strict insights JSON with aggregate cost fields only', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-09T00:00:00.000Z'));
+    const temp = createTempDb();
+    try {
+      // Given: mixed known and unknown cost events with private metadata.
+      const service = new ShareReportService();
+      const outputPath = join(temp.dir, 'insights-share.json');
+
+      // When: a standalone insights JSON report is written.
+      const result = await service.write({
+        events: createEvents(),
+        format: 'json',
+        outputPath,
+        report: { kind: 'insights', window: '7d' }
+      });
+
+      // Then: the file is a strict sanitized insights report with explicit aggregate cost fields.
+      const contents = await readFile(outputPath, 'utf8');
+      const payload = JSON.parse(contents) as Record<string, unknown>;
+      expect(result).toEqual({
+        basename: 'insights-share.json',
+        format: 'json',
+        bytesWritten: Buffer.byteLength(contents, 'utf8'),
+        status: 'written'
+      });
+      expect(payload).toMatchObject({
+        kind: 'insights',
+        totals: {
+          events: 2,
+          tokens: 600,
+          estimatedCostUsd: null,
+          knownEstimatedCostUsd: 0.25,
+          unknownCostEvents: 1,
+          unknownCostTokens: 400
+        },
+        privacy: { sanitized: true }
+      });
+      expect(contents).toContain('"topRows"');
+      expect(contents).toContain('"knownEstimatedCostUsd"');
+      expect(contents).not.toContain('metadata');
+      expect(contents).not.toContain('rawIdHash');
+      expect(contents).not.toContain('$0.00');
+      expect(JSON.stringify(result)).not.toContain('$0.00');
+      assertJsonOutputPrivacy(payload);
+      assertExportFilePrivacy(contents);
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('writes trend Markdown with strict rolling aggregate rows and privacy footer', async () => {
+    const temp = createTempDb();
+    try {
+      // Given: trend-safe aggregate events.
+      const service = new ShareReportService();
+      const outputPath = join(temp.dir, 'trend-share.md');
+
+      // When: a standalone trend Markdown report is written.
+      const result = await service.write({
+        events: createEvents(),
+        format: 'markdown',
+        outputPath,
+        report: { kind: 'trend', window: '30d' }
+      });
+
+      // Then: Markdown contains aggregate rows only and no PNG/raw export leakage.
+      const markdown = await readFile(outputPath, 'utf8');
+      expect(result).toEqual({
+        basename: 'trend-share.md',
+        format: 'markdown',
+        bytesWritten: Buffer.byteLength(markdown, 'utf8'),
+        status: 'written'
+      });
+      expect(markdown).toContain('# TokenWatch Trend');
+      expect(markdown).toContain('Trend scope: all-events-rolling');
+      expect(markdown).toContain(
+        '| Category | Label | Metric | Current tokens | Previous tokens | Current cost | Current known cost | Current unknown events | Current unknown tokens | Direction | Delta percent |'
+      );
+      expect(markdown).toContain('Privacy: sanitized aggregate report');
+      expect(markdown).not.toContain('$0.00');
+      expect(markdown).not.toContain('metadata');
+      expect(markdown).not.toContain('rawIdHash');
+      expect(JSON.stringify(result)).not.toContain('$0.00');
+      assertExportFilePrivacy(markdown);
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('rejects PNG for insights and trend with a sanitized option error', async () => {
+    const temp = createTempDb();
+    try {
+      // Given: JSON/Markdown-only aggregate report kinds.
+      const service = new ShareReportService();
+
+      // When/Then: PNG is rejected at the service boundary before any renderer path is used.
+      await expect(
+        service.write({
+          events: createEvents(),
+          format: 'png',
+          outputPath: join(temp.dir, 'insights.png'),
+          report: { kind: 'insights', window: '7d' }
+        })
+      ).rejects.toThrow('invalid_report_option');
+      await expect(
+        service.write({
+          events: createEvents(),
+          format: 'png',
+          outputPath: join(temp.dir, 'trend.png'),
+          report: { kind: 'trend', window: '7d' }
+        })
+      ).rejects.toThrow('invalid_report_option');
+      assertEvidencePrivacy('share insights trend png rejected: invalid_report_option');
+    } finally {
+      temp.cleanup();
+    }
+  });
+
   it('rejects invalid paths and unsafe labels with stable sanitized errors', async () => {
     const temp = createTempDb();
     try {
@@ -206,9 +336,23 @@ describe('safe share report service', () => {
           error: 'invalid_report_option'
         },
         {
+          name: 'SQL sentinel aggregate text',
+          outputPath: join(temp.dir, 'sql-sentinel.md'),
+          events: [{ ...createTestEvent(), model: 'SQL_PAYLOAD_SENTINEL_DO_NOT_LEAK' }],
+          report: { kind: 'wrapped', year: 2026 } as const,
+          error: 'invalid_report_option'
+        },
+        {
           name: 'stack-like aggregate text',
           outputPath: join(temp.dir, 'stack-like.md'),
           events: [{ ...createTestEvent(), agent: 'at worker (/tmp/app.ts:1:2)' }],
+          report: { kind: 'wrapped', year: 2026 } as const,
+          error: 'invalid_report_option'
+        },
+        {
+          name: 'stack sentinel aggregate text',
+          outputPath: join(temp.dir, 'stack-sentinel.md'),
+          events: [{ ...createTestEvent(), agent: 'STACK_TRACE_SENTINEL_DO_NOT_LEAK' }],
           report: { kind: 'wrapped', year: 2026 } as const,
           error: 'invalid_report_option'
         }
