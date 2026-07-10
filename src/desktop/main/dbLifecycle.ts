@@ -80,8 +80,10 @@ export class DesktopDbLifecycle {
     }
 
     const services = this.buildServices(databaseState.db);
-    const events = filterShareEvents(services.usageEvents.listAll(), request.filters);
+    const events = selectShareEvents(services.usageEvents.listAll(), request);
+    const budgets = services.budget.evaluateCurrentMonth();
     const result = await services.shareReport.write({
+      budgets,
       events,
       format: request.format,
       outputPath,
@@ -127,6 +129,14 @@ export class DesktopDatabaseUnavailableError extends Error {
   }
 }
 
+function selectShareEvents(
+  events: ReturnType<ReturnType<typeof createServices>['usageEvents']['listAll']>,
+  request: DesktopShareReportRequest
+) {
+  if (request.report.kind === 'trend') return events;
+  return filterShareEvents(events, request.filters);
+}
+
 function filterShareEvents(
   events: ReturnType<ReturnType<typeof createServices>['usageEvents']['listAll']>,
   filters: DesktopShareReportRequest['filters']
@@ -152,6 +162,10 @@ function toShareReportBuildOptions(request: DesktopShareReportRequest) {
       };
     case 'wrapped':
       return { kind: 'wrapped' as const, year: request.report.year };
+    case 'insights':
+      return { kind: 'insights' as const, window: request.report.window };
+    case 'trend':
+      return { kind: 'trend' as const, window: request.report.window };
     default:
       return assertNever(request.report);
   }

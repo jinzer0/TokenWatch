@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -11,6 +12,7 @@ import {
   type DesktopDashboardSnapshot
 } from '../../src/desktop/main/dbLifecycle.js';
 import { createTempDb, createTestEvent } from '../helpers.js';
+import { assertExportFilePrivacy } from '../privacyOutput.js';
 
 let cleanup: (() => void) | undefined;
 let db: TokenWatchDb | undefined;
@@ -126,4 +128,119 @@ describe('desktop main database lifecycle', () => {
 
     expect(close).toHaveBeenCalledTimes(1);
   });
+
+  it('exports trend reports from all events instead of dashboard-filtered events', async () => {
+    const temp = createTempDb();
+    cleanup = temp.cleanup;
+    db = openDatabase(temp.dbPath);
+    const now = Date.now();
+    const currentTimestamp = new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString();
+    const previousTimestamp = new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString();
+    const filterFrom = dateOnly(new Date(now - 3 * 24 * 60 * 60 * 1000));
+    const filterTo = dateOnly(new Date(now));
+    const repository = new UsageEventsRepository(db);
+    repository.insert(
+      createTestEvent({
+        id: 'desktop-trend-current-event',
+        timestamp: currentTimestamp,
+        inputTokens: 120,
+        outputTokens: 80,
+        cachedTokens: 0,
+        reasoningTokens: 0,
+        totalTokens: 200
+      })
+    );
+    repository.insert(
+      createTestEvent({
+        id: 'desktop-trend-previous-event',
+        timestamp: previousTimestamp,
+        inputTokens: 60,
+        outputTokens: 40,
+        cachedTokens: 0,
+        reasoningTokens: 0,
+        totalTokens: 100
+      })
+    );
+    db.close();
+    db = undefined;
+
+    const lifecycle = createDesktopDbLifecycle({ env: { TOKENWATCH_DB_PATH: temp.dbPath } });
+    const outputPath = `${temp.dir}/desktop-trend-share.json`;
+
+    const result = await lifecycle.writeShareReport(
+      {
+        format: 'json',
+        filters: { from: filterFrom, to: filterTo, fromTimestamp: null, toTimestamp: null },
+        report: { kind: 'trend', window: '7d' }
+      },
+      outputPath
+    );
+
+    const payload = JSON.parse(await readFile(outputPath, 'utf8')) as {
+      readonly kind: string;
+      readonly totals: {
+        readonly current: { readonly tokens: number };
+        readonly previous: { readonly tokens: number };
+      };
+      readonly trendScope: string;
+    };
+    expect(result).toMatchObject({ format: 'json', fileName: 'desktop-trend-share.json' });
+    expect(payload.kind).toBe('trend');
+    expect(payload.trendScope).toBe('all-events-rolling');
+    expect(payload.totals.current.tokens).toBe(200);
+    expect(payload.totals.previous.tokens).toBe(100);
+    lifecycle.close();
+  });
+
+  it('passes current budget evaluations into desktop trend share exports', async () => {
+    const temp = createTempDb();
+    cleanup = temp.cleanup;
+    db = openDatabase(temp.dbPath);
+    const services = createServices(db);
+    services.usageEvents.insert(
+      createTestEvent({
+        id: 'desktop-trend-budget-event',
+        timestamp: new Date().toISOString(),
+        inputTokens: 100,
+        outputTokens: 50,
+        cachedTokens: 0,
+        reasoningTokens: 0,
+        totalTokens: 150,
+        estimatedCostUsd: 0.4
+      })
+    );
+    services.budget.setThreshold({ scopeKind: 'monthly_total', thresholdUsd: 0.2 });
+    db.close();
+    db = undefined;
+    const lifecycle = createDesktopDbLifecycle({ env: { TOKENWATCH_DB_PATH: temp.dbPath } });
+    const outputPath = `${temp.dir}/desktop-trend-budget-share.json`;
+
+    const result = await lifecycle.writeShareReport(
+      {
+        format: 'json',
+        report: { kind: 'trend', window: '7d' }
+      },
+      outputPath
+    );
+
+    const contents = await readFile(outputPath, 'utf8');
+    const payload: unknown = JSON.parse(contents);
+    expect(result).toMatchObject({ format: 'json', fileName: 'desktop-trend-budget-share.json' });
+    expect(payload).toMatchObject({
+      kind: 'trend',
+      budgetPressure: {
+        status: 'over',
+        ratio: 2,
+        knownSpendUsd: 0.4,
+        thresholdUsd: 0.2
+      }
+    });
+    expect(contents).not.toContain('$0.00');
+    assertExportFilePrivacy(contents);
+    lifecycle.close();
+  });
 });
+
+function dateOnly(value: Date): string {
+  return value.toISOString().slice(0, 10);
+}
