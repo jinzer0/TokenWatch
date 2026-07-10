@@ -3,23 +3,29 @@
   "version": "0.1.0",
   "description": "Local-first CLI and Ink TUI for AI coding agent token usage metadata.",
   "type": "module",
+  "main": "out/main/main.js",
   "bin": {
     "tokenwatch": "dist/cli.js"
   },
   "files": [
     "dist",
     "README.md",
-    "docs/design.md"
+    "docs/design.md",
+    "docs/desktop-diagnostics-export-attribution-statusline.md"
   ],
   "scripts": {
     "build": "tsc && chmod +x dist/cli.js",
+    "build:desktop": "electron-vite build",
     "dev": "tsx src/cli.ts",
+    "dev:desktop": "electron-vite dev",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:desktop": "vitest run --config vitest.desktop.config.ts --passWithNoTests",
+    "test:watch": "vitest",
+    "package:mac": "corepack enable --install-directory ./node_modules/.bin pnpm && corepack pnpm build:desktop && electron-builder --mac dmg --publish never"
   },
   "dependencies": {
     "@commander-js/extra-typings": "^14.0.0",
@@ -27,6 +33,7 @@
     "commander": "^14.0.2",
     "ink": "^6.5.1",
     "react": "^19.2.1",
+    "react-dom": "19.2.6",
     "zod": "^4.1.13"
   },
   "devDependencies": {
@@ -34,19 +41,28 @@
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@testing-library/react": "^16.3.0",
+    "@vitejs/plugin-react": "^5.1.1",
+    "electron": "^39.2.7",
+    "electron-builder": "^26.0.12",
+    "electron-vite": "^4.0.0",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
     "ink-testing-library": "^4.0.0",
+    "jsdom": "24.1.3",
     "prettier": "^3.6.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
+    "vite": "^8.0.14",
     "typescript-eslint": "^8.48.1",
-    "vitest": "^4.0.14"
+    "vitest": "4.0.14"
   },
   "packageManager": "pnpm@10.23.0",
   "pnpm": {
     "onlyBuiltDependencies": [
       "better-sqlite3",
+      "electron",
       "esbuild"
     ]
   }

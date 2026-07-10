@@ -43,6 +43,7 @@ describe('wrapped report service contract', () => {
         busiestDay: null,
         topModel: null,
         topAgent: null,
+        topProject: null,
         topSourceName: null,
         longestSessionMs: 0,
         maxConcurrentSessions: 0
@@ -50,6 +51,7 @@ describe('wrapped report service contract', () => {
       topModels: [],
       topAgents: [],
       topSources: [],
+      topProjects: [],
       topSourceNames: [],
       monthly: [],
       sessionMetrics: {
@@ -74,6 +76,8 @@ describe('wrapped report service contract', () => {
         model: 'model-b',
         agent: 'codex',
         sourceName: 'server-b',
+        workspaceLabel: 'client-b',
+        metadata: { parser: 'test', projectLabelSource: 'config' },
         inputTokens: 300,
         outputTokens: 0,
         cachedTokens: 0,
@@ -86,6 +90,8 @@ describe('wrapped report service contract', () => {
         model: 'model-a',
         agent: 'opencode',
         sourceName: 'server-a',
+        workspaceLabel: 'client-a',
+        metadata: { parser: 'test', projectLabelSource: 'scan-option' },
         inputTokens: 500,
         outputTokens: 0,
         cachedTokens: 0,
@@ -98,6 +104,7 @@ describe('wrapped report service contract', () => {
         model: 'model-a',
         agent: 'opencode',
         sourceName: 'server-a',
+        workspaceLabel: 'legacy-parser-label',
         inputTokens: 100,
         outputTokens: 0,
         cachedTokens: 0,
@@ -111,6 +118,7 @@ describe('wrapped report service contract', () => {
         busiestDay: { key: '2026-01-02', events: 2, tokens: 600 },
         topModel: { key: 'model-a', events: 2, tokens: 600 },
         topAgent: { key: 'opencode', events: 2, tokens: 600 },
+        topProject: { key: 'client-a', events: 1, tokens: 500 },
         topSourceName: { key: 'server-a', events: 2, tokens: 600 }
       },
       topModels: [
@@ -122,6 +130,11 @@ describe('wrapped report service contract', () => {
         { key: 'codex', events: 1, tokens: 300, estimatedCostUsd: 0.3 }
       ],
       topSources: [{ key: 'codex', events: 3, tokens: 900, estimatedCostUsd: 0.9 }],
+      topProjects: [
+        { key: 'client-a', events: 1, tokens: 500, estimatedCostUsd: 0.5 },
+        { key: 'client-b', events: 1, tokens: 300, estimatedCostUsd: 0.3 },
+        { key: 'unknown', events: 1, tokens: 100, estimatedCostUsd: 0.1 }
+      ],
       topSourceNames: [
         { key: 'server-a', events: 2, tokens: 600, estimatedCostUsd: 0.6 },
         { key: 'server-b', events: 1, tokens: 300, estimatedCostUsd: 0.3 }

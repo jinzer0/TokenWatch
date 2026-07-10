@@ -1,0 +1,85 @@
+.date-filter-card,
+.filtered-empty-card,
+.session-card {
+  grid-column: 1 / -1;
+}
+
+.date-filter-form {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+}
+
+.date-filter-fields,
+.date-filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.date-filter-fields label {
+  display: grid;
+  flex: 1 1 var(--summary-card-min);
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.date-filter-fields span {
+  color: var(--color-paper-300);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.date-filter-fields input {
+  background: var(--surface-card);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  color: var(--color-paper-100);
+  padding: var(--space-3);
+}
+
+.date-filter-fields input:focus-visible {
+  outline: var(--space-1) solid var(--color-amber-300);
+  outline-offset: var(--space-1);
+}
+
+.date-filter-clear {
+  background: transparent;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-pill);
+  color: var(--color-paper-100);
+  cursor: pointer;
+  font-weight: 800;
+  padding: var(--space-3) var(--space-5);
+}
+
+.date-filter-clear:hover:not(:disabled) {
+  border-color: var(--border-cyan);
+  color: var(--color-cyan-300);
+}
+
+.date-filter-clear:disabled {
+  cursor: wait;
+  opacity: 0.66;
+}
+
+.date-filter-validation {
+  border: 1px solid var(--border-error);
+  border-radius: var(--radius-md);
+  color: var(--color-error-300);
+  padding: var(--space-3) var(--space-4);
+}
+
+.filtered-empty-card {
+  border-color: var(--border-amber);
+}
+
+.session-table-wrap {
+  margin-top: var(--space-5);
+}
+
+.session-table {
+  min-width: 88rem;
+}

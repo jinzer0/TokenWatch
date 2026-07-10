@@ -6,6 +6,23 @@ import {
   validateCanonicalField
 } from '../privacy.js';
 import { parserNames } from '../parsers/base.js';
+import { validateExplicitProjectLabel } from '../projectLabel.js';
+export {
+  assertSafeOutputText,
+  insightsCommandReportSchema,
+  insightsReportOptionsSchema,
+  insightsReportSchema,
+  safeOutputLabel,
+  safeOutputLabelSchema,
+  trendReportOptionsSchema,
+  trendReportSchema,
+  type InsightsCommandReport,
+  type InsightsReport,
+  type InsightsReportOptions,
+  type SafeOutputLabel,
+  type TrendReport,
+  type TrendReportOptions
+} from './insightsContracts.js';
 
 export const reportErrorCodes = [
   'invalid_report_option',
@@ -37,7 +54,8 @@ const headlessCodexInputKeys = new Set([
   'cachedTokens',
   'reasoningTokens',
   'sessionId',
-  'agent'
+  'agent',
+  'projectLabel'
 ]);
 
 const positiveIntegerSchema = z.number().int().nonnegative();
@@ -115,6 +133,15 @@ const safeLabelSchema = z
   .max(160)
   .superRefine((value, ctx) => validateSafeString(value, ctx, []));
 
+const projectLabelSchema = z.string().transform((value, ctx) => {
+  const label = validateExplicitProjectLabel(value);
+  if (label === null) {
+    addIssue(ctx, 'headless_payload_rejected');
+    return z.NEVER;
+  }
+  return label;
+});
+
 const wrappedYearSchema = z.number().transform((value, ctx) => {
   if (!Number.isInteger(value) || value < 2000 || value > 2100) {
     addIssue(ctx, 'invalid_wrapped_year', ['year']);
@@ -181,6 +208,7 @@ export const wrappedReportSchema = z
         busiestDay: rankWithoutCostSchema.nullable(),
         topModel: rankWithoutCostSchema.nullable(),
         topAgent: rankWithoutCostSchema.nullable(),
+        topProject: rankWithoutCostSchema.nullable(),
         topSourceName: rankWithoutCostSchema.nullable(),
         longestSessionMs: positiveIntegerSchema,
         maxConcurrentSessions: positiveIntegerSchema
@@ -189,6 +217,7 @@ export const wrappedReportSchema = z
     topModels: z.array(reportPointSchema),
     topAgents: z.array(reportPointSchema),
     topSources: z.array(reportPointSchema),
+    topProjects: z.array(reportPointSchema),
     topSourceNames: z.array(reportPointSchema),
     monthly: z.array(reportPointSchema),
     sessionMetrics: z
@@ -284,7 +313,8 @@ const headlessCodexInputObjectShape = z
     cachedTokens: positiveIntegerSchema.optional(),
     reasoningTokens: positiveIntegerSchema.optional(),
     sessionId: safeLabelSchema.optional(),
-    agent: canonicalFieldSchema('agent').optional()
+    agent: canonicalFieldSchema('agent').optional(),
+    projectLabel: projectLabelSchema.optional()
   })
   .strict();
 

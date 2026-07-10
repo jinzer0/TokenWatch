@@ -54,7 +54,13 @@ function finalizeHeadlessCodexRecord(
     sessionIdHash: record.sessionId ? sha256(record.sessionId) : null,
     rawIdHash: sha256(stableJson(record)),
     rawSource: RAW_SOURCE,
-    metadata: { parser: RAW_SOURCE, schemaVariant: 'v1' }
+    workspaceHash: record.projectLabel ? sha256(record.projectLabel) : null,
+    workspaceLabel: record.projectLabel ?? null,
+    metadata: {
+      parser: RAW_SOURCE,
+      schemaVariant: 'v1',
+      ...(record.projectLabel ? { projectLabelSource: 'headless-input' } : {})
+    }
   };
   return finalizeUsageEvent(draft);
 }

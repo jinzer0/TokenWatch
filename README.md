@@ -10,10 +10,11 @@ TokenWatch는 프롬프트, 응답, API 키, OAuth 토큰, 자격 증명, 원본
 - 19개 source는 실제 로컬 사용량 artifact parser로 스캔
 - `cursor`, `crush`, `antigravity`, `kiro`, `trae`는 안정적인 native token usage artifact가 확인될 때까지 zero-event status parser로 처리
 - `sourceName` 기반 장비/서버/랩 단위 사용량 구분
-- 모델, 에이전트, 소스, 날짜/시간/월별 요약과 세션 요약/시간 지표
+- 모델, 에이전트, 소스, 날짜/시간/월별 요약, 세션 요약/시간 지표, 7일/30일 insights와 trend report
 - `sessionIdHash` 기반 session interval, active/wall duration, longest continuous activity, max concurrency, no-session event count
 - SQLite 기반 로컬 저장소와 JSON 가져오기/내보내기
 - Ink 기반 로컬 TUI: Usage, Minutely, Stats, Agents view, theme/refresh 설정, 정렬, current-view export
+- 명시적 project label, `statusline`, 데스크톱 diagnostics hub, 로컬 safe share/export workflow
 - custom/LiteLLM/OpenRouter 가격 메타데이터, 항상 켜진 가격 lookup, 지속 캐시, fallback warning
 - native SQLite, DB, 마이그레이션 상태를 점검하는 privacy-safe `doctor`
 
@@ -55,6 +56,32 @@ tokenwatch tui --theme green --refresh 60000
 tokenwatch tui --theme mono --refresh off
 ```
 
+Project label, statusline, 데스크톱 diagnostics hub, 로컬 safe share/export 사용법은 [desktop diagnostics and statusline guide](docs/desktop-diagnostics-export-attribution-statusline.md)를 보세요.
+
+## 데스크톱 프리뷰
+
+CLI와 Ink TUI는 계속 지원됩니다. Electron 데스크톱 첫 릴리스는 읽기 전용 analytics 화면이며, scan과 import workflow는 당분간 CLI와 TUI에서 실행합니다. 데스크톱에서 scan/import 관리, signing, notarization, auto-update는 아직 포함하지 않습니다.
+
+데스크톱 개발 명령어는 `package.json`의 script 이름을 그대로 사용합니다.
+
+```bash
+corepack pnpm dev:desktop
+corepack pnpm build:desktop
+corepack pnpm package:mac
+corepack pnpm test:desktop
+```
+
+`corepack pnpm package:mac`은 현재 프로젝트의 macOS DMG 패키징 경로입니다. 결과물은 `release/TokenWatch-<version>-<arch>.dmg` 같은 일반 artifact pattern으로 확인하세요. 서명 관련 계정이나 인증서 세부 정보는 문서나 evidence에 기록하지 않습니다.
+
+데스크톱도 TokenWatch의 privacy boundary를 그대로 따릅니다. main/preload가 정규화된 SQLite usage metadata를 읽고, renderer는 sanitized DTO만 받습니다. renderer, IPC, 로그, packaging smoke evidence에는 프롬프트, 응답, API 키, OAuth 토큰, 자격 증명, 원본 경로, 원본 레코드, 원본 session ID, SQL payload, stack trace, 임의 메타데이터 덤프가 나오면 안 됩니다.
+
+데스크톱 smoke check도 실제 사용자 DB를 건드리지 않도록 임시 DB를 지정하세요.
+
+```bash
+TOKENWATCH_DB_PATH=/tmp/tokenwatch-desktop-smoke.db corepack pnpm dev:desktop
+TOKENWATCH_DB_PATH=/tmp/tokenwatch-desktop-smoke.db corepack pnpm test:desktop
+```
+
 기본 DB 위치는 `~/.tokenwatch/tokenwatch.db`입니다. 테스트나 격리 실행에서는 임시 DB 경로를 지정하세요.
 
 ```bash
@@ -65,6 +92,7 @@ TOKENWATCH_DB_PATH=/tmp/tokenwatch.db tokenwatch seed
 
 ```bash
 tokenwatch scan --source codex --path tests/fixtures/codex/sessions.jsonl
+tokenwatch scan --source codex --path <usage-file> --project-label client-a
 tokenwatch scan --source opencode --path tests/fixtures/opencode/events.json
 tokenwatch scan --source claude --path usage.jsonl
 tokenwatch scan --source gemini --path gemini-chat.json
@@ -72,10 +100,15 @@ tokenwatch scan --source amp --path amp-thread.json
 tokenwatch scan --source cursor --path cursor-artifacts
 tokenwatch summary
 tokenwatch summary --group-by sourceName
+tokenwatch summary --group-by project --json
 tokenwatch summary --group-by month
 tokenwatch summary --group-by session
 tokenwatch summary --group-by sessionInterval --json
 tokenwatch summary --json
+tokenwatch insights --window 7d --json
+tokenwatch optimize --window 30d
+tokenwatch insights --window 7d --out tokenwatch-insights.json --format json
+tokenwatch optimize --window 30d --out tokenwatch-optimize.md --format markdown
 tokenwatch graph
 tokenwatch graph --bucket month --metric cost --json
 tokenwatch graph --out usage-graph.png
@@ -99,6 +132,11 @@ tokenwatch pricing refresh --source litellm
 tokenwatch doctor
 tokenwatch config get
 tokenwatch config set source_name gpu-a100-01
+tokenwatch config set project_label client-a
+tokenwatch statusline --window today --json
+tokenwatch statusline --window month
+tokenwatch statusline --window today --preset compact
+tokenwatch statusline --window today --preset live --json
 tokenwatch reset --yes
 ```
 
@@ -144,6 +182,23 @@ tokenwatch config set source_name gpu-a100-01
 tokenwatch scan --source codex --source-name lab-server --path usage.jsonl
 ```
 
+`project_label`은 사용자나 명령이 직접 지정한 안전한 project label만 공개 그룹 이름으로 씁니다. Parser가 추론한 workspace field, legacy workspace field, hash-only row는 공개 project 이름이 아니며 `unknown`으로 묶입니다. 기존 import 파일을 다시 라벨링하는 workflow는 이 릴리스 범위에 없습니다.
+
+```bash
+tokenwatch config set project_label client-a
+tokenwatch scan --source codex --path <usage-file> --project-label client-a
+tokenwatch summary --group-by project --json
+```
+
+`statusline`은 셸 prompt나 editor statusline에서 쓰기 좋은 짧은 사용량 요약입니다. `today`와 `month` window는 로컬 날짜와 로컬 월을 기준으로 계산합니다. Preset을 생략하거나 `default`를 쓰면 기본 statusline DTO와 text를 출력합니다. `compact`와 `live`는 opt-in metric preset이며, 최근 10분 token rate, budget pressure, top model/source/project label을 포함하는 preset DTO를 출력합니다.
+
+```bash
+tokenwatch statusline --window today --json
+tokenwatch statusline --window month
+tokenwatch statusline --window today --preset compact
+tokenwatch statusline --window today --preset live --json
+```
+
 ## 개인정보 보호
 
 Parser는 지원되는 로컬 아티팩트를 읽을 수 있지만, 서비스와 DB 경계로 넘어가는 값은 정규화된 사용량 이벤트뿐입니다. TokenWatch는 다음 값을 저장, 내보내기, 화면 렌더링 대상으로 삼지 않도록 설계되어 있습니다.
@@ -161,9 +216,13 @@ Workspace와 session 값은 필요한 경우 hash 또는 sanitized label만 사�
 
 ## 로컬 리포트와 provider 사용량
 
-리포트 명령은 로컬 SQLite의 정규화된 usage metadata만 읽습니다. 프롬프트, 응답, 자격 증명, 원본 경로, 원본 레코드, raw provider response, 임의 메타데이터 덤프는 JSON이나 PNG에 포함하지 않습니다.
+리포트 명령은 로컬 SQLite의 정규화된 usage metadata만 읽습니다. 프롬프트, 응답, 자격 증명, 원본 경로, 원본 레코드, raw provider response, 임의 메타데이터 덤프는 JSON, Markdown, PNG에 포함하지 않습니다.
 
 ```bash
+tokenwatch insights --window 7d --json
+tokenwatch optimize --window 30d
+tokenwatch insights --window 7d --out tokenwatch-insights.json --format json
+tokenwatch optimize --window 30d --out tokenwatch-optimize.md --format markdown
 tokenwatch graph
 tokenwatch graph --bucket day --metric tokens --json
 tokenwatch graph --bucket month --metric cost --out usage-graph.png
@@ -176,11 +235,21 @@ tokenwatch headless codex --input codex-usage.json
 tokenwatch headless codex --input -
 ```
 
+`insights`와 `optimize`는 같은 privacy-safe report path를 사용합니다. `--window`는 `7d` 또는 `30d`만 받으며 기본값은 `7d`입니다. `--json`은 stdout에 strict aggregate JSON을 출력합니다. `--out <file> --format json|markdown`은 sanitized aggregate report만 로컬 파일로 씁니다. `--out`과 `--json`은 함께 쓰지 않습니다. `--format`을 생략하면 JSON 파일을 씁니다.
+
+Insights JSON은 `kind: "insights-command"`, `window`, nested `insights`, nested `trend`, `privacy`를 포함합니다. `insights`에는 totals, cache/reasoning proxy ratios, insufficient-data rework proxy, top model/source/sourceName/project aggregate rows, cost-driver candidate rows, budget pressure, confidence, warnings가 들어갑니다. `trend`에는 `trendScope: "all-events-rolling"`, fixed current/previous window range, totals, and row categories `total`, `model`, `source`, `sourceName`, `project`가 들어갑니다.
+
+Trend window는 고정 `7d` 또는 `30d` rolling UTC window입니다. Current range는 실행 시점 직전 window이고 previous range는 그 바로 앞 window입니다. Desktop trend cards도 `all-events rolling trend`입니다. Desktop dashboard의 date filter는 dashboard totals를 고르는 필터이며, trend의 previous window를 잘라내지 않습니다.
+
+Metric caveats도 리포트 해석에 포함하세요. Rework는 실패, prompt, test result 데이터를 읽지 않으므로 `insufficient-data`와 proxy row만 제공합니다. Reasoning ratio는 reasoning token metadata가 있는 이벤트에 대한 proxy이며 실제 생각과 코드의 비율이 아닙니다. Cost-driver candidate는 watchlist나 spend-driver 후보를 뜻하며 과사용, 낭비, 개인 평가를 뜻하지 않습니다. 가격을 모르는 이벤트는 `unknown` 또는 `null`로 남기고 `$0.00`이나 free로 바꾸지 않습니다.
+
 `graph` JSON은 `kind: "graph"`, `bucket`, `metric`, `totals`, `series`, `unknownCostEvents`, `privacy`를 포함합니다. `series` row는 bucket key, event count, token count, nullable estimated cost를 담습니다. 가격을 알 수 없는 이벤트는 cost를 `null`로 유지하고 `unknownCostEvents`로 따로 셉니다.
 
 `wrapped` JSON은 `kind: "wrapped"`, `year`, `totals`, `highlights`, `topModels`, `topAgents`, `topSources`, `topSourceNames`, `monthly`, `sessionMetrics`, `unknownCostEvents`, `privacy`를 포함합니다. 월별 배열과 top-level ranking 배열은 모두 sanitized aggregate row만 담고, session 지표는 hash 기반 session metadata로 계산합니다.
 
 `graph --out`과 `wrapped --out`의 PNG는 로컬에서 검증된 JSON report object를 렌더링한 결과입니다. PNG에는 원본 레코드, 원본 경로, raw provider response, 프롬프트, 응답, 자격 증명이 들어가지 않습니다.
+
+`insights`와 `trend` report는 이 릴리스에서 JSON과 Markdown export만 지원합니다. PNG export는 `graph`와 `wrapped` report에만 지원됩니다.
 
 `doctor --sources`는 지원 source별 status report를 JSON으로 출력합니다. Parser가 실제 local artifact를 지원하는지, status-only source인지, privacy-safe warning이 있는지를 보여주며 raw local artifact 내용이나 machine-local path는 출력하지 않습니다.
 
@@ -259,6 +328,19 @@ tokenwatch summary --group-by sessionInterval --json
 ```
 
 Session interval 지표는 `(source, sessionIdHash)` 기준으로 묶이며 active duration, wall duration, longest continuous activity, max concurrency, no-session event count를 제공합니다. TUI도 monthly, sessions, session metrics, session intervals, concurrency, pricing, unknown pricing, Budget Warnings 관련 화면을 포함하며 동일한 sanitized DB row 데이터만 표시합니다.
+
+## 명시적 비목표
+
+이 릴리스는 로컬 aggregate usage metadata를 읽고 보여주는 범위에 집중합니다. 다음 기능은 포함하지 않습니다.
+
+- Native tray 또는 menu-bar app
+- Background daemon
+- OS notification
+- Cloud sync, social sharing, leaderboard
+- LLM recommendation이나 자동 최적화 조언
+- Provider credential storage
+- Arbitrary date grammar, 예를 들어 `last Tuesday` 같은 자연어 window
+- Insights/trend PNG export
 
 ## 개발
 

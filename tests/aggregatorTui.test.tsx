@@ -6,10 +6,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ScanRun } from '../src/models/scanRun.js';
 import { AggregatorService } from '../src/services/aggregator.js';
 import type { BudgetEvaluation } from '../src/services/budgetService.js';
+import { StatuslineService, renderStatuslineText } from '../src/services/statusline.js';
 import { App } from '../src/tui/App.js';
 import { createFileTuiDataCache, readTuiDataCache } from '../src/tui/cache.js';
 import { localMinuteBucket, localMonthBucket } from '../src/utils/time.js';
 import { containsPrivacySentinel, createTempDb, createTestEvent } from './helpers.js';
+import { assertNoForbiddenOutput } from './privacyOutput.js';
 
 afterEach(() => {
   vi.useRealTimers();
@@ -67,6 +69,8 @@ describe('aggregation and TUI', () => {
 
     expect(data.usageRows).toEqual([]);
     expect(data.minutelyBuckets).toEqual([]);
+    expect(data.insightsRows).toEqual([]);
+    expect(data.trendRows).toEqual([]);
     expect(data.agentRows).toEqual([]);
     expect(data.statsSummary).toEqual({
       eventCount: 0,
@@ -96,6 +100,8 @@ describe('aggregation and TUI', () => {
   });
 
   it('exposes sanitized populated TUI data for balanced parity views', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-06T00:00:00.000Z'));
     const aggregator = new AggregatorService();
     const data = aggregator.buildTuiData(createBalancedParityFixtureEvents(), []);
 
@@ -151,6 +157,20 @@ describe('aggregation and TUI', () => {
     );
     expect(data.statsRows).toContainEqual({ stat: 'average tokens per event', value: 180 });
     expect(data.statsRows).toContainEqual({ stat: 'cache hit rate', value: '8.54%' });
+    expect(data.insightsRows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          metric: 'cache_hit_ratio',
+          status: 'ok',
+          tokens: 540,
+          estimatedCostUsd: 0.035,
+          knownEstimatedCostUsd: 0.035,
+          unknownCostEvents: 0,
+          unknownCostTokens: 0
+        })
+      ])
+    );
+    expect(data.trendRows).toEqual(expect.any(Array));
     expect(data.agentRows).toEqual([
       expect.objectContaining({
         agent: 'safe-agent-beta',
@@ -232,6 +252,61 @@ describe('aggregation and TUI', () => {
     expect(app.lastFrame()).toContain('Shell: amber shell');
     expect(app.lastFrame()).toContain('Refresh: auto 120000ms');
     expect(app.lastFrame()).toContain('Cache: live');
+    expect(containsPrivacySentinel(app.lastFrame())).toBe(false);
+  });
+
+  it('renders statusline footer from the shared service and updates it on refresh', async () => {
+    const aggregator = new AggregatorService();
+    const statusline = new StatuslineService();
+    const firstEvents = [
+      createTestEvent({
+        timestamp: '2026-05-30T00:00:00.000Z',
+        rawIdHash: 'statusline-first-row',
+        totalTokens: 100,
+        estimatedCostUsd: 0.01
+      })
+    ];
+    const nextEvents = [
+      ...firstEvents,
+      {
+        ...createTestEvent({
+          timestamp: '2026-05-30T00:01:00.000Z',
+          rawIdHash: 'statusline-second-row',
+          totalTokens: 250,
+          metadata: { parser: 'test', prompt: 'PROMPT_SENTINEL_DO_NOT_LEAK' }
+        }),
+        estimatedCostUsd: null
+      }
+    ];
+    const now = new Date('2026-05-30T12:00:00.000Z');
+    let refreshCount = 0;
+    const app = render(
+      <App
+        loadData={() => {
+          refreshCount += 1;
+          return aggregator.buildTuiData(refreshCount === 1 ? firstEvents : nextEvents, []);
+        }}
+        loadStatusline={() =>
+          statusline.build(refreshCount <= 1 ? firstEvents : nextEvents, { window: 'today', now })
+        }
+        onExportView={() => 'tokenwatch-current-view.json'}
+      />
+    );
+
+    expect(normalizedFrame(app.lastFrame())).toContain(
+      renderStatuslineText(statusline.build(firstEvents, { window: 'today', now }))
+    );
+    expect(normalizedFrame(app.lastFrame())).not.toContain('/min');
+    expect(normalizedFrame(app.lastFrame())).not.toContain('compact | today');
+
+    app.stdin.write('r');
+
+    await vi.waitFor(() =>
+      expect(normalizedFrame(app.lastFrame())).toContain(
+        renderStatuslineText(statusline.build(nextEvents, { window: 'today', now }))
+      )
+    );
+    expect(app.lastFrame()).toContain('cost unknown');
     expect(containsPrivacySentinel(app.lastFrame())).toBe(false);
   });
 
@@ -1300,7 +1375,7 @@ describe('aggregation and TUI', () => {
     expect(() => app.stdin.write(' ')).not.toThrow();
     expect(app.lastFrame()).toContain('Space select');
     expect(app.lastFrame()).toContain('Enter details');
-    for (const command of reportCommandFragments) {
+    for (const command of footerReportCommandFragments) {
       expect(app.lastFrame()).toContain(command);
     }
     expect(() => app.stdin.write('r')).not.toThrow();
@@ -1330,14 +1405,19 @@ describe('aggregation and TUI', () => {
     expect(helpFrame).toContain('Esc close details');
     expect(helpFrame).toContain('s cycle sort column');
     expect(helpFrame).toContain('S reverse sort direction');
-    expect(helpFrame).toContain('Usage, Minutely Usage, Stats, and Agents');
+    expect(helpFrame).toContain('Usage, Minutely Usage, Stats, Insights, Trends, and Agents');
     expect(helpFrame).toContain('Reports shows command guidance');
+    expect(helpFrame).toContain('Insights JSON: insights --window 7d --json');
+    expect(helpFrame).toContain('Optimize report: optimize --window 30d');
     for (const command of reportCommandFragments) {
       expect(helpFrame).toContain(command);
     }
     expect(helpFrame).toContain('Theme shows the active terminal theme');
     expect(helpFrame).toContain('Refresh shows manual or auto interval');
     expect(helpFrame).toContain('Cache shows live, warm, or refreshed data source');
+    expect(helpFrame).toContain('Default footer uses the standard statusline text');
+    expect(helpFrame).toContain('Statusline compact preset: statusline --preset compact');
+    expect(helpFrame).toContain('Statusline live JSON: statusline --preset live --json');
     expect(helpFrame).toContain('Export writes the sorted current view');
     expect(helpFrame).toContain('primitive fields only');
     expect(helpFrame).toContain('without raw paths, prompts, responses');
@@ -1347,7 +1427,7 @@ describe('aggregation and TUI', () => {
     app.stdin.write('q');
   });
 
-  it('renders sanitized reports command guidance with current TUI data availability', () => {
+  it('renders sanitized reports command guidance with current TUI data availability', async () => {
     const aggregator = new AggregatorService();
     const exported: unknown[] = [];
     const data = aggregator.buildTuiData(createBalancedParityFixtureEvents(), []);
@@ -1357,7 +1437,7 @@ describe('aggregation and TUI', () => {
         initialViewKey="reports"
         onExportView={(viewKey, rows) => {
           exported.push({ viewKey, rows });
-          return 'tokenwatch-current-view.json';
+          return '/private/raw/path/tokenwatch-current-view.json';
         }}
       />
     );
@@ -1381,18 +1461,179 @@ describe('aggregation and TUI', () => {
         rows: expect.arrayContaining([
           expect.objectContaining({ report: 'graph', command: 'graph --json; graph --out' }),
           expect.objectContaining({ report: 'wrapped', command: 'wrapped --year' }),
+          expect.objectContaining({
+            report: 'insights',
+            command: 'insights --window 7d --json'
+          }),
+          expect.objectContaining({
+            report: 'optimize',
+            command: 'optimize --window 30d'
+          }),
           expect.objectContaining({ report: 'doctor sources', command: 'doctor --sources' }),
           expect.objectContaining({ report: 'usage provider', command: 'usage --provider' }),
           expect.objectContaining({ report: 'headless codex', command: 'headless codex --input' })
         ])
       }
     ]);
+    await vi.waitFor(() => expect(app.lastFrame()).toContain('Exported Reports current view'));
+    expect(app.lastFrame()).toContain('to tokenwatch-current-view.json');
+    expect(app.lastFrame()).not.toContain('/private/raw/path');
     expectExportedPrimitiveRows(exported[0]);
     expect(containsPrivacySentinel([app.lastFrame(), exported])).toBe(false);
+  });
+
+  it('renders Insights view and exports sanitized primitive insight rows', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-15T00:00:00.000Z'));
+    const aggregator = new AggregatorService();
+    const exported: unknown[] = [];
+    const data = aggregator.buildTuiData(createTuiInsightsTrendFixtureEvents(), []);
+    const app = render(
+      <App
+        loadData={() => data}
+        initialViewKey="insights"
+        initialDetails
+        onExportView={(viewKey, rows) => {
+          exported.push({ viewKey, rows });
+          return '/tmp/tokenwatch-current-view.json';
+        }}
+      />
+    );
+
+    const frame = app.lastFrame() ?? '';
+    expect(frame).toContain('Insights');
+    expect(frame).toContain('cache_hit_ratio');
+    expect(frame).toContain('unknown_pricing_impact');
+    expect(frame).toContain('Details');
+    expect(frame).toContain('estimated_cost_usd: null');
+    expect(frame).not.toContain('/tmp/');
+    expect(frame).not.toContain('$0.00');
+    expect(containsPrivacySentinel(frame)).toBe(false);
+    assertNoForbiddenOutput(frame);
+
+    app.stdin.write('e');
+    await vi.waitFor(() => expect(app.lastFrame()).toContain('Exported Insights current view'));
+    expect(exported).toEqual([
+      {
+        viewKey: 'insights',
+        rows: expect.arrayContaining([
+          expect.objectContaining({
+            metric: 'unknown_pricing_impact',
+            status: 'warning',
+            tokens: 620,
+            estimated_cost_usd: null,
+            known_estimated_cost_usd: 0.04,
+            unknown_cost_events: 1,
+            unknown_cost_tokens: 320,
+            warning: 'unknown_pricing_present'
+          })
+        ])
+      }
+    ]);
+    expectExportedPrimitiveRows(exported[0]);
+    expect(containsPrivacySentinel([app.lastFrame(), exported])).toBe(false);
+    assertNoForbiddenOutput([app.lastFrame(), exported]);
+  });
+
+  it('renders Trends view and exports sorted sanitized primitive trend rows', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-15T00:00:00.000Z'));
+    const aggregator = new AggregatorService();
+    const exported: unknown[] = [];
+    const data = aggregator.buildTuiData(createTuiInsightsTrendFixtureEvents(), []);
+    const app = render(
+      <App
+        loadData={() => data}
+        initialViewKey="trends"
+        onExportView={(viewKey, rows) => {
+          exported.push({ viewKey, rows });
+          return '/tmp/tokenwatch-current-view.json';
+        }}
+      />
+    );
+
+    const frame = app.lastFrame() ?? '';
+    expect(frame).toContain('Trends');
+    expect(frame).toContain('total tokens');
+    expect(frame).toContain('up');
+    expect(frame).not.toContain('/tmp/');
+    expect(frame).not.toContain('$0.00');
+    expect(containsPrivacySentinel(frame)).toBe(false);
+    assertNoForbiddenOutput(frame);
+
+    app.stdin.write('e');
+    await vi.waitFor(() => expect(app.lastFrame()).toContain('Exported Trends current view'));
+    expect(exported).toEqual([
+      {
+        viewKey: 'trends',
+        rows: expect.arrayContaining([
+          expect.objectContaining({
+            category: 'total',
+            metric: 'total tokens',
+            status: 'up',
+            current: 620,
+            previous: 180,
+            delta: 440,
+            absolute_delta: 440,
+            tokens: 620,
+            estimated_cost_usd: null,
+            known_estimated_cost_usd: 0.04,
+            unknown_cost_events: 1,
+            unknown_cost_tokens: 320
+          })
+        ])
+      }
+    ]);
+    const rows = (exported[0] as { rows: Array<{ absolute_delta: number; metric: string }> }).rows;
+    expect(rows[0]).toEqual(expect.objectContaining({ metric: 'total tokens' }));
+    expectExportedPrimitiveRows(exported[0]);
+    expect(containsPrivacySentinel([app.lastFrame(), exported])).toBe(false);
+    assertNoForbiddenOutput([app.lastFrame(), exported]);
+  });
+
+  it('renders safe no-data states for Insights and Trends views', () => {
+    const aggregator = new AggregatorService();
+    const data = aggregator.buildTuiData([], []);
+
+    for (const targetView of ['insights', 'trends'] as const) {
+      const exported: unknown[] = [];
+      const app = render(
+        <App
+          loadData={() => data}
+          initialViewKey={targetView}
+          onExportView={(viewKey, rows) => {
+            exported.push({ viewKey, rows });
+            return 'tokenwatch-current-view.json';
+          }}
+        />
+      );
+
+      const frame = app.lastFrame() ?? '';
+      expect(frame).toContain(targetView === 'insights' ? 'Insights' : 'Trends');
+      expect(frame).toContain('No usage events');
+      expect(frame).not.toContain('$0.00');
+      expect(containsPrivacySentinel(frame)).toBe(false);
+      app.stdin.write('e');
+      expect(exported).toEqual([{ viewKey: targetView, rows: [] }]);
+      expectExportedPrimitiveRows(exported[0]);
+      expect(containsPrivacySentinel(exported)).toBe(false);
+      assertNoForbiddenOutput([frame, exported]);
+    }
   });
 });
 
 const reportCommandFragments = [
+  'graph --json',
+  'graph --out',
+  'wrapped --year',
+  'insights --window 7d --json',
+  'optimize --window 30d',
+  'doctor --sources',
+  'usage --provider',
+  'headless codex --input'
+] as const;
+
+const footerReportCommandFragments = [
   'graph --json',
   'graph --out',
   'wrapped --year',
@@ -1578,6 +1819,70 @@ function createSortableFixtureEvents() {
   ];
 }
 
+function createTuiInsightsTrendFixtureEvents() {
+  return [
+    createTestEvent({
+      timestamp: '2026-06-14T00:00:00.000Z',
+      source: 'codex',
+      sourceName: 'codex-cli',
+      agent: 'safe-agent-alpha',
+      model: 'gpt-5.5-fast',
+      rawIdHash: 'tui-insight-current-known',
+      inputTokens: 220,
+      outputTokens: 60,
+      cachedTokens: 20,
+      reasoningTokens: 10,
+      totalTokens: 300,
+      estimatedCostUsd: 0.04,
+      metadata: {
+        parser: 'test',
+        prompt: 'PROMPT_SENTINEL_DO_NOT_LEAK',
+        apiKey: 'FAKE_API_KEY_SENTINEL_DO_NOT_LEAK',
+        oauth: 'FAKE_OAUTH_SENTINEL_DO_NOT_LEAK'
+      }
+    }),
+    createTestEvent({
+      timestamp: '2026-06-14T01:00:00.000Z',
+      source: 'opencode',
+      sourceName: 'opencode-local',
+      agent: 'safe-agent-beta',
+      model: 'unknown-fixture-model',
+      rawIdHash: 'tui-insight-current-unknown',
+      inputTokens: 240,
+      outputTokens: 70,
+      cachedTokens: 10,
+      reasoningTokens: 0,
+      totalTokens: 320,
+      estimatedCostUsd: null,
+      metadata: {
+        parser: 'test',
+        response: 'RESPONSE_SENTINEL_DO_NOT_LEAK',
+        credential: 'FAKE_CREDENTIAL_SENTINEL_DO_NOT_LEAK',
+        rawRecord: 'RAW_RECORD_SENTINEL_DO_NOT_LEAK'
+      }
+    }),
+    createTestEvent({
+      timestamp: '2026-06-07T00:00:00.000Z',
+      source: 'codex',
+      sourceName: 'codex-cli',
+      agent: 'safe-agent-alpha',
+      model: 'gpt-5.5-fast',
+      rawIdHash: 'tui-insight-previous-known',
+      inputTokens: 120,
+      outputTokens: 40,
+      cachedTokens: 20,
+      totalTokens: 180,
+      estimatedCostUsd: 0.02,
+      metadata: {
+        parser: 'test',
+        path: 'RAW_PATH_SENTINEL_DO_NOT_LEAK',
+        sql: 'SQL_PAYLOAD_SENTINEL_DO_NOT_LEAK',
+        stack: 'STACK_TRACE_SENTINEL_DO_NOT_LEAK at trend (/tmp/raw.ts:1:2)'
+      }
+    })
+  ];
+}
+
 function createSessionIntervalFixtureEvents() {
   return [
     createSessionEvent('2026-05-30T00:00:00.000Z', {
@@ -1695,4 +2000,8 @@ function expectExportedPrimitiveRows(entry: unknown) {
       expect(value === null || ['string', 'number', 'boolean'].includes(typeof value)).toBe(true);
     }
   }
+}
+
+function normalizedFrame(frame: string | undefined): string {
+  return (frame ?? '').replace(/\s+/g, ' ');
 }

@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { openDatabase } from '../src/db/client.js';
 import { schemaSql } from '../src/db/schema.js';
@@ -10,6 +10,7 @@ import { UsageEventsRepository } from '../src/db/repositories/usageEvents.js';
 import { ConfigService } from '../src/services/configService.js';
 import { PricingModelsRepository } from '../src/db/repositories/pricingModels.js';
 import { containsPrivacySentinel, createTempDb, createTestEvent } from './helpers.js';
+import { assertCliOutputPrivacy, assertJsonOutputPrivacy } from './privacyOutput.js';
 
 function runCli(args: string[], dbPath: string, extraEnv: Record<string, string> = {}) {
   return spawnSync('corepack', ['pnpm', 'exec', 'tsx', 'src/cli.ts', ...args], {
@@ -210,6 +211,69 @@ describe('CLI process error boundary', () => {
       expect(result.status).toBe(0);
       expect(result.stderr).toBe('');
       expect(() => JSON.parse(result.stdout)).not.toThrow();
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('stores explicit scan project labels across the CLI process boundary', () => {
+    const temp = createTempDb();
+    try {
+      const result = runCli(
+        [
+          'scan',
+          '--source',
+          'codex',
+          '--path',
+          join(process.cwd(), 'tests', 'fixtures', 'codex', 'sessions.jsonl'),
+          '--project-label',
+          'client-a'
+        ],
+        temp.dbPath
+      );
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toContain('warning: codex:malformed-jsonl-records');
+      const db = openDatabase(temp.dbPath);
+      try {
+        const events = new UsageEventsRepository(db).listAll();
+        expect(events).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              workspaceLabel: 'client-a',
+              metadata: expect.objectContaining({ projectLabelSource: 'scan-option' })
+            })
+          ])
+        );
+        expect(containsPrivacySentinel([result.stdout, result.stderr, events])).toBe(false);
+      } finally {
+        db.close();
+      }
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('sanitizes invalid scan project labels without echoing raw input', () => {
+    const temp = createTempDb();
+    try {
+      const result = runCli(
+        [
+          'scan',
+          '--source',
+          'codex',
+          '--path',
+          join(process.cwd(), 'tests', 'fixtures', 'codex', 'sessions.jsonl'),
+          '--project-label',
+          'RAW_PATH_SENTINEL_DO_NOT_LEAK'
+        ],
+        temp.dbPath
+      );
+
+      expect(result.status).not.toBe(0);
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toBe('error: invalid_project_label\n');
+      expect(containsPrivacySentinel(result.stderr)).toBe(false);
     } finally {
       temp.cleanup();
     }
@@ -445,6 +509,136 @@ describe('CLI process error boundary', () => {
       expect(payload.groupBy).toBe('month');
       expect(payload.groups.map((group) => group.key).sort()).toEqual(['2026-05', '2026-06']);
       expect(payload.groups.reduce((total, group) => total + group.events, 0)).toBe(2);
+    } finally {
+      if (db.open) db.close();
+      temp.cleanup();
+    }
+  });
+
+  it('groups summary output by explicit public project labels only', () => {
+    const temp = createTempDb();
+    const db = openDatabase(temp.dbPath);
+    try {
+      new UsageEventsRepository(db).insertMany([
+        createTestEvent({
+          rawIdHash: 'project-explicit-config',
+          workspaceLabel: 'client-alpha',
+          metadata: { parser: 'test', projectLabelSource: 'config' },
+          inputTokens: 200,
+          outputTokens: 100,
+          cachedTokens: 0,
+          totalTokens: 300,
+          estimatedCostUsd: 0.3
+        }),
+        createTestEvent({
+          rawIdHash: 'project-explicit-scan',
+          workspaceLabel: 'client-alpha',
+          metadata: { parser: 'test', projectLabelSource: 'scan-option' },
+          inputTokens: 50,
+          outputTokens: 50,
+          cachedTokens: 0,
+          totalTokens: 100,
+          estimatedCostUsd: 0.1
+        }),
+        createTestEvent({
+          rawIdHash: 'project-explicit-headless',
+          workspaceLabel: 'batch-runner',
+          metadata: { parser: 'test', projectLabelSource: 'headless-input' },
+          inputTokens: 70,
+          outputTokens: 30,
+          cachedTokens: 0,
+          totalTokens: 100,
+          estimatedCostUsd: 0.2
+        }),
+        createTestEvent({
+          rawIdHash: 'project-legacy-label',
+          workspaceLabel: 'legacy-parser-label',
+          workspaceHash: 'legacy-workspace-hash-alpha',
+          model: 'unknown-fixture-model',
+          metadata: { parser: 'test', rawPath: 'RAW_PATH_SENTINEL_DO_NOT_LEAK' },
+          inputTokens: 40,
+          outputTokens: 10,
+          cachedTokens: 0,
+          totalTokens: 50
+        }),
+        createTestEvent({
+          rawIdHash: 'project-hash-only',
+          workspaceHash: 'workspace-hash-beta',
+          model: 'unknown-fixture-model',
+          metadata: { parser: 'test', prompt: 'PROMPT_SENTINEL_DO_NOT_LEAK' },
+          inputTokens: 20,
+          outputTokens: 10,
+          cachedTokens: 0,
+          totalTokens: 30
+        }),
+        createTestEvent({
+          rawIdHash: 'project-hash-like-label',
+          workspaceLabel: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
+          model: 'unknown-fixture-model',
+          metadata: { parser: 'test', projectLabelSource: 'config' },
+          inputTokens: 10,
+          outputTokens: 10,
+          cachedTokens: 0,
+          totalTokens: 20
+        })
+      ]);
+      db.close();
+
+      const json = runCli(['summary', '--group-by', 'project', '--json'], temp.dbPath);
+      const text = runCli(['summary', '--group-by', 'project'], temp.dbPath);
+      const payload = JSON.parse(json.stdout) as {
+        groupBy: string;
+        groups: Array<{
+          key: string;
+          events: number;
+          totalTokens: number;
+          estimatedCostUsd: number | null;
+        }>;
+      };
+
+      expect(json.status).toBe(0);
+      expect(json.stderr).toBe('');
+      expect(payload).toEqual({
+        groupBy: 'project',
+        groups: [
+          expect.objectContaining({
+            key: 'client-alpha',
+            events: 2,
+            totalTokens: 400,
+            estimatedCostUsd: 0.4
+          }),
+          expect.objectContaining({
+            key: 'batch-runner',
+            events: 1,
+            totalTokens: 100,
+            estimatedCostUsd: 0.2
+          }),
+          expect.objectContaining({
+            key: 'unknown',
+            events: 3,
+            totalTokens: 100,
+            estimatedCostUsd: null
+          })
+        ]
+      });
+      expect(json.stdout).not.toContain('legacy-parser-label');
+      expect(json.stdout).not.toContain('workspace-hash');
+      expect(json.stdout).not.toContain('9f86d081');
+      expect(text.status).toBe(0);
+      expect(text.stderr).toBe('');
+      expect(text.stdout).toContain('client-alpha');
+      expect(text.stdout).toContain('batch-runner');
+      expect(text.stdout).toContain('unknown');
+      expect(text.stdout).toContain('unknown');
+      expect(text.stdout).not.toContain('$0.00');
+      expect(text.stdout).not.toContain('legacy-parser-label');
+      expect(text.stdout).not.toContain('workspace-hash');
+      expect(text.stdout).not.toContain('9f86d081');
+      expect(containsPrivacySentinel([json.stdout, json.stderr, text.stdout, text.stderr])).toBe(
+        false
+      );
+      assertJsonOutputPrivacy(payload);
+      assertCliOutputPrivacy({ stdout: text.stdout, stderr: text.stderr });
     } finally {
       if (db.open) db.close();
       temp.cleanup();
@@ -915,7 +1109,8 @@ describe('CLI process error boundary', () => {
       expect(jsonAndPng.stderr).toBe('');
       expect(combinedPayload.series).toEqual(payload.series);
       expect(pngOnly.status).toBe(0);
-      expect(pngOnly.stdout).toBe(`Wrote graph PNG: ${pngPath}\n`);
+      expect(pngOnly.stdout).toBe(`Wrote graph PNG: ${basename(pngPath)}\n`);
+      expect(pngOnly.stdout).not.toContain('/tmp/');
       expect(pngOnly.stderr).toBe('');
       expect(png.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
       expect(png.subarray(12, 16).toString('ascii')).toBe('IHDR');
@@ -951,7 +1146,8 @@ describe('CLI process error boundary', () => {
       expect(json.stderr).toBe('');
       expect(payload).toMatchObject({ series: [], totals: { events: 0 } });
       expect(absolutePng.status).toBe(0);
-      expect(absolutePng.stdout).toBe(`Wrote graph PNG: ${absolutePngPath}\n`);
+      expect(absolutePng.stdout).toBe(`Wrote graph PNG: ${basename(absolutePngPath)}\n`);
+      expect(absolutePng.stdout).not.toContain('/tmp/');
       expect(absolutePng.stderr).toBe('');
       expect(relativePng.status).toBe(0);
       expect(relativePng.stdout).toBe(`Wrote graph PNG: ${relativePngPath}\n`);
@@ -1057,7 +1253,8 @@ describe('CLI process error boundary', () => {
       const png = readFileSync(pngPath);
 
       expect(result.status).toBe(0);
-      expect(result.stdout).toBe(`Wrote wrapped PNG: ${pngPath}\n`);
+      expect(result.stdout).toBe(`Wrote wrapped PNG: ${basename(pngPath)}\n`);
+      expect(result.stdout).not.toContain('/tmp/');
       expect(result.stderr).toBe('');
       expect(png.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
       expect(png.subarray(12, 16).toString('ascii')).toBe('IHDR');

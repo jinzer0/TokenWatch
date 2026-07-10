@@ -7,6 +7,7 @@ import {
   type GraphReport,
   type WrappedReport
 } from './reportContracts.js';
+import { projectKeyForEvent } from './projectAttribution.js';
 
 const graphBuckets = ['day', 'hour', 'month'] as const;
 const graphMetrics = ['tokens', 'cost', 'events'] as const;
@@ -78,6 +79,7 @@ export class ReportService {
     const topModels = buildRankings(includedEvents, (event) => event.model);
     const topAgents = buildRankings(includedEvents, (event) => event.agent);
     const topSources = buildRankings(includedEvents, (event) => event.source);
+    const topProjects = buildRankings(includedEvents, projectKeyForEvent);
     const topSourceNames = buildRankings(includedEvents, (event) => event.sourceName);
     const monthly = buildChronologicalRankings(includedEvents, (event) =>
       utcMonthBucket(event.timestamp)
@@ -100,6 +102,7 @@ export class ReportService {
         busiestDay: rankWithoutCost(daily.slice().sort(compareRanking)[0] ?? null),
         topModel: rankWithoutCost(topModels[0] ?? null),
         topAgent: rankWithoutCost(topAgents[0] ?? null),
+        topProject: rankWithoutCost(topProjects[0] ?? null),
         topSourceName: rankWithoutCost(topSourceNames[0] ?? null),
         longestSessionMs: sessionTimeMetrics.longestSessionMs,
         maxConcurrentSessions: sessionTimeMetrics.maxConcurrentSessions
@@ -107,6 +110,7 @@ export class ReportService {
       topModels,
       topAgents,
       topSources,
+      topProjects,
       topSourceNames,
       monthly,
       sessionMetrics: {

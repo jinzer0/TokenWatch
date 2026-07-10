@@ -11,8 +11,23 @@ import {
 import type { ScanRun } from '../models/scanRun.js';
 import type { UsageEvent } from '../models/usageEvent.js';
 import type { BudgetEvaluation } from './budgetService.js';
+import { projectKeyForEvent } from './projectAttribution.js';
+import {
+  buildTuiInsightRows,
+  buildTuiTrendRows,
+  type TuiInsightRow,
+  type TuiTrendRow
+} from './tuiAnalyticsRows.js';
 
-export type GroupBy = 'model' | 'agent' | 'source' | 'sourceName' | 'day' | 'hour' | 'month';
+export type GroupBy =
+  | 'model'
+  | 'agent'
+  | 'source'
+  | 'sourceName'
+  | 'project'
+  | 'day'
+  | 'hour'
+  | 'month';
 
 export type SummaryTotals = {
   totalEvents: number;
@@ -173,6 +188,8 @@ export type TuiData = {
   totals: SummaryTotals;
   usageRows: TuiUsageRow[];
   minutelyBuckets: TuiMinutelyBucket[];
+  insightsRows: TuiInsightRow[];
+  trendRows: TuiTrendRow[];
   statsSummary: TuiStatsSummary;
   statsRows: TuiStatRow[];
   agentRows: TuiAgentRow[];
@@ -368,6 +385,8 @@ export class AggregatorService {
       totals,
       usageRows: usageRows(events),
       minutelyBuckets: minutelyBuckets(events),
+      insightsRows: buildTuiInsightRows(events, budgets),
+      trendRows: buildTuiTrendRows(events, budgets),
       statsSummary: statsSummary(totals),
       statsRows: statsRows(totals),
       agentRows: agentRows(events),
@@ -608,6 +627,8 @@ function groupKey(event: UsageEvent, groupBy: GroupBy): string {
       return event.source;
     case 'sourceName':
       return event.sourceName;
+    case 'project':
+      return projectKeyForEvent(event);
     case 'day':
       return localDayBucket(event.timestamp);
     case 'hour':

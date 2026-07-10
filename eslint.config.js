@@ -4,7 +4,15 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'coverage/**', 'docs/tokscale/**', '.sisyphus/**', 'node_modules/**']
+    ignores: [
+      'dist/**',
+      'out/**',
+      'release/**',
+      'coverage/**',
+      'docs/tokscale/**',
+      '.sisyphus/**',
+      'node_modules/**'
+    ]
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

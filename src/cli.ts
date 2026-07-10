@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { extname } from 'node:path';
+import { basename, extname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Command } from 'commander';
 import { APP_VERSION } from './app/constants.js';
@@ -10,10 +10,22 @@ import { containsUnsafeOutputPathShape } from './privacy.js';
 import { probeProviderUsage } from './services/providerUsage.js';
 import { writeReportPng } from './services/pngRenderer.js';
 import {
+  buildInsightsCommandReport,
+  planInsightsOutput,
+  renderInsightsText,
+  writeInsightsReportFile,
+  type InsightsCommandOptions
+} from './services/insightsCommandReport.js';
+import {
   ReportService,
   type BuildGraphReportOptions,
   type BuildWrappedReportOptions
 } from './services/reportService.js';
+import {
+  StatuslineError,
+  renderStatuslinePresetText,
+  renderStatuslineText
+} from './services/statusline.js';
 import { formatInteger, formatTable, formatUsd } from './utils/format.js';
 import { defaultPrices } from './pricing/defaultPrices.js';
 import {
@@ -49,6 +61,7 @@ const GROUP_BY_VALUES = [
   'agent',
   'source',
   'sourceName',
+  'project',
   'day',
   'hour',
   'month',
@@ -67,6 +80,25 @@ export async function main(argv = process.argv): Promise<void> {
   program.configureOutput({ writeErr: () => undefined });
 
   program
+    .command('statusline')
+    .description('Print a compact token usage status line')
+    .option('--window <window>', 'statusline window: today or month', 'today')
+    .option('--preset <preset>', 'statusline preset: default, compact, or live')
+    .option('--json', 'output JSON')
+    .action(async (options: { window?: string; preset?: string; json?: boolean }) => {
+      const services = await createCliServices();
+      const dto = buildCliStatusline(services, options.window, options.preset);
+      if (dto.kind === 'statusline-preset') {
+        console.log(options.json ? JSON.stringify(dto, null, 2) : renderStatuslinePresetText(dto));
+        return;
+      }
+      console.log(options.json ? JSON.stringify(dto, null, 2) : renderStatuslineText(dto));
+    });
+
+  registerInsightsCommand(program, 'insights', 'Show privacy-safe local usage insights');
+  registerInsightsCommand(program, 'optimize', 'Alias for insights');
+
+  program
     .command('usage')
     .description('Probe live provider usage metadata from environment credentials')
     .requiredOption('--provider <provider>', 'provider: openai or anthropic')
@@ -82,38 +114,47 @@ export async function main(argv = process.argv): Promise<void> {
     .option('--source <source>', `source adapter: ${parserSourceHelp}`)
     .option('--path <path>', 'custom artifact or directory path')
     .option('--source-name <name>', 'user attribution label for this machine/server')
-    .action(async (options: { source?: string; path?: string; sourceName?: string }) => {
-      const services = await createCliServices();
-      let source: ParserName | undefined;
-      if (options.source) {
-        if (!isParserName(options.source)) {
-          throw new TokenWatchError('unsupported_source', 1, 'unsupported_source');
+    .option('--project-label <label>', 'explicit safe project label for this scan')
+    .action(
+      async (options: {
+        source?: string;
+        path?: string;
+        sourceName?: string;
+        projectLabel?: string;
+      }) => {
+        const services = await createCliServices();
+        let source: ParserName | undefined;
+        if (options.source) {
+          if (!isParserName(options.source)) {
+            throw new TokenWatchError('unsupported_source', 1, 'unsupported_source');
+          }
+          source = options.source;
         }
-        source = options.source;
+        const result = await services.scanner.scan({
+          source,
+          path: options.path,
+          sourceName: options.sourceName,
+          projectLabel: options.projectLabel
+        });
+        console.log(`Scan complete`);
+        console.log(`Discovered files: ${result.discoveredFiles}`);
+        console.log(`Parsed events: ${result.parsedEvents}`);
+        console.log(`Inserted events: ${result.insertedEvents}`);
+        console.log(`Duplicate events: ${result.duplicateEvents}`);
+        console.log(`Conflict events: ${result.conflictEvents}`);
+        console.log(`Skipped records: ${result.skippedRecords}`);
+        console.log(`Rejected records: ${result.rejectedRecords}`);
+        console.log(`Error records: ${result.errorRecords}`);
+        for (const warning of result.warnings) console.error(`warning: ${warning}`);
       }
-      const result = await services.scanner.scan({
-        source,
-        path: options.path,
-        sourceName: options.sourceName
-      });
-      console.log(`Scan complete`);
-      console.log(`Discovered files: ${result.discoveredFiles}`);
-      console.log(`Parsed events: ${result.parsedEvents}`);
-      console.log(`Inserted events: ${result.insertedEvents}`);
-      console.log(`Duplicate events: ${result.duplicateEvents}`);
-      console.log(`Conflict events: ${result.conflictEvents}`);
-      console.log(`Skipped records: ${result.skippedRecords}`);
-      console.log(`Rejected records: ${result.rejectedRecords}`);
-      console.log(`Error records: ${result.errorRecords}`);
-      for (const warning of result.warnings) console.error(`warning: ${warning}`);
-    });
+    );
 
   program
     .command('summary')
     .description('Show token usage summary')
     .option(
       '--group-by <group>',
-      'group by model, agent, source, sourceName, day, hour, month, session, or sessionInterval'
+      'group by model, agent, source, sourceName, project, day, hour, month, session, or sessionInterval'
     )
     .option('--json', 'output JSON')
     .action(async (options: { groupBy?: string; json?: boolean }) => {
@@ -221,7 +262,7 @@ export async function main(argv = process.argv): Promise<void> {
           return;
         }
 
-        console.log(`Wrote graph PNG: ${options.out}`);
+        console.log(`Wrote graph PNG: ${basename(options.out)}`);
       }
     );
 
@@ -246,7 +287,7 @@ export async function main(argv = process.argv): Promise<void> {
         return;
       }
 
-      console.log(`Wrote wrapped PNG: ${options.out}`);
+      console.log(`Wrote wrapped PNG: ${basename(options.out)}`);
     });
 
   program
@@ -331,10 +372,11 @@ export async function main(argv = process.argv): Promise<void> {
     .description('Set config value')
     .action(async (key: string, value: string) => {
       const services = await createCliServices();
-      if (key !== 'source_name')
+      if (key !== 'source_name' && key !== 'project_label')
         throw new TokenWatchError('unsupported_config_key', 1, 'unsupported_config_key');
-      services.config.setSourceName(value);
-      console.log('Set source_name');
+      if (key === 'source_name') services.config.setSourceName(value);
+      if (key === 'project_label') services.config.setProjectLabel(value);
+      console.log(`Set ${key}`);
     });
 
   const pricing = program.command('pricing').description('Manage local pricing metadata');
@@ -514,9 +556,15 @@ export async function main(argv = process.argv): Promise<void> {
             lookupWarning: Boolean(pricingLookup.warning)
           }
         );
+      const loadStatusline = () =>
+        services.statusline.build(services.usageEvents.listAll(), {
+          window: 'today',
+          budgets: services.budget.evaluateCurrentMonth()
+        });
       render(
         React.default.createElement(App, {
           loadData,
+          loadStatusline,
           settings,
           cache: createFileTuiDataCache(tuiDataCachePathFromDbPath(resolveDbPath())),
           onExportView: (viewKey: string, rows: unknown[]) => {
@@ -538,8 +586,60 @@ export async function main(argv = process.argv): Promise<void> {
 }
 
 function normalizeScriptRunnerArgv(argv: string[]): string[] {
-  if (argv[2] !== '--') return argv;
-  return [argv[0] ?? 'node', argv[1] ?? 'tokenwatch', ...argv.slice(3)];
+  if (argv[2] === '--') return [argv[0] ?? 'node', argv[1] ?? 'tokenwatch', ...argv.slice(3)];
+  if (argv[3] === '--') {
+    return [argv[0] ?? 'node', argv[1] ?? 'tokenwatch', argv[2] ?? 'tokenwatch', ...argv.slice(4)];
+  }
+  return argv;
+}
+
+function registerInsightsCommand(
+  program: Command,
+  name: 'insights' | 'optimize',
+  description: string
+): void {
+  program
+    .command(name)
+    .description(description)
+    .option('--window <window>', 'insights window: 7d or 30d', '7d')
+    .option('--json', 'output JSON')
+    .option('--out <path>', 'write JSON or Markdown report')
+    .option('--format <format>', 'output format for --out: json or markdown')
+    .action(async (options: InsightsCommandOptions) => {
+      await runInsightsCommand(options);
+    });
+}
+
+async function runInsightsCommand(options: InsightsCommandOptions): Promise<void> {
+  try {
+    const plan = planInsightsOutput(options);
+    const services = await createCliServices();
+    const events = services.usageEvents.listAll();
+    const report = buildInsightsCommandReport({
+      services,
+      events,
+      budgets: services.budget.evaluateCurrentMonth(),
+      window: options.window
+    });
+    if (plan.kind === 'stdout-json') {
+      console.log(JSON.stringify(report, null, 2));
+      return;
+    }
+    if (plan.kind === 'stdout-text') {
+      console.log(renderInsightsText(report));
+      return;
+    }
+    const outputName = writeInsightsReportFile(report, plan);
+    console.log(`Wrote insights ${plan.format === 'json' ? 'JSON' : 'Markdown'}: ${outputName}`);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('invalid_report_option')) {
+      throw new TokenWatchError('invalid_report_option', 1, 'invalid_report_option');
+    }
+    if (error instanceof Error && error.message === 'invalid_output_path') {
+      throw new TokenWatchError('invalid_output_path', 1, 'invalid_output_path');
+    }
+    throw error;
+  }
 }
 
 function resolveCliTuiSettings(
@@ -624,6 +724,31 @@ async function createCliServices() {
     import('./services/container.js')
   ]);
   return createServices(openDatabase());
+}
+
+function buildCliStatusline(
+  services: Awaited<ReturnType<typeof createCliServices>>,
+  window: string | undefined,
+  preset: string | undefined
+) {
+  try {
+    const events = services.usageEvents.listAll();
+    const options = {
+      window: window ?? 'today',
+      budgets: services.budget.evaluateCurrentMonth()
+    };
+    if (preset === undefined || preset === 'default') {
+      return services.statusline.build(events, options);
+    }
+    return services.statusline.buildPreset(events, { ...options, preset });
+  } catch (error) {
+    if (error instanceof StatuslineError) {
+      const code =
+        error.code === 'invalid_statusline_preset' ? 'invalid_report_option' : error.code;
+      throw new TokenWatchError(code, 1, code);
+    }
+    throw error;
+  }
 }
 
 async function ensureCliPricingLookup(

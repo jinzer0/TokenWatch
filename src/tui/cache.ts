@@ -73,6 +73,8 @@ function isSanitizedTuiData(value: unknown): value is TuiData {
   const requiredArrayKeys = [
     'usageRows',
     'minutelyBuckets',
+    'insightsRows',
+    'trendRows',
     'statsRows',
     'agentRows',
     'sessions',

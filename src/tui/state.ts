@@ -1,4 +1,5 @@
 import type { TuiData } from '../services/aggregator.js';
+import type { StatuslineDto } from '../services/statusline.js';
 import type { TuiDataCacheAdapter } from './cache.js';
 import type { TuiSettings } from '../services/configService.js';
 
@@ -6,6 +7,8 @@ export type ViewKey =
   | 'overview'
   | 'usage'
   | 'stats'
+  | 'insights'
+  | 'trends'
   | 'reports'
   | 'source'
   | 'sourceName'
@@ -34,6 +37,7 @@ export type TuiRow = Record<string, string | number | null>;
 
 export type TuiProps = {
   loadData: () => TuiData;
+  loadStatusline?: () => StatuslineDto;
   onExportView: (viewKey: string, rows: TuiRow[]) => string;
   initialViewKey?: ViewKey;
   initialDetails?: boolean;
@@ -45,6 +49,8 @@ export const views: ViewDefinition[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'usage', label: 'Usage' },
   { key: 'stats', label: 'Stats' },
+  { key: 'insights', label: 'Insights' },
+  { key: 'trends', label: 'Trends' },
   { key: 'reports', label: 'Reports' },
   { key: 'source', label: 'By Source' },
   { key: 'sourceName', label: 'By Source Name' },

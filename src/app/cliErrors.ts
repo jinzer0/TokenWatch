@@ -9,6 +9,7 @@ type SanitizedCliError = {
 
 const SAFE_MESSAGES: Record<ScanErrorCode, string> = {
   invalid_source_name: 'error: invalid_source_name',
+  invalid_project_label: 'error: invalid_project_label',
   invalid_canonical_field: 'error: invalid_canonical_field',
   scan_failed: 'error: scan_failed',
   parser_failed: 'error: parser_failed',
@@ -23,6 +24,7 @@ const SAFE_MESSAGES: Record<ScanErrorCode, string> = {
   invalid_report_option: 'error: invalid_report_option',
   invalid_output_path: 'error: invalid_output_path',
   invalid_wrapped_year: 'error: invalid_wrapped_year',
+  invalid_statusline_window: 'error: invalid_statusline_window',
   invalid_provider: 'error: invalid_provider',
   headless_payload_rejected: 'error: headless_payload_rejected',
   unsupported_config_key: 'error: unsupported_config_key',

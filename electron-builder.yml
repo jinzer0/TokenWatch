@@ -1,0 +1,18 @@
+appId: dev.tokenwatch.desktop
+productName: TokenWatch
+asar: true
+asarUnpack:
+  - '**/*.node'
+files:
+  - out/**
+  - package.json
+directories:
+  output: release
+artifactName: '${productName}-${version}-${arch}.${ext}'
+extraMetadata:
+  main: out/main/main.js
+mac:
+  target:
+    - target: dmg
+  identity: null
+  notarize: false

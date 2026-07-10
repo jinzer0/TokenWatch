@@ -8,6 +8,7 @@ import type {
   TuiData
 } from '../services/aggregator.js';
 import type { BudgetEvaluation } from '../services/budgetService.js';
+import { renderStatuslineText } from '../services/statusline.js';
 import type { TuiSettings } from '../services/configService.js';
 import { formatUsd } from '../utils/format.js';
 import { DataTable, type TableRow } from './components/DataTable.js';
@@ -29,6 +30,7 @@ const DEFAULT_TUI_SETTINGS: TuiSettings = {
 
 export function App({
   loadData,
+  loadStatusline,
   onExportView,
   initialViewKey,
   initialDetails,
@@ -41,6 +43,9 @@ export function App({
     initialDataRef.current = loadInitialTuiData(loadData, cache);
   }
   const [data, setData] = useState<TuiData>(initialDataRef.current.data);
+  const [statuslineText, setStatuslineText] = useState(() =>
+    loadStatusline ? renderStatuslineText(loadStatusline()) : undefined
+  );
   const refreshStatus = tuiRefreshLabel(settings);
   const [cacheStatus, setCacheStatus] = useState(initialDataRef.current.cacheStatus);
   const refreshedCachedDataRef = useRef(false);
@@ -57,12 +62,14 @@ export function App({
   const [sortStateByView, setSortStateByView] = useState<Partial<Record<ViewKey, SortState>>>({});
   const refreshData = useCallback(() => {
     const nextData = loadData();
+    const nextStatuslineText = loadStatusline ? renderStatuslineText(loadStatusline()) : undefined;
     setData({ ...nextData });
+    setStatuslineText(nextStatuslineText);
     cache?.write(nextData);
     setCacheStatus('refreshed');
     setMessage('Refresh: just now');
     return nextData;
-  }, [cache, loadData]);
+  }, [cache, loadData, loadStatusline]);
 
   useEffect(() => {
     if (!initialDataRef.current?.usedCache || refreshedCachedDataRef.current) return;
@@ -204,6 +211,7 @@ export function App({
         refreshStatus={refreshStatus}
         cacheStatus={cacheStatus}
         message={message}
+        statuslineText={statuslineText}
       />
     </Layout>
   );
@@ -250,6 +258,16 @@ const SORT_DEFINITIONS: Record<ViewKey, SortDefinition> = {
     ['source_name', 'source', 'asc']
   ),
   stats: STABLE_SORT,
+  insights: columns(
+    ['severity', 'severity', 'desc'],
+    ['impact', 'impact', 'desc'],
+    ['metric', 'metric', 'asc']
+  ),
+  trends: columns(
+    ['absolute_delta', 'delta', 'desc'],
+    ['metric', 'metric', 'asc'],
+    ['status', 'status', 'asc']
+  ),
   reports: STABLE_SORT,
   source: groupedColumns('source'),
   sourceName: groupedColumns('sourceName'),
@@ -411,6 +429,10 @@ function rowsForView(data: TuiData, key: ViewKey): TableRow[] {
       return usageRows(data.usageRows);
     case 'stats':
       return statsRows(data);
+    case 'insights':
+      return insightRows(data.insightsRows);
+    case 'trends':
+      return trendRows(data.trendRows);
     case 'reports':
       return reportGuidanceRows(data);
     case 'source':
@@ -476,6 +498,7 @@ function columnLimitForView(key: ViewKey): number | undefined {
   if (key === 'usage') return 10;
   if (key === 'minutely') return 7;
   if (key === 'agents') return 8;
+  if (key === 'insights' || key === 'trends') return 12;
   return undefined;
 }
 
@@ -517,6 +540,43 @@ function statsRows(data: TuiData): TableRow[] {
   return data.statsRows.map((row) => ({ stat: row.stat, value: row.value }));
 }
 
+function insightRows(rows: TuiData['insightsRows']): TableRow[] {
+  return rows.map((row) => ({
+    metric: row.metric,
+    status: row.status,
+    current: row.current,
+    previous: row.previous,
+    delta: row.delta,
+    tokens: row.tokens,
+    estimated_cost_usd: row.estimatedCostUsd,
+    known_estimated_cost_usd: row.knownEstimatedCostUsd,
+    unknown_cost_events: row.unknownCostEvents,
+    unknown_cost_tokens: row.unknownCostTokens,
+    warning: row.warning,
+    severity: row.severity,
+    impact: row.impact
+  }));
+}
+
+function trendRows(rows: TuiData['trendRows']): TableRow[] {
+  return rows.map((row) => ({
+    category: row.category,
+    metric: row.metric,
+    status: row.status,
+    current: row.current,
+    previous: row.previous,
+    delta: row.delta,
+    absolute_delta: row.absoluteDelta,
+    delta_percent: row.deltaPercent,
+    tokens: row.tokens,
+    estimated_cost_usd: row.estimatedCostUsd,
+    known_estimated_cost_usd: row.knownEstimatedCostUsd,
+    unknown_cost_events: row.unknownCostEvents,
+    unknown_cost_tokens: row.unknownCostTokens,
+    warning: row.warning
+  }));
+}
+
 function reportGuidanceRows(data: TuiData): TableRow[] {
   const eventLabel = data.totals.totalEvents === 1 ? 'event' : 'events';
   const sourceLabel = data.bySource.length === 1 ? 'source' : 'sources';
@@ -536,6 +596,18 @@ function reportGuidanceRows(data: TuiData): TableRow[] {
       command: 'wrapped --year',
       availability: hasUsage ? 'year summary available' : 'no usage events yet',
       basis: `${data.byMonth.length} month buckets`
+    },
+    {
+      report: 'insights',
+      command: 'insights --window 7d --json',
+      availability: hasUsage ? 'insights report available' : 'no usage events yet',
+      basis: `${data.insightsRows.length} insight rows`
+    },
+    {
+      report: 'optimize',
+      command: 'optimize --window 30d',
+      availability: hasUsage ? 'optimization report available' : 'no usage events yet',
+      basis: `${data.trendRows.length} trend rows`
     },
     {
       report: 'doctor sources',

@@ -140,6 +140,7 @@ describe('report contract schemas', () => {
         busiestDay: { key: '2026-05-02', events: 2, tokens: 600 },
         topModel: { key: 'gpt-5.5-fast', events: 2, tokens: 500 },
         topAgent: { key: 'codex', events: 3, tokens: 900 },
+        topProject: { key: 'client-alpha', events: 2, tokens: 500 },
         topSourceName: { key: 'local', events: 3, tokens: 900 },
         longestSessionMs: 120000,
         maxConcurrentSessions: 2
@@ -147,6 +148,7 @@ describe('report contract schemas', () => {
       topModels: [{ key: 'gpt-5.5-fast', events: 2, tokens: 500, estimatedCostUsd: 0.25 }],
       topAgents: [{ key: 'codex', events: 3, tokens: 900, estimatedCostUsd: 0.45 }],
       topSources: [{ key: 'codex', events: 3, tokens: 900, estimatedCostUsd: 0.45 }],
+      topProjects: [{ key: 'client-alpha', events: 2, tokens: 500, estimatedCostUsd: 0.25 }],
       topSourceNames: [{ key: 'local', events: 3, tokens: 900, estimatedCostUsd: 0.45 }],
       monthly: [{ key: '2026-05', events: 3, tokens: 900, estimatedCostUsd: 0.45 }],
       sessionMetrics: {
@@ -167,6 +169,7 @@ describe('report contract schemas', () => {
       topModels: [{ key: 'gpt-5.5-fast' }],
       topAgents: [{ key: 'codex' }],
       topSources: [{ key: 'codex' }],
+      topProjects: [{ key: 'client-alpha' }],
       topSourceNames: [{ key: 'local' }],
       monthly: [{ key: '2026-05' }],
       sessionMetrics: { sessionCount: 2 },
@@ -197,6 +200,17 @@ describe('report contract schemas', () => {
     expect(() => outputOptions({ outputPath: 'RAW_PATH_SENTINEL_DO_NOT_LEAK' })).toThrow(
       'invalid_output_path'
     );
+  });
+
+  it('exports central insights and trend schemas without changing graph and wrapped contracts', async () => {
+    const contracts = await loadReportContracts();
+
+    expect(contracts.safeOutputLabelSchema).toMatchObject({ parse: expect.any(Function) });
+    expect(contracts.insightsReportSchema).toMatchObject({ parse: expect.any(Function) });
+    expect(contracts.trendReportSchema).toMatchObject({ parse: expect.any(Function) });
+    expect(contracts.insightsCommandReportSchema).toMatchObject({ parse: expect.any(Function) });
+    expect(contracts.insightsReportOptionsSchema).toMatchObject({ parse: expect.any(Function) });
+    expect(contracts.trendReportOptionsSchema).toMatchObject({ parse: expect.any(Function) });
   });
 
   it('validates headless Codex input as fixed sanitized object or array contracts', async () => {
