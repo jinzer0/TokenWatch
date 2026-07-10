@@ -9,9 +9,20 @@ import {
   diagnosticsHubSchema,
   type DesktopDashboardDiagnosticsHub
 } from './diagnosticsHubContracts.js';
-
-const scanRunStatuses = ['running', 'completed', 'failed', 'interrupted'] as const;
-const pathKinds = ['default', 'custom', 'unknown'] as const;
+import {
+  dashboardScanRunSchema,
+  type DesktopDashboardScanRun
+} from './dashboardScanRunContracts.js';
+import {
+  dashboardProjectGroupSchema,
+  type DesktopDashboardProjectGroup
+} from './dashboardProjectContracts.js';
+import {
+  dashboardInsightsSchema,
+  dashboardTrendsSchema,
+  type DesktopDashboardInsights,
+  type DesktopDashboardTrends
+} from './dashboardAnalyticsContracts.js';
 
 const positiveIntegerSchema = z.number().int().nonnegative();
 const nonNegativeNumberSchema = z.number().nonnegative();
@@ -33,9 +44,6 @@ const safeLabelSchema = z
     }
   });
 
-const warningCodeSchema = safeLabelSchema.max(80);
-const errorCodeSchema = safeLabelSchema.max(80).nullable();
-
 const dashboardTotalsSchema = z
   .object({
     events: positiveIntegerSchema,
@@ -44,11 +52,13 @@ const dashboardTotalsSchema = z
     outputTokens: positiveIntegerSchema,
     cachedTokens: positiveIntegerSchema,
     estimatedCostUsd: nullableCostSchema,
+    knownEstimatedCostUsd: nullableCostSchema,
     sources: positiveIntegerSchema,
     sourceNames: positiveIntegerSchema,
     models: positiveIntegerSchema,
     agents: positiveIntegerSchema,
-    unknownCostEvents: positiveIntegerSchema
+    unknownCostEvents: positiveIntegerSchema,
+    unknownCostTokens: positiveIntegerSchema
   })
   .strict();
 
@@ -98,25 +108,11 @@ const dashboardBreakdownSchema = z
     reasoningTokens: positiveIntegerSchema,
     totalTokens: positiveIntegerSchema,
     estimatedCostUsd: nullableCostSchema,
+    knownEstimatedCostUsd: nullableCostSchema,
+    unknownCostEvents: positiveIntegerSchema,
+    unknownCostTokens: positiveIntegerSchema,
     topModel: safeLabelSchema.nullable(),
     topAgent: safeLabelSchema.nullable()
-  })
-  .strict();
-
-const publicProjectKeySchema = safeLabelSchema.superRefine((value, ctx) => {
-  if (/^[A-Fa-f0-9]{32,128}$/.test(value)) {
-    ctx.addIssue({ code: 'custom', message: 'desktop_dashboard_payload_rejected' });
-  }
-});
-
-const dashboardProjectGroupSchema = z
-  .object({
-    projectKey: publicProjectKeySchema,
-    events: positiveIntegerSchema,
-    inputTokens: positiveIntegerSchema,
-    outputTokens: positiveIntegerSchema,
-    totalTokens: positiveIntegerSchema,
-    estimatedCostUsd: nullableCostSchema
   })
   .strict();
 
@@ -129,7 +125,9 @@ const dashboardUsageSeriesPointSchema = z
     outputTokens: positiveIntegerSchema,
     cachedTokens: positiveIntegerSchema,
     estimatedCostUsd: nullableCostSchema,
-    unknownCostEvents: positiveIntegerSchema
+    knownEstimatedCostUsd: nullableCostSchema,
+    unknownCostEvents: positiveIntegerSchema,
+    unknownCostTokens: positiveIntegerSchema
   })
   .strict();
 
@@ -137,28 +135,9 @@ const dashboardCostSeriesPointSchema = z
   .object({
     key: safeLabelSchema,
     estimatedCostUsd: nullableCostSchema,
-    unknownCostEvents: positiveIntegerSchema
-  })
-  .strict();
-
-const dashboardScanRunSchema = z
-  .object({
-    startedAt: isoDateTimeSchema,
-    finishedAt: isoDateTimeSchema.nullable(),
-    sourceName: safeLabelSchema,
-    parserName: safeLabelSchema.nullable(),
-    pathKind: z.enum(pathKinds),
-    status: z.enum(scanRunStatuses),
-    discoveredFiles: positiveIntegerSchema,
-    parsedEvents: positiveIntegerSchema,
-    insertedEvents: positiveIntegerSchema,
-    duplicateEvents: positiveIntegerSchema,
-    conflictEvents: positiveIntegerSchema,
-    skippedRecords: positiveIntegerSchema,
-    rejectedRecords: positiveIntegerSchema,
-    errorRecords: positiveIntegerSchema,
-    warningCodes: z.array(warningCodeSchema),
-    errorCode: errorCodeSchema
+    knownEstimatedCostUsd: nullableCostSchema,
+    unknownCostEvents: positiveIntegerSchema,
+    unknownCostTokens: positiveIntegerSchema
   })
   .strict();
 
@@ -189,6 +168,9 @@ const dashboardSessionIntervalSchema = z
     reasoningTokens: positiveIntegerSchema,
     totalTokens: positiveIntegerSchema,
     estimatedCostUsd: nullableCostSchema,
+    knownEstimatedCostUsd: nullableCostSchema,
+    unknownCostEvents: positiveIntegerSchema,
+    unknownCostTokens: positiveIntegerSchema,
     activeDurationMs: positiveIntegerSchema,
     wallDurationMs: positiveIntegerSchema
   })
@@ -217,6 +199,8 @@ export const desktopDashboardSchema = z
     filters: dashboardFilterStateSchema,
     sessionMetrics: dashboardSessionMetricsSchema,
     sessionIntervals: z.array(dashboardSessionIntervalSchema),
+    insights: dashboardInsightsSchema,
+    trends: dashboardTrendsSchema,
     privacy: sanitizedPrivacySchema
   })
   .strict();
@@ -266,8 +250,9 @@ export const desktopIpcErrorSchema = z
 
 export type DesktopDashboard = z.infer<typeof desktopDashboardSchema>;
 export type DesktopDashboardBreakdown = z.infer<typeof dashboardBreakdownSchema>;
-export type DesktopDashboardProjectGroup = z.infer<typeof dashboardProjectGroupSchema>;
-export type DesktopDashboardScanRun = z.infer<typeof dashboardScanRunSchema>;
+export type { DesktopDashboardProjectGroup };
+export type { DesktopDashboardScanRun };
+export type { DesktopDashboardInsights, DesktopDashboardTrends };
 export type { DesktopDashboardDiagnosticsHub };
 export type { DesktopDashboardBudgetDiagnostic, DesktopDashboardPricingDiagnostic };
 export type DesktopDashboardFilterInput = z.input<typeof desktopDashboardFiltersSchema>;
