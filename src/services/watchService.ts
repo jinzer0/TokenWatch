@@ -50,7 +50,11 @@ export class WatchService {
       intervalMs,
       delta,
       velocity: buildVelocity(delta, intervalMs),
-      top: buildTopLabels(windowEvents, summary.topModel, summary.topSourceName),
+      top: {
+        ...buildTopLabels(windowEvents, summary.topModel, summary.topSourceName),
+        source: summary.topSource ?? 'unknown',
+        agent: summary.topAgent ?? 'unknown'
+      },
       budgets: buildBudgetSummary(this.budgetStatus, options.budgets ?? [], options.sourceName),
       privacy: { sanitized: true }
     } satisfies WatchTickReport;
@@ -94,7 +98,7 @@ function buildDelta(events: readonly UsageEvent[]): WatchTickReport['delta'] {
   const unknownCostEvents = events.filter((event) => event.estimatedCostUsd === null);
   return {
     events: events.length,
-    tokens: sum(events, 'totalTokens'),
+    totalTokens: sum(events, 'totalTokens'),
     inputTokens: sum(events, 'inputTokens'),
     outputTokens: sum(events, 'outputTokens'),
     cachedTokens: sum(events, 'cachedTokens'),
@@ -112,7 +116,7 @@ function buildVelocity(
   const minutes = intervalMs / 60_000;
   const hours = intervalMs / 3_600_000;
   return {
-    tokensPerMinute: roundMetric(delta.tokens / minutes),
+    tokensPerMinute: roundMetric(delta.totalTokens / minutes),
     estimatedCostUsdPerHour:
       delta.estimatedCostUsd === null ? null : roundMetric(delta.estimatedCostUsd / hours)
   };

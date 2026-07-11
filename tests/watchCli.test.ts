@@ -65,7 +65,7 @@ describe('watch CLI', () => {
         version: 1,
         kind: 'watch_tick',
         intervalMs: 60_000,
-        delta: { events: 1, tokens: 140 },
+        delta: { events: 1, totalTokens: 140 },
         privacy: { sanitized: true }
       });
       expect(payload.delta.estimatedCostUsd).not.toBe(0);
@@ -141,7 +141,7 @@ describe('watch CLI', () => {
       const payload = JSON.parse(result.stdout) as WatchTickReport;
 
       expect(result).toMatchObject({ status: 0, stderr: '' });
-      expect(payload.delta).toMatchObject({ events: 2, tokens: 300 });
+      expect(payload.delta).toMatchObject({ events: 2, totalTokens: 300 });
       expect(JSON.stringify(payload)).not.toContain('prod-server');
       assertJsonOutputPrivacy(payload);
       assertCliOutputPrivacy(result);

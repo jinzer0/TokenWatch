@@ -880,10 +880,10 @@ function parseWatchSourceNames(values: readonly string[]): readonly string[] {
 function renderWatchTick(tick: import('./services/reportContracts.js').WatchTickReport): string {
   return [
     `TokenWatch watch | last refresh ${tick.timestamp} | interval ${formatDuration(tick.intervalMs)}`,
-    `delta ${tick.delta.events} events | ${formatInteger(tick.delta.tokens)} tokens | cost ${formatUsd(tick.delta.estimatedCostUsd)}`,
+    `delta ${tick.delta.events} events | ${formatInteger(tick.delta.totalTokens)} tokens | cost ${formatUsd(tick.delta.estimatedCostUsd)}`,
     `delta input ${formatInteger(tick.delta.inputTokens)} | output ${formatInteger(tick.delta.outputTokens)} | cached ${formatInteger(tick.delta.cachedTokens)} | reasoning ${formatInteger(tick.delta.reasoningTokens)}`,
     `velocity ${formatInteger(tick.velocity.tokensPerMinute)} tok/min | cost ${formatUsd(tick.velocity.estimatedCostUsdPerHour)}/h`,
-    `top model ${tick.top.model} | sourceName ${tick.top.sourceName} | project ${tick.top.project}`,
+    `top model ${tick.top.model} | source ${tick.top.source} | sourceName ${tick.top.sourceName} | agent ${tick.top.agent} | project ${tick.top.project}`,
     `budgets ${tick.budgets.status} | warnings ${tick.budgets.warningCount}`,
     'privacy: sanitized'
   ].join('\n');

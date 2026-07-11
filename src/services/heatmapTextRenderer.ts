@@ -19,7 +19,7 @@ function summaryLine(report: HeatmapReport): string {
     report.totals.estimatedCostUsd === null
       ? 'unknown cost'
       : `$${report.totals.estimatedCostUsd.toFixed(2)}`;
-  return `Summary: ${report.totals.events} events, ${report.totals.tokens} tokens, ${cost}, ${report.totals.unknownCostEvents} unknown-cost events`;
+  return `Summary: ${report.totals.events} events, ${report.totals.totalTokens} tokens, ${cost}, ${report.totals.unknownCostEvents} unknown-cost events`;
 }
 
 function buildWeeks(report: HeatmapReport): string[] {

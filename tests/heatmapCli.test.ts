@@ -67,7 +67,7 @@ describe('heatmap CLI', () => {
         kind: 'heatmap',
         year: 2026,
         metric: 'tokens',
-        totals: { events: 1, tokens: 140 },
+        totals: { events: 1, totalTokens: 140 },
         privacy: { sanitized: true }
       });
       expect(payload.days).toHaveLength(365);
@@ -195,10 +195,14 @@ describe('heatmap CLI', () => {
       const emptyPayload = parseHeatmap(empty.stdout);
 
       expect(selected).toMatchObject({ status: 0, stderr: '' });
-      expect(selectedPayload.totals).toMatchObject({ events: 2, tokens: 300 });
+      expect(selectedPayload.totals).toMatchObject({ events: 2, totalTokens: 300 });
       expect(JSON.stringify(selectedPayload)).not.toContain('prod-server');
       expect(empty).toMatchObject({ status: 0, stderr: '' });
-      expect(emptyPayload.totals).toMatchObject({ events: 0, tokens: 0, estimatedCostUsd: null });
+      expect(emptyPayload.totals).toMatchObject({
+        events: 0,
+        totalTokens: 0,
+        estimatedCostUsd: null
+      });
       expect(emptyPayload.days).toHaveLength(365);
       assertJsonOutputPrivacy(selectedPayload);
       assertJsonOutputPrivacy(emptyPayload);

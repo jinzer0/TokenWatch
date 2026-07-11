@@ -31,7 +31,7 @@ export function renderHeatmapSvg(report: HeatmapReport, options: HeatmapSvgOptio
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${title}">`,
     '<rect width="100%" height="100%" fill="#ffffff"/>',
     `<text x="24" y="28" font-size="18" font-family="system-ui, sans-serif" fill="#17202a">${title}</text>`,
-    `<text x="24" y="50" font-size="12" font-family="system-ui, sans-serif" fill="#53606f">Year ${report.year} | Metric ${report.metric} | ${report.totals.events} events | ${report.totals.tokens} tokens | ${costLabel(report)}</text>`,
+    `<text x="24" y="50" font-size="12" font-family="system-ui, sans-serif" fill="#53606f">Year ${report.year} | Metric ${report.metric} | ${report.totals.events} events | ${report.totals.totalTokens} tokens | ${costLabel(report)}</text>`,
     ...cells,
     ...legend,
     `<text x="24" y="${height - 8}" font-size="10" font-family="system-ui, sans-serif" fill="#53606f">Privacy: sanitized aggregate report</text>`,

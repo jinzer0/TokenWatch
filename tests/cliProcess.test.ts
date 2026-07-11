@@ -218,7 +218,7 @@ describe('CLI process error boundary', () => {
       const payload = JSON.parse(result.stdout) as {
         readonly kind: string;
         readonly days: readonly unknown[];
-        readonly totals: { readonly events: number; readonly tokens: number };
+        readonly totals: { readonly events: number; readonly totalTokens: number };
         readonly privacy: { readonly sanitized: boolean };
       };
 
@@ -226,7 +226,7 @@ describe('CLI process error boundary', () => {
       expect(result.stderr).toBe('');
       expect(payload).toMatchObject({
         kind: 'heatmap',
-        totals: { events: 1, tokens: 321 },
+        totals: { events: 1, totalTokens: 321 },
         privacy: { sanitized: true }
       });
       expect(payload.days).toHaveLength(365);
@@ -278,7 +278,7 @@ describe('CLI process error boundary', () => {
       const payload = JSON.parse(result.stdout) as {
         readonly kind: string;
         readonly intervalMs: number;
-        readonly delta: { readonly events: number; readonly tokens: number };
+        readonly delta: { readonly events: number; readonly totalTokens: number };
         readonly privacy: { readonly sanitized: boolean };
       };
 
@@ -287,7 +287,7 @@ describe('CLI process error boundary', () => {
       expect(payload).toMatchObject({
         kind: 'watch_tick',
         intervalMs: 5_000,
-        delta: { events: 1, tokens: 321 },
+        delta: { events: 1, totalTokens: 321 },
         privacy: { sanitized: true }
       });
       expect(containsPrivacySentinel([result.stdout, result.stderr, payload])).toBe(false);

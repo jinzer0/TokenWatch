@@ -70,7 +70,7 @@ describe('heatmap report service', () => {
       year: 2026,
       metric: 'tokens',
       range: { from: '2026-01-01T00:00:00.000Z', to: '2026-12-31T23:59:59.999Z' },
-      totals: { events: 4, tokens: 147, estimatedCostUsd: 0.11, unknownCostEvents: 0 },
+      totals: { events: 4, totalTokens: 147, estimatedCostUsd: 0.11, unknownCostEvents: 0 },
       privacy: { sanitized: true }
     });
     expect(parsed.days).toHaveLength(365);

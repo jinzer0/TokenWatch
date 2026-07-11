@@ -234,7 +234,7 @@ describe('report contract schemas', () => {
       intervalMs: 60000,
       delta: {
         events: 2,
-        tokens: 300,
+        totalTokens: 300,
         inputTokens: 120,
         outputTokens: 150,
         cachedTokens: 20,
@@ -244,7 +244,13 @@ describe('report contract schemas', () => {
         unknownCostTokens: 100
       },
       velocity: { tokensPerMinute: 300, estimatedCostUsdPerHour: null },
-      top: { model: 'gpt-5.5-fast', sourceName: 'local', project: 'client-alpha' },
+      top: {
+        model: 'gpt-5.5-fast',
+        source: 'codex',
+        sourceName: 'local',
+        agent: 'codex',
+        project: 'client-alpha'
+      },
       budgets: {
         status: 'unknown',
         warningCount: 0,
@@ -298,14 +304,14 @@ describe('report contract schemas', () => {
       year: 2026,
       metric: 'tokens',
       range: { from: '2026-01-01T00:00:00.000Z', to: '2026-12-31T23:59:59.999Z' },
-      totals: { events: 2, tokens: 300, estimatedCostUsd: null, unknownCostEvents: 1 },
+      totals: { events: 2, totalTokens: 300, estimatedCostUsd: null, unknownCostEvents: 1 },
       days: [
         {
           date: '2026-01-01',
           value: 300,
           level: 5,
           events: 2,
-          tokens: 300,
+          totalTokens: 300,
           estimatedCostUsd: null,
           unknownCostEvents: 1
         }

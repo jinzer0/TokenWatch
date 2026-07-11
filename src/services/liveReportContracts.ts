@@ -92,7 +92,7 @@ export type BudgetStatusReport = z.infer<typeof budgetStatusReportSchema>;
 const usageTotalsSchema = z
   .object({
     events: positiveIntegerSchema,
-    tokens: positiveIntegerSchema,
+    totalTokens: positiveIntegerSchema,
     inputTokens: positiveIntegerSchema,
     outputTokens: positiveIntegerSchema,
     cachedTokens: positiveIntegerSchema,
@@ -106,7 +106,9 @@ const usageTotalsSchema = z
 const topLabelsSchema = z
   .object({
     model: safeOutputLabelSchema,
+    source: safeOutputLabelSchema,
     sourceName: safeOutputLabelSchema,
+    agent: safeOutputLabelSchema,
     project: safeOutputLabelSchema
   })
   .strict();
@@ -147,7 +149,7 @@ const heatmapDaySchema = z
     value: nonNegativeNumberSchema,
     level: z.number().int().min(0).max(5),
     events: positiveIntegerSchema,
-    tokens: positiveIntegerSchema,
+    totalTokens: positiveIntegerSchema,
     estimatedCostUsd: nullableCostSchema,
     unknownCostEvents: positiveIntegerSchema
   })
@@ -172,7 +174,7 @@ export const heatmapReportSchema = z
     totals: z
       .object({
         events: positiveIntegerSchema,
-        tokens: positiveIntegerSchema,
+        totalTokens: positiveIntegerSchema,
         estimatedCostUsd: nullableCostSchema,
         unknownCostEvents: positiveIntegerSchema
       })

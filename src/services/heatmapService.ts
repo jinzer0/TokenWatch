@@ -61,7 +61,7 @@ export class HeatmapService {
       range: { from: yearStartIso(year), to: yearEndIso(year) },
       totals: {
         events: totals.events,
-        tokens: totals.tokens,
+        totalTokens: totals.tokens,
         estimatedCostUsd: nullableCost(totals),
         unknownCostEvents: totals.unknownCostEvents
       },
@@ -70,7 +70,7 @@ export class HeatmapService {
         value: values[index] ?? 0,
         level: heatmapLevel(values[index] ?? 0, maxPositive),
         events: day.events,
-        tokens: day.tokens,
+        totalTokens: day.tokens,
         estimatedCostUsd: nullableCost(day),
         unknownCostEvents: day.unknownCostEvents
       })),

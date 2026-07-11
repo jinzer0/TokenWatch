@@ -47,7 +47,7 @@ describe('watch service tick builder', () => {
       intervalMs: 60_000,
       delta: {
         events: 0,
-        tokens: 0,
+        totalTokens: 0,
         inputTokens: 0,
         outputTokens: 0,
         cachedTokens: 0,
@@ -57,7 +57,13 @@ describe('watch service tick builder', () => {
         unknownCostTokens: 0
       },
       velocity: { tokensPerMinute: 0, estimatedCostUsdPerHour: null },
-      top: { model: 'unknown', sourceName: 'unknown', project: 'unknown' },
+      top: {
+        model: 'unknown',
+        source: 'unknown',
+        sourceName: 'unknown',
+        agent: 'unknown',
+        project: 'unknown'
+      },
       budgets: {
         status: 'not_configured',
         warningCount: 0,
@@ -98,7 +104,7 @@ describe('watch service tick builder', () => {
 
     expect(tick.delta).toEqual({
       events: 2,
-      tokens: 150,
+      totalTokens: 150,
       inputTokens: 120,
       outputTokens: 30,
       cachedTokens: 8,
@@ -121,7 +127,7 @@ describe('watch service tick builder', () => {
 
     expect(tick.delta).toMatchObject({
       events: 2,
-      tokens: 300,
+      totalTokens: 300,
       estimatedCostUsd: null,
       unknownCostEvents: 1,
       unknownCostTokens: 200
@@ -171,10 +177,12 @@ describe('watch service tick builder', () => {
       ]
     });
 
-    expect(tick.delta).toMatchObject({ events: 1, tokens: 100, estimatedCostUsd: 0.01 });
+    expect(tick.delta).toMatchObject({ events: 1, totalTokens: 100, estimatedCostUsd: 0.01 });
     expect(tick.top).toEqual({
       model: 'gpt-5.5-fast',
+      source: 'codex',
       sourceName: 'local',
+      agent: 'codex',
       project: 'client-alpha'
     });
     expect(tick.budgets).toMatchObject({
