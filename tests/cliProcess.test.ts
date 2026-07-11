@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -36,6 +36,49 @@ function runCliWithInput(args: string[], dbPath: string, input: string) {
     encoding: 'utf8'
   });
 }
+
+function runCliUntilStdout(args: string[], dbPath: string, marker: string): Promise<CliOutput> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('corepack', ['pnpm', 'exec', 'tsx', 'src/cli.ts', ...args], {
+      cwd: process.cwd(),
+      env: { ...process.env, TOKENWATCH_DB_PATH: dbPath }
+    });
+    let stdout = '';
+    let stderr = '';
+    let markerSeen = false;
+    const timeout = setTimeout(() => {
+      child.kill('SIGKILL');
+      reject(new Error('cli_process_timeout'));
+    }, 10_000);
+
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (chunk: string) => {
+      stdout += chunk;
+      if (!markerSeen && stdout.includes(marker)) {
+        markerSeen = true;
+        child.kill('SIGINT');
+      }
+    });
+    child.stderr.on('data', (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on('error', (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.on('close', (code) => {
+      clearTimeout(timeout);
+      resolve({ status: code ?? 0, stdout, stderr });
+    });
+  });
+}
+
+type CliOutput = {
+  readonly status: number;
+  readonly stdout: string;
+  readonly stderr: string;
+};
 
 describe('CLI process error boundary', () => {
   it('resolves TUI settings defaults and runtime overrides', () => {
@@ -126,6 +169,132 @@ describe('CLI process error boundary', () => {
       expect(unset.stderr).toBe('');
       expect(containsPrivacySentinel([set.stdout, list.stdout, unset.stdout])).toBe(false);
     } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('runs budget status JSON through the process boundary', () => {
+    const temp = createTempDb();
+    try {
+      const result = runCli(['budget', 'status', '--json'], temp.dbPath);
+      const payload = JSON.parse(result.stdout) as {
+        kind: string;
+        rows: unknown[];
+        summary: { total: number };
+        privacy: { sanitized: boolean };
+      };
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe('');
+      expect(payload).toMatchObject({
+        kind: 'budget_status',
+        rows: [],
+        summary: { total: 0 },
+        privacy: { sanitized: true }
+      });
+      expect(containsPrivacySentinel([result.stdout, result.stderr, payload])).toBe(false);
+      assertJsonOutputPrivacy(payload);
+      assertCliOutputPrivacy(result);
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('runs heatmap JSON through the process boundary', () => {
+    const temp = createTempDb();
+    const db = openDatabase(temp.dbPath);
+    try {
+      new UsageEventsRepository(db).insert(
+        createTestEvent({
+          timestamp: '2026-05-30T00:00:00.000Z',
+          rawIdHash: 'heatmap-process-row',
+          totalTokens: 321,
+          metadata: { rawPath: 'RAW_PATH_SENTINEL_DO_NOT_LEAK' }
+        })
+      );
+      db.close();
+
+      const result = runCli(['heatmap', '--year', '2026', '--json'], temp.dbPath);
+      const payload = JSON.parse(result.stdout) as {
+        readonly kind: string;
+        readonly days: readonly unknown[];
+        readonly totals: { readonly events: number; readonly tokens: number };
+        readonly privacy: { readonly sanitized: boolean };
+      };
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe('');
+      expect(payload).toMatchObject({
+        kind: 'heatmap',
+        totals: { events: 1, tokens: 321 },
+        privacy: { sanitized: true }
+      });
+      expect(payload.days).toHaveLength(365);
+      expect(containsPrivacySentinel([result.stdout, result.stderr, payload])).toBe(false);
+      assertJsonOutputPrivacy(payload);
+      assertCliOutputPrivacy(result);
+    } finally {
+      if (db.open) db.close();
+      temp.cleanup();
+    }
+  });
+
+  it('sanitizes rejected heatmap output paths across the process boundary', () => {
+    const temp = createTempDb();
+    try {
+      const outputPath = join(temp.dir, 'RAW_PATH_SENTINEL_DO_NOT_LEAK.png');
+      const result = runCli(['heatmap', '--out', outputPath], temp.dbPath);
+
+      expect(result.status).not.toBe(0);
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toBe('error: invalid_output_path\n');
+      expect(result.stderr).not.toContain(outputPath);
+      expect(containsPrivacySentinel([result.stdout, result.stderr])).toBe(false);
+      assertCliOutputPrivacy(result);
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('emits an immediate continuous watch JSON tick and exits cleanly on SIGINT', async () => {
+    const temp = createTempDb();
+    const db = openDatabase(temp.dbPath);
+    try {
+      new UsageEventsRepository(db).insert(
+        createTestEvent({
+          timestamp: new Date().toISOString(),
+          rawIdHash: 'watch-process-row',
+          totalTokens: 321,
+          metadata: { rawPath: 'RAW_PATH_SENTINEL_DO_NOT_LEAK' }
+        })
+      );
+      db.close();
+
+      const result = await runCliUntilStdout(
+        ['watch', '--interval', '5s', '--json'],
+        temp.dbPath,
+        '"kind": "watch_tick"'
+      );
+      const payload = JSON.parse(result.stdout) as {
+        readonly kind: string;
+        readonly intervalMs: number;
+        readonly delta: { readonly events: number; readonly tokens: number };
+        readonly privacy: { readonly sanitized: boolean };
+      };
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe('');
+      expect(payload).toMatchObject({
+        kind: 'watch_tick',
+        intervalMs: 5_000,
+        delta: { events: 1, tokens: 321 },
+        privacy: { sanitized: true }
+      });
+      expect(containsPrivacySentinel([result.stdout, result.stderr, payload])).toBe(false);
+      assertJsonOutputPrivacy(payload);
+      assertCliOutputPrivacy(result);
+    } finally {
+      if (db.open) db.close();
       temp.cleanup();
     }
   });

@@ -4,7 +4,7 @@ import type { TuiData } from '../services/aggregator.js';
 import { containsUnsafePrivacyShape } from '../privacy.js';
 import { ensureParentDirectory } from '../utils/fs.js';
 
-export const TUI_DATA_CACHE_SCHEMA_VERSION = 1;
+export const TUI_DATA_CACHE_SCHEMA_VERSION = 2;
 const TUI_DATA_CACHE_KIND = 'tokenwatch-tui-data-cache';
 
 export type TuiDataCacheFile = {
@@ -27,7 +27,7 @@ export function createFileTuiDataCache(filePath: string): TuiDataCacheAdapter {
 }
 
 export function tuiDataCachePathFromDbPath(dbPath: string): string {
-  return resolve(dirname(dbPath), 'tui-data-cache.v1.json');
+  return resolve(dirname(dbPath), 'tui-data-cache.v2.json');
 }
 
 export function readTuiDataCache(filePath: string): TuiData | null {
@@ -69,8 +69,9 @@ function parseTuiDataCacheFile(value: unknown): TuiDataCacheFile | null {
 
 function isSanitizedTuiData(value: unknown): value is TuiData {
   if (!isRecord(value)) return false;
-  const requiredObjectKeys = ['totals', 'statsSummary', 'sessionMetrics'];
+  const requiredObjectKeys = ['totals', 'statsSummary', 'sessionMetrics', 'heatmapReport'];
   const requiredArrayKeys = [
+    'overviewRows',
     'usageRows',
     'minutelyBuckets',
     'insightsRows',
@@ -88,6 +89,8 @@ function isSanitizedTuiData(value: unknown): value is TuiData {
     'unknownPricing',
     'pricingDiagnostics',
     'budgets',
+    'budgetStatusRows',
+    'activityRows',
     'recentRuns'
   ];
   return (

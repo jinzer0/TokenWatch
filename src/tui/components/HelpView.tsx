@@ -19,11 +19,14 @@ export function HelpView() {
 
       <Text bold>Views</Text>
       <Text>Usage, Minutely Usage, Stats, Insights, Trends, and Agents show usage views.</Text>
+      <Text>Budget Status shows ok, warning, exceeded, and unknown rows.</Text>
+      <Text>Activity Heatmap shows year, metric, density legend, and active-day summary.</Text>
       <Text>Reports shows command guidance and current availability from sanitized TUI data.</Text>
 
       <Text bold>Report Commands</Text>
       <Text>Graph JSON: graph --json</Text>
       <Text>Graph image/file output: graph --out</Text>
+      <Text>Heatmap JSON: heatmap --json</Text>
       <Text>Year summary: wrapped --year</Text>
       <Text>Insights JSON: insights --window 7d --json</Text>
       <Text>Optimize report: optimize --window 30d</Text>

@@ -3,6 +3,7 @@ import { main } from '../src/cli.js';
 import { openDatabase, type TokenWatchDb } from '../src/db/client.js';
 import { UsageEventsRepository } from '../src/db/repositories/usageEvents.js';
 import { containsPrivacySentinel, createTempDb, createTestEvent } from './helpers.js';
+import { assertCliOutputPrivacy, assertJsonOutputPrivacy } from './privacyOutput.js';
 
 type CliResult = {
   status: number;
@@ -20,6 +21,142 @@ afterEach(() => {
 });
 
 describe('budget CLI', () => {
+  it('prints deterministic budget status text when no thresholds are configured', async () => {
+    const temp = createTempDb();
+    try {
+      const result = await runCli(['budget', 'status'], temp.dbPath);
+
+      expect(result).toMatchObject({ status: 0, stderr: '' });
+      expect(result.stdout).toContain('Budget status');
+      expect(result.stdout).toContain('No budget thresholds set');
+      expect(result.stdout).toContain('privacy: sanitized');
+      assertCliOutputPrivacy(result);
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('prints budget status JSON when no thresholds are configured', async () => {
+    const temp = createTempDb();
+    try {
+      const result = await runCli(['budget', 'status', '--json'], temp.dbPath);
+      const payload = JSON.parse(result.stdout) as {
+        kind: string;
+        rows: unknown[];
+        summary: { total: number };
+        privacy: { sanitized: boolean };
+      };
+
+      expect(result).toMatchObject({ status: 0, stderr: '' });
+      expect(payload).toMatchObject({
+        kind: 'budget_status',
+        rows: [],
+        summary: { total: 0 },
+        privacy: { sanitized: true }
+      });
+      assertJsonOutputPrivacy(payload);
+      assertCliOutputPrivacy(result);
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('prints threshold budget status text with progress and unknown cost counts', async () => {
+    const temp = createTempDb();
+    try {
+      await runCli(['budget', 'set', '--scope', 'monthly_total', '--threshold', '2'], temp.dbPath);
+      await runCli(
+        ['budget', 'set', '--scope', 'sourceName', '--source-name', 'lab-a100', '--threshold', '1'],
+        temp.dbPath
+      );
+      db = openDatabase(temp.dbPath);
+      new UsageEventsRepository(db).insertMany([
+        createKnownCostEvent('budget-status-known-total', 1, 100),
+        createKnownCostEvent('budget-status-known-source', 1.25, 120, 'lab-a100'),
+        createUnknownCostEvent('budget-status-unknown-source', 80, 'lab-a100')
+      ]);
+      db.close();
+      db = undefined;
+
+      const result = await runCli(['budget', 'status'], temp.dbPath);
+
+      expect(result).toMatchObject({ status: 0, stderr: '' });
+      expect(result.stdout).toContain('scope');
+      expect(result.stdout).toContain('sourceName');
+      expect(result.stdout).toContain('known spend');
+      expect(result.stdout).toContain('threshold');
+      expect(result.stdout).toContain('progress');
+      expect(result.stdout).toContain('percent');
+      expect(result.stdout).toContain('status');
+      expect(result.stdout).toContain('unknown events');
+      expect(result.stdout).toContain('monthly_total');
+      expect(result.stdout).toContain('all');
+      expect(result.stdout).toContain('$1.00');
+      expect(result.stdout).toContain('$2.00');
+      expect(result.stdout).toContain('112.5%');
+      expect(result.stdout).toContain('lab-a100');
+      expect(result.stdout).toContain('exceeded');
+      expect(result.stdout).toContain('1');
+      assertCliOutputPrivacy(result);
+    } finally {
+      if (db?.open) db.close();
+      db = undefined;
+      temp.cleanup();
+    }
+  });
+
+  it('prints threshold budget status JSON from the shared status service', async () => {
+    const temp = createTempDb();
+    try {
+      await runCli(['budget', 'set', '--scope', 'monthly_total', '--threshold', '1'], temp.dbPath);
+      db = openDatabase(temp.dbPath);
+      new UsageEventsRepository(db).insertMany([
+        createKnownCostEvent('budget-status-json-known', 0.8, 100),
+        createUnknownCostEvent('budget-status-json-unknown', 50)
+      ]);
+      db.close();
+      db = undefined;
+
+      const result = await runCli(['budget', 'status', '--json'], temp.dbPath);
+      const payload = JSON.parse(result.stdout) as {
+        kind: string;
+        rows: Array<{
+          scopeKind: string;
+          sourceName: string | null;
+          status: string;
+          knownSpendUsd: number;
+          thresholdUsd: number;
+          percent: number | null;
+          progress: { label: string };
+          unknownCostEvents: number;
+        }>;
+        privacy: { sanitized: boolean };
+      };
+
+      expect(result).toMatchObject({ status: 0, stderr: '' });
+      expect(payload.kind).toBe('budget_status');
+      expect(payload.privacy.sanitized).toBe(true);
+      expect(payload.rows).toEqual([
+        expect.objectContaining({
+          scopeKind: 'monthly_total',
+          sourceName: null,
+          status: 'unknown',
+          knownSpendUsd: 0.8,
+          thresholdUsd: 1,
+          percent: 80,
+          progress: expect.objectContaining({ label: '80% + unknown cost' }),
+          unknownCostEvents: 1
+        })
+      ]);
+      assertJsonOutputPrivacy(payload);
+      assertCliOutputPrivacy(result);
+    } finally {
+      if (db?.open) db.close();
+      db = undefined;
+      temp.cleanup();
+    }
+  });
+
   it('sets, lists, and unsets monthly total and sourceName budgets', async () => {
     const temp = createTempDb();
     try {
@@ -114,8 +251,12 @@ describe('budget CLI', () => {
         ],
         temp.dbPath
       );
+      const invalidStatusOption = await runCli(
+        ['budget', 'status', '--source-name', 'RAW_PATH_SENTINEL_DO_NOT_LEAK'],
+        temp.dbPath
+      );
 
-      for (const result of [invalidThreshold, invalidSourceName]) {
+      for (const result of [invalidThreshold, invalidSourceName, invalidStatusOption]) {
         expect(result.status).not.toBe(0);
         expect(result.stdout).toBe('');
         expect(result.stderr).toMatch(/^error: /);
@@ -202,10 +343,16 @@ async function runCli(args: string[], dbPath: string): Promise<CliResult> {
   }
 }
 
-function createKnownCostEvent(rawIdHash: string, estimatedCostUsd: number, totalTokens: number) {
+function createKnownCostEvent(
+  rawIdHash: string,
+  estimatedCostUsd: number,
+  totalTokens: number,
+  sourceName = 'local'
+) {
   return createTestEvent({
     timestamp: new Date().toISOString(),
     rawIdHash,
+    sourceName,
     inputTokens: totalTokens,
     outputTokens: 0,
     cachedTokens: 0,
@@ -214,9 +361,9 @@ function createKnownCostEvent(rawIdHash: string, estimatedCostUsd: number, total
   });
 }
 
-function createUnknownCostEvent(rawIdHash: string, totalTokens: number) {
+function createUnknownCostEvent(rawIdHash: string, totalTokens: number, sourceName = 'local') {
   return {
-    ...createKnownCostEvent(rawIdHash, 1, totalTokens),
+    ...createKnownCostEvent(rawIdHash, 1, totalTokens, sourceName),
     estimatedCostUsd: null
   };
 }

@@ -18,7 +18,7 @@ type TuiThemeTokens = {
 };
 
 const sharedSpacing: TuiThemeTokens['spacing'] = {
-  budgetColumnLimit: 8,
+  budgetColumnLimit: 10,
   defaultColumnLimit: 6,
   detailPaddingX: 1,
   layoutPaddingX: 1,

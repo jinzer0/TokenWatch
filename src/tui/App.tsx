@@ -7,7 +7,6 @@ import type {
   SummaryGroup,
   TuiData
 } from '../services/aggregator.js';
-import type { BudgetEvaluation } from '../services/budgetService.js';
 import { renderStatuslineText } from '../services/statusline.js';
 import type { TuiSettings } from '../services/configService.js';
 import { formatUsd } from '../utils/format.js';
@@ -112,6 +111,13 @@ export function App({
     setRowIndex((index) => (rows.length === 0 ? 0 : Math.min(index, rows.length - 1)));
   }, [rows.length, rowSort.columnIndex, rowSort.direction, view.key]);
 
+  const viewRef = useRef(view);
+  const rowsRef = useRef(rows);
+  useEffect(() => {
+    viewRef.current = view;
+    rowsRef.current = rows;
+  }, [rows, view]);
+
   useInput((input, key) => {
     if (input === 'q') {
       app.exit();
@@ -132,8 +138,10 @@ export function App({
       return;
     }
     if (input === 'e') {
-      const out = onExportView(view.key, rows);
-      setMessage(exportStatusMessage(view.label, rows.length, out));
+      const currentView = viewRef.current;
+      const currentRows = rowsRef.current;
+      const out = onExportView(currentView.key, currentRows);
+      setMessage(exportStatusMessage(currentView.label, currentRows.length, out));
       return;
     }
     if (input === 's') {
@@ -269,6 +277,7 @@ const SORT_DEFINITIONS: Record<ViewKey, SortDefinition> = {
     ['status', 'status', 'asc']
   ),
   reports: STABLE_SORT,
+  activity: STABLE_SORT,
   source: groupedColumns('source'),
   sourceName: groupedColumns('sourceName'),
   model: groupedColumns('model'),
@@ -415,16 +424,7 @@ function loadInitialTuiData(loadData: () => TuiData, cache: TuiProps['cache']): 
 function rowsForView(data: TuiData, key: ViewKey): TableRow[] {
   switch (key) {
     case 'overview':
-      return [
-        { metric: 'total events', value: data.totals.totalEvents },
-        { metric: 'total tokens', value: data.totals.totalTokens },
-        { metric: 'input tokens', value: data.totals.totalInputTokens },
-        { metric: 'output tokens', value: data.totals.totalOutputTokens },
-        { metric: 'cached tokens', value: data.totals.totalCachedTokens },
-        { metric: 'estimated cost', value: data.totals.estimatedTotalCostUsd ?? 'unknown' },
-        { metric: 'top source', value: data.totals.topSource ?? 'none' },
-        { metric: 'top sourceName', value: data.totals.topSourceName ?? 'none' }
-      ];
+      return data.overviewRows;
     case 'usage':
       return usageRows(data.usageRows);
     case 'stats':
@@ -435,6 +435,8 @@ function rowsForView(data: TuiData, key: ViewKey): TableRow[] {
       return trendRows(data.trendRows);
     case 'reports':
       return reportGuidanceRows(data);
+    case 'activity':
+      return data.activityRows;
     case 'source':
       return groupRows(data.bySource);
     case 'sourceName':
@@ -488,7 +490,7 @@ function rowsForView(data: TuiData, key: ViewKey): TableRow[] {
     case 'pricing':
       return pricingDiagnosticRows(data.pricingDiagnostics);
     case 'budgets':
-      return budgetRows(data.budgets);
+      return budgetRows(data.budgetStatusRows);
     case 'help':
       return [];
   }
@@ -590,6 +592,12 @@ function reportGuidanceRows(data: TuiData): TableRow[] {
       command: 'graph --json; graph --out',
       availability: hasUsage ? 'usage data available' : 'no usage events yet',
       basis: `${data.totals.totalEvents} ${eventLabel}`
+    },
+    {
+      report: 'heatmap',
+      command: 'heatmap --json',
+      availability: hasUsage ? 'activity heatmap available' : 'no usage events yet',
+      basis: `${data.heatmapReport.year} ${data.heatmapReport.metric}`
     },
     {
       report: 'wrapped',
@@ -745,26 +753,23 @@ function pricingDiagnosticRows(groups: PricingDiagnosticGroup[]): TableRow[] {
   }));
 }
 
-function budgetRows(budgets: BudgetEvaluation[]): TableRow[] {
-  return budgets
-    .filter((budget) => budget.warningRows.length > 0)
-    .map((budget) => ({
-      scope: budget.scopeKind,
-      sourceName: budget.sourceName ?? 'all',
-      known_spend: formatUsd(budget.knownSpendUsd),
-      threshold: formatUsd(budget.thresholdUsd),
-      status: budget.status,
-      unknown_events: budget.unknownCostEventCount,
-      unknown_tokens: budget.unknownCostTokenCount,
-      action: recommendedBudgetAction(budget),
-      warnings: budget.warningRows.map((warning) => warning.code).join(','),
-      month: budget.month
-    }));
+function budgetRows(rows: TuiData['budgetStatusRows']): TableRow[] {
+  return rows.map((row) => ({
+    scope: row.scopeKind,
+    sourceName: row.sourceName ?? 'all',
+    known_spend: formatUsd(row.knownSpendUsd),
+    threshold: formatUsd(row.thresholdUsd),
+    status: row.status,
+    progress: progressBar(row.progress),
+    percent: row.percent,
+    unknown_events: row.unknownCostEvents,
+    unknown_tokens: row.unknownCostTokens,
+    warnings: row.warnings.length > 0 ? row.warnings.join(',') : 'none',
+    month: row.month,
+    label: row.label
+  }));
 }
 
-function recommendedBudgetAction(budget: BudgetEvaluation): string {
-  if (budget.warningRows.some((warning) => warning.code === 'budget_threshold_exceeded')) {
-    return 'review budget threshold';
-  }
-  return 'add custom price';
+function progressBar(progress: TuiData['budgetStatusRows'][number]['progress']): string {
+  return `${'#'.repeat(progress.filled)}${'.'.repeat(progress.empty)} ${progress.label}`;
 }

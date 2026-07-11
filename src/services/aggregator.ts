@@ -11,7 +11,10 @@ import {
 import type { ScanRun } from '../models/scanRun.js';
 import type { UsageEvent } from '../models/usageEvent.js';
 import type { BudgetEvaluation } from './budgetService.js';
+import { BudgetStatusService, type BudgetStatusRow } from './budgetStatusService.js';
+import { HeatmapService } from './heatmapService.js';
 import { projectKeyForEvent } from './projectAttribution.js';
+import type { HeatmapReport } from './reportContracts.js';
 import {
   buildTuiInsightRows,
   buildTuiTrendRows,
@@ -184,8 +187,23 @@ export type TuiAgentRow = {
   topModel: string | null;
 };
 
+export type TuiOverviewRow = {
+  metric: string;
+  value: string | number | null;
+  detail: string;
+};
+
+export type TuiActivityRow = {
+  section: string;
+  label: string;
+  value: string | number | null;
+  detail: string;
+  level: number | null;
+};
+
 export type TuiData = {
   totals: SummaryTotals;
+  overviewRows: TuiOverviewRow[];
   usageRows: TuiUsageRow[];
   minutelyBuckets: TuiMinutelyBucket[];
   insightsRows: TuiInsightRow[];
@@ -205,10 +223,22 @@ export type TuiData = {
   unknownPricing: SummaryGroup[];
   pricingDiagnostics: PricingDiagnosticGroup[];
   budgets: BudgetEvaluation[];
+  budgetStatusRows: BudgetStatusRow[];
+  heatmapReport: HeatmapReport;
+  activityRows: TuiActivityRow[];
   recentRuns: ScanRun[];
 };
 
+type TuiDataOptions = {
+  readonly now?: Date;
+  readonly heatmapMetric?: HeatmapReport['metric'];
+  readonly heatmapYear?: number;
+};
+
 export class AggregatorService {
+  private readonly budgetStatus = new BudgetStatusService();
+  private readonly heatmap = new HeatmapService();
+
   summarize(events: UsageEvent[]): SummaryTotals {
     const totalEvents = events.length;
     const totalTokens = sum(events, 'totalTokens');
@@ -378,11 +408,18 @@ export class AggregatorService {
     recentRuns: ScanRun[],
     sessionIdleGapMs = DEFAULT_SESSION_IDLE_GAP_MS,
     budgets: BudgetEvaluation[] = [],
-    pricingDiagnosticsOptions: PricingDiagnosticsOptions = {}
+    pricingDiagnosticsOptions: PricingDiagnosticsOptions = {},
+    options: TuiDataOptions = {}
   ): TuiData {
     const totals = this.summarize(events);
+    const budgetStatusRows = this.budgetStatus.buildRows(budgets);
+    const heatmapReport = this.heatmap.buildReport(events, {
+      year: options.heatmapYear ?? (options.now ?? new Date()).getUTCFullYear(),
+      metric: options.heatmapMetric ?? 'tokens'
+    });
     return {
       totals,
+      overviewRows: overviewRows(events, totals, budgetStatusRows, options.now ?? new Date()),
       usageRows: usageRows(events),
       minutelyBuckets: minutelyBuckets(events),
       insightsRows: buildTuiInsightRows(events, budgets),
@@ -402,9 +439,159 @@ export class AggregatorService {
       unknownPricing: this.unknownPricing(events),
       pricingDiagnostics: this.pricingDiagnostics(events, pricingDiagnosticsOptions),
       budgets,
+      budgetStatusRows,
+      heatmapReport,
+      activityRows: activityRows(heatmapReport),
       recentRuns
     };
   }
+}
+
+function overviewRows(
+  events: UsageEvent[],
+  totals: SummaryTotals,
+  budgetRows: readonly BudgetStatusRow[],
+  now: Date
+): TuiOverviewRow[] {
+  const today = summarizeWindow(events, localDayRange(now));
+  const week = summarizeWindow(events, localWeekRange(now));
+  const month = summarizeWindow(events, localMonthRange(now));
+  const unknownEvents = events.filter((event) => event.estimatedCostUsd === null);
+  return [
+    { metric: 'Today', value: eventCountLabel(today.events), detail: windowDetail(today) },
+    { metric: 'This Week', value: eventCountLabel(week.events), detail: windowDetail(week) },
+    { metric: 'This Month', value: eventCountLabel(month.events), detail: windowDetail(month) },
+    {
+      metric: 'Budget',
+      value: budgetOverviewStatus(budgetRows),
+      detail: budgetOverviewDetail(budgetRows)
+    },
+    {
+      metric: 'Unknown pricing',
+      value: eventCountLabel(unknownEvents.length),
+      detail: `${sum(unknownEvents, 'totalTokens')} tokens`
+    },
+    { metric: 'Top model', value: totals.topModel ?? 'none', detail: 'by total tokens' },
+    { metric: 'Top source', value: totals.topSource ?? 'none', detail: 'by total tokens' },
+    { metric: 'Top sourceName', value: totals.topSourceName ?? 'none', detail: 'by total tokens' }
+  ];
+}
+
+function activityRows(report: HeatmapReport): TuiActivityRow[] {
+  const activeDays = report.days.filter((day) => day.events > 0);
+  const peakDay = [...activeDays].sort(
+    (a, b) => b.value - a.value || a.date.localeCompare(b.date)
+  )[0];
+  const unknownWarning =
+    report.totals.unknownCostEvents > 0 ? 'unknown cost events present' : 'none';
+  return [
+    {
+      section: 'summary',
+      label: 'year',
+      value: report.year,
+      detail: report.range.from,
+      level: null
+    },
+    {
+      section: 'summary',
+      label: 'metric',
+      value: report.metric,
+      detail: report.range.to,
+      level: null
+    },
+    {
+      section: 'summary',
+      label: 'active days',
+      value: activeDays.length,
+      detail: `${report.days.length} days in range`,
+      level: null
+    },
+    {
+      section: 'summary',
+      label: 'peak day',
+      value: peakDay?.date ?? 'none',
+      detail: peakDay ? `${peakDay.value} ${report.metric}` : 'no usage',
+      level: peakDay?.level ?? null
+    },
+    {
+      section: 'summary',
+      label: 'unknown cost warning',
+      value: unknownWarning,
+      detail: `${report.totals.unknownCostEvents} events`,
+      level: null
+    },
+    ...report.legend.map((item) => ({
+      section: 'density legend',
+      label: item.label,
+      value: item.symbol,
+      detail: `level ${item.level}`,
+      level: item.level
+    }))
+  ];
+}
+
+type TuiWindowSummary = {
+  readonly events: number;
+  readonly tokens: number;
+  readonly cost: number | null;
+};
+
+type LocalWindow = {
+  readonly from: Date;
+  readonly toExclusive: Date;
+};
+
+function summarizeWindow(events: UsageEvent[], window: LocalWindow): TuiWindowSummary {
+  const included = events.filter((event) => {
+    const timestamp = Date.parse(event.timestamp);
+    return timestamp >= window.from.getTime() && timestamp < window.toExclusive.getTime();
+  });
+  return {
+    events: included.length,
+    tokens: sum(included, 'totalTokens'),
+    cost: sumNullableCost(included)
+  };
+}
+
+function windowDetail(summary: TuiWindowSummary): string {
+  return `${summary.tokens} tokens, ${formatUsd(summary.cost)}`;
+}
+
+function eventCountLabel(events: number): string {
+  return `${events} ${events === 1 ? 'event' : 'events'}`;
+}
+
+function localDayRange(now: Date): LocalWindow {
+  const from = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  return { from, toExclusive: new Date(from.getFullYear(), from.getMonth(), from.getDate() + 1) };
+}
+
+function localWeekRange(now: Date): LocalWindow {
+  const dayOffset = (now.getDay() + 6) % 7;
+  const from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOffset, 0, 0, 0, 0);
+  return { from, toExclusive: new Date(from.getFullYear(), from.getMonth(), from.getDate() + 7) };
+}
+
+function localMonthRange(now: Date): LocalWindow {
+  const from = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+  return { from, toExclusive: new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0, 0) };
+}
+
+function budgetOverviewStatus(rows: readonly BudgetStatusRow[]): string {
+  if (rows.length === 0) return 'not configured';
+  if (rows.some((row) => row.status === 'exceeded')) return 'exceeded';
+  if (rows.some((row) => row.status === 'warning')) return 'warning';
+  if (rows.some((row) => row.status === 'unknown')) return 'unknown';
+  return 'ok';
+}
+
+function budgetOverviewDetail(rows: readonly BudgetStatusRow[]): string {
+  if (rows.length === 0) return '0 thresholds';
+  const exceeded = rows.filter((row) => row.status === 'exceeded').length;
+  const warning = rows.filter((row) => row.status === 'warning').length;
+  const unknown = rows.filter((row) => row.status === 'unknown').length;
+  const ok = rows.filter((row) => row.status === 'ok').length;
+  return `${ok} ok, ${warning} warning, ${exceeded} exceeded, ${unknown} unknown`;
 }
 
 function usageRows(events: UsageEvent[]): TuiUsageRow[] {

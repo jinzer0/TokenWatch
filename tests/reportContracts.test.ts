@@ -181,6 +181,162 @@ describe('report contract schemas', () => {
     expect(() => parse({ ...payload, year: 2101 })).toThrow('invalid_wrapped_year');
   });
 
+  it('validates budget status JSON fields and rejects unsafe row labels', async () => {
+    const contracts = await loadReportContracts();
+    const parse = parser(contracts.budgetStatusReportSchema);
+    const payload = {
+      version: 1,
+      kind: 'budget_status',
+      generatedAt: '2026-06-04T00:00:00.000Z',
+      rows: [
+        {
+          scopeKind: 'monthly_total',
+          label: 'All usage',
+          sourceName: null,
+          month: '2026-06',
+          status: 'warning',
+          knownSpendUsd: 8,
+          thresholdUsd: 10,
+          percent: 80,
+          progress: { width: 10, filled: 8, empty: 2, label: '80%' },
+          unknownCostEvents: 1,
+          unknownCostTokens: 50,
+          warnings: ['budget_unknown_cost_present']
+        }
+      ],
+      summary: { total: 1, ok: 0, warning: 1, exceeded: 0, unknown: 0 },
+      privacy: { sanitized: true }
+    };
+
+    expect(parse(payload)).toMatchObject({
+      kind: 'budget_status',
+      rows: [{ status: 'warning' }],
+      summary: { total: 1, warning: 1 },
+      privacy: { sanitized: true }
+    });
+    expect(containsPrivacySentinel(parse(payload))).toBe(false);
+    expect(() => parse({ ...payload, privacy: { sanitized: false } })).toThrow();
+    expect(() =>
+      parse({
+        ...payload,
+        rows: [{ ...payload.rows[0], label: 'RAW_PATH_SENTINEL_DO_NOT_LEAK' }]
+      })
+    ).toThrow('headless_payload_rejected');
+  });
+
+  it('validates watch tick JSON fields and rejects unsafe top labels', async () => {
+    const contracts = await loadReportContracts();
+    const parse = parser(contracts.watchTickReportSchema);
+    const payload = {
+      version: 1,
+      kind: 'watch_tick',
+      timestamp: '2026-06-04T00:10:00.000Z',
+      intervalMs: 60000,
+      delta: {
+        events: 2,
+        tokens: 300,
+        inputTokens: 120,
+        outputTokens: 150,
+        cachedTokens: 20,
+        reasoningTokens: 10,
+        estimatedCostUsd: null,
+        unknownCostEvents: 1,
+        unknownCostTokens: 100
+      },
+      velocity: { tokensPerMinute: 300, estimatedCostUsdPerHour: null },
+      top: { model: 'gpt-5.5-fast', sourceName: 'local', project: 'client-alpha' },
+      budgets: {
+        status: 'unknown',
+        warningCount: 0,
+        exceededCount: 0,
+        unknownCount: 1,
+        rows: [
+          {
+            scopeKind: 'sourceName',
+            label: 'local',
+            sourceName: 'local',
+            month: '2026-06',
+            status: 'unknown',
+            knownSpendUsd: 4,
+            thresholdUsd: 10,
+            percent: 40,
+            progress: { width: 10, filled: 4, empty: 6, label: '40%' },
+            unknownCostEvents: 1,
+            unknownCostTokens: 100,
+            warnings: ['budget_unknown_cost_present']
+          }
+        ]
+      },
+      privacy: { sanitized: true }
+    };
+
+    expect(parse(payload)).toMatchObject({
+      kind: 'watch_tick',
+      intervalMs: 60000,
+      delta: { estimatedCostUsd: null, unknownCostEvents: 1 },
+      velocity: { estimatedCostUsdPerHour: null },
+      budgets: { status: 'unknown' },
+      privacy: { sanitized: true }
+    });
+    expect(containsPrivacySentinel(parse(payload))).toBe(false);
+    expect(() => parse({ ...payload, extra: true })).toThrow();
+    expect(() =>
+      parse({
+        ...payload,
+        top: { ...payload.top, project: 'PROMPT_SENTINEL_DO_NOT_LEAK' }
+      })
+    ).toThrow('headless_payload_rejected');
+  });
+
+  it('validates heatmap JSON fields with exact metric enum and unsafe label rejection', async () => {
+    const contracts = await loadReportContracts();
+    const parse = parser(contracts.heatmapReportSchema);
+    const payload = {
+      version: 1,
+      kind: 'heatmap',
+      generatedAt: '2026-06-04T00:00:00.000Z',
+      year: 2026,
+      metric: 'tokens',
+      range: { from: '2026-01-01T00:00:00.000Z', to: '2026-12-31T23:59:59.999Z' },
+      totals: { events: 2, tokens: 300, estimatedCostUsd: null, unknownCostEvents: 1 },
+      days: [
+        {
+          date: '2026-01-01',
+          value: 300,
+          level: 5,
+          events: 2,
+          tokens: 300,
+          estimatedCostUsd: null,
+          unknownCostEvents: 1
+        }
+      ],
+      legend: [
+        { level: 0, label: 'No usage', symbol: ' ' },
+        { level: 5, label: 'High usage', symbol: '#' }
+      ],
+      privacy: { sanitized: true }
+    };
+
+    expect(parse(payload)).toMatchObject({
+      kind: 'heatmap',
+      metric: 'tokens',
+      totals: { estimatedCostUsd: null, unknownCostEvents: 1 },
+      days: [{ date: '2026-01-01', level: 5 }],
+      privacy: { sanitized: true }
+    });
+    expect(parse({ ...payload, metric: 'events' })).toMatchObject({ metric: 'events' });
+    expect(parse({ ...payload, metric: 'cost' })).toMatchObject({ metric: 'cost' });
+    expect(() => parse({ ...payload, metric: 'sessions' })).toThrow();
+    expect(() => parse({ ...payload, metric: 'activeMinutes' })).toThrow();
+    expect(containsPrivacySentinel(parse(payload))).toBe(false);
+    expect(() =>
+      parse({
+        ...payload,
+        legend: [{ level: 1, label: 'FAKE_API_KEY_SENTINEL_DO_NOT_LEAK', symbol: '!' }]
+      })
+    ).toThrow('headless_payload_rejected');
+  });
+
   it('validates report options and preserves exact validation error codes', async () => {
     const contracts = await loadReportContracts();
     const graphOptions = parser(contracts.graphReportOptionsSchema);

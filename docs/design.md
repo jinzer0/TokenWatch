@@ -37,14 +37,16 @@ Tests use synthetic fixtures with fake prompt, response, API key, OAuth token, a
 
 ## CLI and TUI
 
-The CLI is the operational surface for scan, summary, import/export, config, seed, reset, doctor, and TUI launch. The TUI is intentionally thin: it reuses shared aggregation data and renders Overview, source/sourceName/model/agent/day/hour groups, recent scan runs, unknown pricing, and help.
+The CLI is the operational surface for scan, summary, import/export, config, seed, reset, doctor, budget status, watch, heatmap, and TUI launch. The TUI is intentionally thin: it reuses shared aggregation data and renders Overview, Budget Status, Activity Heatmap, source/sourceName/model/agent/day/hour groups, recent scan runs, unknown pricing, and help.
 
-Local report expansion adds `tokenwatch graph`, `tokenwatch wrapped`, `tokenwatch doctor --sources`, `tokenwatch usage --provider <openai|anthropic> --json`, and `tokenwatch headless codex --input <file|->` to the documented CLI surface.
+Local report expansion adds `tokenwatch graph`, `tokenwatch wrapped`, `tokenwatch budget status`, `tokenwatch watch`, `tokenwatch heatmap`, `tokenwatch doctor --sources`, `tokenwatch usage --provider <openai|anthropic> --json`, and `tokenwatch headless codex --input <file|->` to the documented CLI surface.
 
 `graph` returns a validated local JSON report with `series`, `totals`, nullable cost values, `unknownCostEvents`, and `privacy`. `wrapped` returns a yearly local JSON report with top-level `topModels`, `topAgents`, `topSources`, `topSourceNames`, `monthly`, `sessionMetrics`, `highlights`, `unknownCostEvents`, and `privacy`. PNG output is rendered from those validated report objects and does not carry raw records or metadata chunks from source artifacts.
+
+`budget status` returns canonical `ok`, `warning`, `exceeded`, or `unknown` rows from the shared budget status service. `watch` is polling-based and reuses the same tick calculation for continuous mode and `--once`; each tick reads the rolling UTC `(now - intervalMs, now]` window. `heatmap` returns UTC year/day buckets for exactly `tokens`, `events`, or `cost`, and supports text, JSON, and SVG output only. Heatmap PNG output is not supported.
 
 `doctor --sources` reports source support status and sanitized warnings only. `usage --provider <openai|anthropic> --json` is an Env-only Live probe that reads provider credentials from environment variables at invocation time, never persists them, and reports `unknown` when providers omit quota or rate-limit data. It is best-effort and not billing-grade. `headless codex --input <file|->` ingests explicit sanitized JSON only; it does not execute Codex and does not automatically capture stdout, stderr, transcripts, raw records, or raw paths.
 
 ## Limitations
 
-The MVP does not provide billing-grade cost or quota guarantees, cloud sync, daemon mode, web dashboards, OAuth/API usage pulls, share URLs, badges, account/profile features, leaderboards, or exhaustive historical parser compatibility. Unknown schemas are skipped with sanitized warnings rather than treated as fatal errors.
+The MVP does not provide billing-grade cost or quota guarantees, cloud sync, daemon mode, filesystem watch mode, web dashboards, OAuth/API usage pulls, share URLs, badges, account/profile features, leaderboards, heatmap PNG export, or exhaustive historical parser compatibility. Unknown schemas are skipped with sanitized warnings rather than treated as fatal errors. Unknown prices stay `unknown` or `null`; they are not reported as free usage.
