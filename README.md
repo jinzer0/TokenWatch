@@ -116,6 +116,8 @@ tokenwatch heatmap --json
 tokenwatch heatmap --metric cost --out heatmap.json
 tokenwatch heatmap --metric tokens --out heatmap.txt
 tokenwatch heatmap --year 2026 --out heatmap.svg
+tokenwatch heatmap --year 2026 --metric events --source codex --source opencode
+tokenwatch heatmap --source-name local --source-name lab-server --json
 tokenwatch insights --window 7d --json
 tokenwatch optimize --window 30d
 tokenwatch insights --window 7d --out tokenwatch-insights.json --format json
@@ -228,7 +230,7 @@ Workspace와 session 값은 필요한 경우 hash 또는 sanitized label만 사�
 
 ## 로컬 리포트와 provider 사용량
 
-리포트 명령은 로컬 SQLite의 정규화된 usage metadata만 읽습니다. 프롬프트, 응답, 자격 증명, 원본 경로, 원본 레코드, raw provider response, 임의 메타데이터 덤프는 JSON, Markdown, PNG에 포함하지 않습니다.
+리포트 명령은 로컬 SQLite의 정규화된 usage metadata만 읽습니다. 프롬프트, 응답, 자격 증명, 원본 경로, 원본 session ID, 원본 레코드, raw provider response, SQL payload, stack trace, 임의 메타데이터 덤프는 JSON, Markdown, PNG, heatmap text, heatmap SVG에 포함하지 않습니다.
 
 ```bash
 tokenwatch insights --window 7d --json
@@ -242,6 +244,8 @@ tokenwatch heatmap
 tokenwatch heatmap --json
 tokenwatch heatmap --metric events --out heatmap.txt
 tokenwatch heatmap --metric tokens --out heatmap.svg
+tokenwatch heatmap --year 2026 --metric cost --source codex --source opencode --json
+tokenwatch heatmap --source-name local --source-name lab-server --out heatmap.json
 tokenwatch wrapped --year 2026 --json
 tokenwatch wrapped --year 2026 --out wrapped.png
 tokenwatch doctor --sources
@@ -261,13 +265,13 @@ Metric caveats도 리포트 해석에 포함하세요. Rework는 실패, prompt,
 
 `graph` JSON은 `kind: "graph"`, `bucket`, `metric`, `totals`, `series`, `unknownCostEvents`, `privacy`를 포함합니다. `series` row는 bucket key, event count, token count, nullable estimated cost를 담습니다. 가격을 알 수 없는 이벤트는 cost를 `null`로 유지하고 `unknownCostEvents`로 따로 셉니다.
 
-`heatmap`은 선택한 UTC year의 일별 activity report입니다. Metric은 정확히 `tokens`, `events`, `cost`만 지원합니다. 기본 출력은 terminal-safe text이며, `--json`은 strict `kind: "heatmap"` JSON을 stdout에 출력합니다. `--out`은 확장자에 따라 `.json`, `.txt`, `.svg` 파일만 씁니다. Heatmap PNG 출력은 지원하지 않습니다. Cost heatmap은 known cost만 합산하고, 가격을 알 수 없는 이벤트는 `unknownCostEvents`로 따로 세며 cost 값을 `null` 또는 `unknown`으로 유지합니다.
+`heatmap`은 선택한 UTC year의 일별 activity report입니다. `--year`는 선택한 해의 UTC 시작부터 다음 해 UTC 시작 전까지의 half-open report range를 사용하며, 렌더링된 calendar는 선택한 해의 365일 또는 366일을 표시합니다. Metric은 정확히 `tokens`, `events`, `cost`만 지원합니다. 기본 출력은 terminal-safe text이며, density symbol은 정확히 `· ▁ ▂ ▃ ▅ █`입니다. `--json`은 strict `kind: "heatmap"` JSON을 stdout에 출력합니다. `--source`와 `--source-name`은 반복해서 지정할 수 있고, report JSON은 선택된 filter를 `filters.source`와 `filters.sourceName` 배열로 보여줍니다. `--out`은 확장자에 따라 `.json`, `.txt`, `.svg` 파일만 씁니다. `--json`과 `--out`은 함께 쓰지 않습니다. Heatmap PNG 출력은 지원하지 않습니다. Cost heatmap은 local planning용 estimated cost만 다루며 billing-grade charge, provider invoice, quota, rate-limit 자료가 아닙니다. Known cost만 합산하고, 가격을 알 수 없는 이벤트는 `unknownCostEvents`로 따로 세며 cost 값을 `null` 또는 `unknown`으로 유지합니다. 알 수 없는 비용을 `$0.00`, free, zero로 바꾸지 않습니다.
 
 `wrapped` JSON은 `kind: "wrapped"`, `year`, `totals`, `highlights`, `topModels`, `topAgents`, `topSources`, `topSourceNames`, `monthly`, `sessionMetrics`, `unknownCostEvents`, `privacy`를 포함합니다. 월별 배열과 top-level ranking 배열은 모두 sanitized aggregate row만 담고, session 지표는 hash 기반 session metadata로 계산합니다.
 
 `graph --out`과 `wrapped --out`의 PNG는 로컬에서 검증된 JSON report object를 렌더링한 결과입니다. PNG에는 원본 레코드, 원본 경로, raw provider response, 프롬프트, 응답, 자격 증명이 들어가지 않습니다.
 
-`insights`와 `trend` report는 이 릴리스에서 JSON과 Markdown export만 지원합니다. PNG export는 `graph`와 `wrapped` report에만 지원됩니다. Heatmap PNG는 지원하지 않으며, `heatmap`은 JSON, text, SVG만 지원합니다.
+`insights`와 `trend` report는 이 릴리스에서 JSON과 Markdown export만 지원합니다. PNG export는 `graph`와 `wrapped` report에만 지원됩니다. Heatmap PNG는 지원하지 않으며, `heatmap`은 JSON, text, SVG만 지원합니다. CLI heatmap JSON, text, SVG 파일, stdout 출력, TUI Activity Heatmap current-view export에는 프롬프트, 응답, 자격 증명, 원본 경로, 원본 session ID, 원본 레코드, SQL payload, stack trace, 임의 메타데이터 덤프를 넣지 않습니다.
 
 `doctor --sources`는 지원 source별 status report를 JSON으로 출력합니다. Parser가 실제 local artifact를 지원하는지, status-only source인지, privacy-safe warning이 있는지를 보여주며 raw local artifact 내용이나 machine-local path는 출력하지 않습니다.
 

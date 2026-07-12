@@ -6,6 +6,7 @@ import { openDatabase, type TokenWatchDb } from '../src/db/client.js';
 import { UsageEventsRepository } from '../src/db/repositories/usageEvents.js';
 import type { UsageEvent } from '../src/models/usageEvent.js';
 import { heatmapReportSchema, type HeatmapReport } from '../src/services/reportContracts.js';
+import { renderHeatmapSvg } from '../src/services/heatmapSvgRenderer.js';
 import { createTempDb, createTestEvent } from './helpers.js';
 import {
   assertCliOutputPrivacy,
@@ -73,6 +74,217 @@ describe('heatmap CLI', () => {
       expect(payload.days).toHaveLength(365);
       assertJsonOutputPrivacy(payload);
       assertCliOutputPrivacy(result);
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('projects repeated source and sourceName filters into stdout JSON', async () => {
+    // Given: matching events for two repeated source and sourceName filters.
+    const temp = createTempDb();
+    try {
+      insertEvents(temp.dbPath, [
+        event('codex-local-filter', { source: 'codex', sourceName: 'local' }),
+        event('opencode-lab-filter', { source: 'opencode', sourceName: 'lab-server' })
+      ]);
+
+      // When: JSON output is requested with repeated filters.
+      const result = await runCli(
+        [
+          'heatmap',
+          '--year',
+          '2026',
+          '--json',
+          '--source',
+          'codex',
+          '--source',
+          'opencode',
+          '--source-name',
+          'local',
+          '--source-name',
+          'lab-server'
+        ],
+        temp.dbPath
+      );
+      const payload = parseHeatmap(result.stdout);
+
+      // Then: the strict report exposes only the selected safe aggregate labels.
+      expect(result).toMatchObject({ status: 0, stderr: '' });
+      expect(payload).toMatchObject({
+        filters: {
+          source: ['codex', 'opencode'],
+          sourceName: ['local', 'lab-server']
+        }
+      });
+      assertJsonOutputPrivacy(payload);
+      assertCliOutputPrivacy(result);
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('writes the same semantic filtered report to a JSON file as stdout JSON', async () => {
+    // Given: a filtered event and an isolated JSON output path.
+    const temp = createTempDb();
+    try {
+      insertEvents(temp.dbPath, [event('json-file-filter', { sourceName: 'lab-server' })]);
+      const outputPath = join(temp.dir, 'filtered-heatmap.json');
+      const filterArgs = [
+        'heatmap',
+        '--year',
+        '2026',
+        '--source',
+        'codex',
+        '--source-name',
+        'lab-server'
+      ] as const;
+
+      // When: the same report is requested through stdout and file surfaces.
+      const stdoutResult = await runCli([...filterArgs, '--json'], temp.dbPath);
+      const fileResult = await runCli([...filterArgs, '--out', outputPath], temp.dbPath);
+      const stdoutPayload = parseHeatmap(stdoutResult.stdout);
+      const fileContents = readFileSync(outputPath, 'utf8');
+      const filePayload = parseHeatmap(fileContents);
+
+      // Then: generated time aside, both surfaces expose the same filtered report.
+      expect(stdoutResult).toMatchObject({ status: 0, stderr: '' });
+      expect(fileResult).toMatchObject({
+        status: 0,
+        stderr: '',
+        stdout: `Wrote heatmap JSON: ${basename(outputPath)}\n`
+      });
+      expect(fileResult.stdout).not.toContain(temp.dir);
+      expect.soft(filePayload).toMatchObject({
+        filters: { source: ['codex'], sourceName: ['lab-server'] }
+      });
+      expect.soft(filePayload).toEqual({
+        ...stdoutPayload,
+        generatedAt: filePayload.generatedAt
+      });
+      assertJsonOutputPrivacy(stdoutPayload);
+      assertJsonOutputPrivacy(filePayload);
+      assertExportFilePrivacy(fileContents);
+      assertCliOutputPrivacy(stdoutResult);
+      assertCliOutputPrivacy(fileResult);
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('renders exact density symbols, filters, and unknownCostEvents in text output', async () => {
+    // Given: an unknown-cost event selected by safe aggregate filters.
+    const temp = createTempDb();
+    try {
+      insertEvents(temp.dbPath, [
+        event('text-visible-context', {
+          source: 'codex',
+          sourceName: 'lab-server',
+          model: 'unknown-cost-model',
+          estimatedCostUsd: null
+        })
+      ]);
+
+      // When: filtered cost heatmap text is written to a file.
+      const outputPath = join(temp.dir, 'filtered-heatmap.txt');
+      const result = await runCli(
+        [
+          'heatmap',
+          '--year',
+          '2026',
+          '--metric',
+          'cost',
+          '--source',
+          'codex',
+          '--source-name',
+          'lab-server',
+          '--out',
+          outputPath
+        ],
+        temp.dbPath
+      );
+      const contents = readFileSync(outputPath, 'utf8');
+
+      // Then: visible text carries the canonical legend and report context.
+      expect(result).toMatchObject({ status: 0, stderr: '' });
+      expect
+        .soft(contents)
+        .toContain(
+          'Legend: ·=No usage ▁=Very low usage ▂=Low usage ▃=Medium usage ▅=High usage █=Peak usage'
+        );
+      expect.soft(contents).toMatch(/Filters:.*source.*codex/i);
+      expect.soft(contents).toMatch(/Filters:.*sourceName.*lab-server/i);
+      expect.soft(contents).toContain('unknownCostEvents: 1');
+      expect(contents).not.toContain('$0.00');
+      assertExportFilePrivacy(contents);
+      assertCliOutputPrivacy(result);
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('writes accessible aggregate-only SVG without external resources', async () => {
+    // Given: an unknown-cost event and isolated SVG and JSON report paths.
+    const temp = createTempDb();
+    try {
+      insertEvents(temp.dbPath, [
+        event('svg-visible-context', {
+          sourceName: 'lab-server',
+          model: 'unknown-cost-model',
+          estimatedCostUsd: null
+        })
+      ]);
+      const svgPath = join(temp.dir, 'filtered-heatmap.svg');
+      const jsonPath = join(temp.dir, 'filtered-heatmap.json');
+
+      // When: filtered SVG and its source report are written through the CLI.
+      const svgResult = await runCli(
+        [
+          'heatmap',
+          '--year',
+          '2026',
+          '--metric',
+          'cost',
+          '--source-name',
+          'lab-server',
+          '--out',
+          svgPath
+        ],
+        temp.dbPath
+      );
+      await runCli(
+        [
+          'heatmap',
+          '--year',
+          '2026',
+          '--metric',
+          'cost',
+          '--source-name',
+          'lab-server',
+          '--out',
+          jsonPath
+        ],
+        temp.dbPath
+      );
+      const contents = readFileSync(svgPath, 'utf8');
+      const report = parseHeatmap(readFileSync(jsonPath, 'utf8'));
+      const escapedTitleSvg = renderHeatmapSvg(report, {
+        title: 'TokenWatch <safe aggregate> & usage'
+      });
+
+      // Then: accessibility, visible unknown-cost context, escaping, and resource safety hold.
+      expect(svgResult).toMatchObject({ status: 0, stderr: '' });
+      expect.soft(contents).toMatch(/^<svg[^>]*><title>[^<]+<\/title>/);
+      expect.soft(contents).toMatch(/^<svg[^>]*><title>[^<]+<\/title><desc>[^<]+<\/desc>/);
+      expect.soft(contents).toContain('unknownCostEvents: 1');
+      for (const symbol of ['·', '▁', '▂', '▃', '▅', '█'] as const) {
+        expect.soft(contents).toContain(symbol);
+      }
+      expect(escapedTitleSvg).toContain('TokenWatch &lt;safe aggregate&gt; &amp; usage');
+      expect(contents).not.toMatch(/(?:href|src)=|<script|<image|<link|@import|url\(/i);
+      expect(contents).not.toContain('$0.00');
+      assertExportFilePrivacy(contents);
+      assertExportFilePrivacy(escapedTitleSvg);
+      assertCliOutputPrivacy(svgResult);
     } finally {
       temp.cleanup();
     }
@@ -196,8 +408,17 @@ describe('heatmap CLI', () => {
 
       expect(selected).toMatchObject({ status: 0, stderr: '' });
       expect(selectedPayload.totals).toMatchObject({ events: 2, totalTokens: 300 });
+      expect(selectedPayload).toMatchObject({
+        filters: {
+          source: ['codex', 'opencode'],
+          sourceName: ['local', 'lab-server']
+        }
+      });
       expect(JSON.stringify(selectedPayload)).not.toContain('prod-server');
       expect(empty).toMatchObject({ status: 0, stderr: '' });
+      expect(emptyPayload).toMatchObject({
+        filters: { source: [], sourceName: ['unknown-safe-label'] }
+      });
       expect(emptyPayload.totals).toMatchObject({
         events: 0,
         totalTokens: 0,

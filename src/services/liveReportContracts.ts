@@ -171,6 +171,12 @@ export const heatmapReportSchema = z
     year: z.number().int().min(1970).max(9999),
     metric: z.enum(heatmapMetrics),
     range: z.object({ from: isoDateTimeSchema, to: isoDateTimeSchema }).strict(),
+    filters: z
+      .object({
+        source: z.array(safeOutputLabelSchema),
+        sourceName: z.array(safeOutputLabelSchema)
+      })
+      .strict(),
     totals: z
       .object({
         events: positiveIntegerSchema,

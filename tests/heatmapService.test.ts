@@ -66,10 +66,11 @@ describe('heatmap report service', () => {
 
     // Then: every UTC day exists and levels follow the required formula.
     expect(parsed).toMatchObject({
+      version: 1,
       kind: 'heatmap',
       year: 2026,
       metric: 'tokens',
-      range: { from: '2026-01-01T00:00:00.000Z', to: '2026-12-31T23:59:59.999Z' },
+      range: { from: '2026-01-01T00:00:00.000Z', to: '2027-01-01T00:00:00.000Z' },
       totals: { events: 4, totalTokens: 147, estimatedCostUsd: 0.11, unknownCostEvents: 0 },
       privacy: { sanitized: true }
     });
@@ -124,6 +125,58 @@ describe('heatmap report service', () => {
     });
   });
 
+  it('projects repeated source and sourceName filters as arrays', async () => {
+    // Given: repeated source and sourceName selections at the service boundary.
+    const { HeatmapService } = await loadHeatmapService();
+    const service = new HeatmapService();
+
+    // When: the filtered heatmap report is built.
+    const parsed = heatmapReportSchema.parse(
+      Reflect.apply(service.buildReport, service, [
+        [],
+        {
+          year: 2026,
+          metric: 'tokens',
+          filters: {
+            source: ['codex', 'opencode'],
+            sourceName: ['lab-one', 'lab-two']
+          }
+        }
+      ])
+    );
+
+    // Then: repeated values remain arrays in the output contract.
+    expect(parsed).toMatchObject({
+      filters: {
+        source: ['codex', 'opencode'],
+        sourceName: ['lab-one', 'lab-two']
+      }
+    });
+  });
+
+  it('uses the canonical six density symbols', async () => {
+    // Given: an otherwise empty heatmap year.
+    const { HeatmapService } = await loadHeatmapService();
+
+    // When: its legend is read from the report DTO.
+    const report = new HeatmapService().buildReport([], { year: 2026, metric: 'events' });
+
+    // Then: every level maps to the exact terminal-safe density symbol.
+    expect(report.legend.map(({ symbol }) => symbol)).toEqual(['·', '▁', '▂', '▃', '▅', '█']);
+  });
+
+  it('keeps every all-zero day at numeric level zero', async () => {
+    // Given: a non-leap year with no events.
+    const { HeatmapService } = await loadHeatmapService();
+
+    // When: the empty year report is built.
+    const report = new HeatmapService().buildReport([], { year: 2026, metric: 'cost' });
+
+    // Then: all 365 levels are numeric, non-null, and exactly zero.
+    expect(report.days).toHaveLength(365);
+    expect(report.days.every(({ level }) => typeof level === 'number' && level === 0)).toBe(true);
+  });
+
   it('excludes unknown costs from spend while counting unknown-cost events', async () => {
     // Given: known and unknown cost events on the same UTC day.
     const { HeatmapService } = await loadHeatmapService();
@@ -154,6 +207,32 @@ describe('heatmap report service', () => {
       unknownCostEvents: 1,
       level: 5
     });
+  });
+
+  it('keeps an all-unknown cost day nullable instead of presenting it as free', async () => {
+    // Given: one event whose price is unknown.
+    const { HeatmapService } = await loadHeatmapService();
+    const unknownCostEvent = {
+      ...createTestEvent({ timestamp: '2026-02-02T02:00:00.000Z', rawIdHash: 'unknown-only' }),
+      estimatedCostUsd: null
+    };
+
+    // When: the cost heatmap is built.
+    const report = new HeatmapService().buildReport([unknownCostEvent], {
+      year: 2026,
+      metric: 'cost'
+    });
+    const day = report.days.find(({ date }) => date === '2026-02-02');
+
+    // Then: sums exclude the unknown price while the nullable cost and count preserve uncertainty.
+    expect(report.totals).toMatchObject({ estimatedCostUsd: null, unknownCostEvents: 1 });
+    expect(day).toMatchObject({
+      value: 0,
+      estimatedCostUsd: null,
+      unknownCostEvents: 1,
+      level: 0
+    });
+    expect(JSON.stringify(report)).not.toMatch(/\$0\.00|\bfree\b/i);
   });
 
   it('renders privacy-safe text and SVG without color-only meaning', async () => {

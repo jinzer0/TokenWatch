@@ -9,6 +9,10 @@ export type HeatmapMetric = (typeof heatmapMetrics)[number];
 export type BuildHeatmapReportOptions = {
   readonly year?: unknown;
   readonly metric?: HeatmapMetric;
+  readonly filters?: {
+    readonly source?: readonly string[];
+    readonly sourceName?: readonly string[];
+  };
 };
 
 type DayAccumulator = {
@@ -58,7 +62,11 @@ export class HeatmapService {
       generatedAt: nowIso(),
       year,
       metric,
-      range: { from: yearStartIso(year), to: yearEndIso(year) },
+      range: { from: yearStartIso(year), to: nextYearStartIso(year) },
+      filters: {
+        source: [...(options.filters?.source ?? [])],
+        sourceName: [...(options.filters?.sourceName ?? [])]
+      },
       totals: {
         events: totals.events,
         totalTokens: totals.tokens,
@@ -83,12 +91,12 @@ export class HeatmapService {
 }
 
 export const heatmapLegend = [
-  { level: 0, label: 'No usage', symbol: '.' },
-  { level: 1, label: 'Very low usage', symbol: ':' },
-  { level: 2, label: 'Low usage', symbol: '-' },
-  { level: 3, label: 'Medium usage', symbol: '=' },
-  { level: 4, label: 'High usage', symbol: '+' },
-  { level: 5, label: 'Peak usage', symbol: '#' }
+  { level: 0, label: 'No usage', symbol: '·' },
+  { level: 1, label: 'Very low usage', symbol: '▁' },
+  { level: 2, label: 'Low usage', symbol: '▂' },
+  { level: 3, label: 'Medium usage', symbol: '▃' },
+  { level: 4, label: 'High usage', symbol: '▅' },
+  { level: 5, label: 'Peak usage', symbol: '█' }
 ] as const;
 
 function parseHeatmapYear(value: unknown): number {
@@ -174,6 +182,6 @@ function yearStartIso(year: number): string {
   return new Date(Date.UTC(year, 0, 1, 0, 0, 0, 0)).toISOString();
 }
 
-function yearEndIso(year: number): string {
-  return new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999)).toISOString();
+function nextYearStartIso(year: number): string {
+  return new Date(Date.UTC(year + 1, 0, 1, 0, 0, 0, 0)).toISOString();
 }

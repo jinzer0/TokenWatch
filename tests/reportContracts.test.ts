@@ -303,7 +303,11 @@ describe('report contract schemas', () => {
       generatedAt: '2026-06-04T00:00:00.000Z',
       year: 2026,
       metric: 'tokens',
-      range: { from: '2026-01-01T00:00:00.000Z', to: '2026-12-31T23:59:59.999Z' },
+      range: { from: '2026-01-01T00:00:00.000Z', to: '2027-01-01T00:00:00.000Z' },
+      filters: {
+        source: ['codex', 'opencode'],
+        sourceName: ['lab-one', 'lab-two']
+      },
       totals: { events: 2, totalTokens: 300, estimatedCostUsd: null, unknownCostEvents: 1 },
       days: [
         {
@@ -317,28 +321,65 @@ describe('report contract schemas', () => {
         }
       ],
       legend: [
-        { level: 0, label: 'No usage', symbol: ' ' },
-        { level: 5, label: 'High usage', symbol: '#' }
+        { level: 0, label: 'No usage', symbol: '·' },
+        { level: 1, label: 'Very low usage', symbol: '▁' },
+        { level: 2, label: 'Low usage', symbol: '▂' },
+        { level: 3, label: 'Medium usage', symbol: '▃' },
+        { level: 4, label: 'High usage', symbol: '▅' },
+        { level: 5, label: 'Peak usage', symbol: '█' }
       ],
       privacy: { sanitized: true }
     };
 
     expect(parse(payload)).toMatchObject({
+      version: 1,
       kind: 'heatmap',
+      year: 2026,
       metric: 'tokens',
+      range: { from: '2026-01-01T00:00:00.000Z', to: '2027-01-01T00:00:00.000Z' },
+      filters: {
+        source: ['codex', 'opencode'],
+        sourceName: ['lab-one', 'lab-two']
+      },
       totals: { estimatedCostUsd: null, unknownCostEvents: 1 },
       days: [{ date: '2026-01-01', level: 5 }],
+      legend: expect.any(Array),
       privacy: { sanitized: true }
+    });
+    expect(parse(payload)).toMatchObject({
+      legend: [
+        { level: 0, symbol: '·' },
+        { level: 1, symbol: '▁' },
+        { level: 2, symbol: '▂' },
+        { level: 3, symbol: '▃' },
+        { level: 4, symbol: '▅' },
+        { level: 5, symbol: '█' }
+      ]
     });
     expect(parse({ ...payload, metric: 'events' })).toMatchObject({ metric: 'events' });
     expect(parse({ ...payload, metric: 'cost' })).toMatchObject({ metric: 'cost' });
     expect(() => parse({ ...payload, metric: 'sessions' })).toThrow();
     expect(() => parse({ ...payload, metric: 'activeMinutes' })).toThrow();
+    expect(() =>
+      parse({
+        ...payload,
+        days: [{ ...payload.days[0], level: null }]
+      })
+    ).toThrow();
     expect(containsPrivacySentinel(parse(payload))).toBe(false);
     expect(() =>
       parse({
         ...payload,
         legend: [{ level: 1, label: 'FAKE_API_KEY_SENTINEL_DO_NOT_LEAK', symbol: '!' }]
+      })
+    ).toThrow('headless_payload_rejected');
+    expect(() =>
+      parse({
+        ...payload,
+        filters: {
+          ...payload.filters,
+          sourceName: ['RAW_PATH_SENTINEL_DO_NOT_LEAK']
+        }
       })
     ).toThrow('headless_payload_rejected');
   });

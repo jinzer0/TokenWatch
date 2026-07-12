@@ -672,7 +672,11 @@ async function runHeatmapCommand(options: HeatmapCliOptions): Promise<void> {
       sources,
       sourceNames
     }),
-    { year, metric }
+    {
+      year,
+      metric,
+      filters: { source: sources, sourceName: sourceNames }
+    }
   );
 
   if (plan.kind === 'stdout-json') {
@@ -743,7 +747,14 @@ function filterUsageEvents(
 
 function buildCliHeatmapReport(
   events: readonly UsageEvent[],
-  options: { readonly year: number; readonly metric: HeatmapMetric }
+  options: {
+    readonly year: number;
+    readonly metric: HeatmapMetric;
+    readonly filters: {
+      readonly source: readonly ParserName[];
+      readonly sourceName: readonly string[];
+    };
+  }
 ) {
   try {
     return new HeatmapService().buildReport(events, options);
