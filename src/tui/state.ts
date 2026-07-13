@@ -44,6 +44,7 @@ export type TuiProps = {
   initialDetails?: boolean;
   settings?: TuiSettings;
   cache?: TuiDataCacheAdapter;
+  overviewWidthColumns?: number;
 };
 
 export const views: ViewDefinition[] = [

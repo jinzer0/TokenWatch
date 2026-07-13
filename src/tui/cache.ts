@@ -69,7 +69,13 @@ function parseTuiDataCacheFile(value: unknown): TuiDataCacheFile | null {
 
 function isSanitizedTuiData(value: unknown): value is TuiData {
   if (!isRecord(value)) return false;
-  const requiredObjectKeys = ['totals', 'statsSummary', 'sessionMetrics', 'heatmapReport'];
+  const requiredObjectKeys = [
+    'totals',
+    'overviewDashboard',
+    'statsSummary',
+    'sessionMetrics',
+    'heatmapReport'
+  ];
   const requiredArrayKeys = [
     'overviewRows',
     'usageRows',

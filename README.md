@@ -79,14 +79,14 @@ corepack pnpm test:desktop
 데스크톱 smoke check도 실제 사용자 DB를 건드리지 않도록 임시 DB를 지정하세요.
 
 ```bash
-TOKENWATCH_DB_PATH=/tmp/tokenwatch-desktop-smoke.db corepack pnpm dev:desktop
-TOKENWATCH_DB_PATH=/tmp/tokenwatch-desktop-smoke.db corepack pnpm test:desktop
+TOKENWATCH_DB_PATH=<temporary-db-path> corepack pnpm dev:desktop
+TOKENWATCH_DB_PATH=<temporary-db-path> corepack pnpm test:desktop
 ```
 
 기본 DB 위치는 `~/.tokenwatch/tokenwatch.db`입니다. 테스트나 격리 실행에서는 임시 DB 경로를 지정하세요.
 
 ```bash
-TOKENWATCH_DB_PATH=/tmp/tokenwatch.db tokenwatch seed
+TOKENWATCH_DB_PATH=<temporary-db-path> tokenwatch seed
 ```
 
 ## 명령어
@@ -339,9 +339,13 @@ tokenwatch watch --source codex --source-name local
 
 ## Ink TUI
 
-`tokenwatch tui`는 Rust/Ratatui rewrite나 web dashboard가 아니라 기존 Node.js CLI와 같은 로컬 SQLite를 읽는 Ink 기반 터미널 UI입니다. 네트워크, 서버, 소셜, leaderboard 기능 없이 normalized usage metadata와 sanitized pricing/session/budget diagnostics만 표시합니다.
+`tokenwatch tui`는 Rust/Ratatui rewrite나 web dashboard가 아니라 기존 Node.js CLI와 같은 로컬 SQLite를 읽는 Ink 기반 터미널 UI입니다. 네트워크, 서버, 소셜, leaderboard 기능 없이 normalized usage metadata와 sanitized pricing/session/budget diagnostics만 표시합니다. `Overview`는 로컬 Ink TUI 화면이며, 서비스가 만든 sanitized dashboard DTO와 current-view export용 primitive row를 경계로 씁니다.
 
-주요 view는 개선된 `Overview`, `Budget Status`, `Activity Heatmap`과 함께 balanced native TUI parity용 `Usage`, `Minutely Usage`, `Stats`, `Agents`를 포함합니다. `Overview`는 shared DTO에서 today/week/month totals, budget 상태, unknown pricing, activity 요약을 보여줍니다. `Budget Status`는 `budget status`와 같은 canonical status/progress row를 씁니다. `Activity Heatmap`은 heatmap report DTO의 UTC day buckets와 level을 terminal-safe row로 렌더링합니다. `Usage`는 이벤트별 sanitized usage row, `Minutely Usage`는 local minute bucket, `Stats`는 safe aggregate/stat row, `Agents`는 agent별 summary를 보여줍니다. 추가로 source/sourceName/model/agent, daily/hourly/monthly, sessions/session metrics/session intervals/concurrency, recent scan runs, unknown pricing, help view를 제공합니다.
+주요 view는 개선된 `Overview`, 기존 `Budget Status`, 기존 `Activity Heatmap`과 함께 balanced native TUI parity용 `Usage`, `Minutely Usage`, `Stats`, `Agents`를 포함합니다. `Overview`는 전용 KPI dashboard로 `Today`, `This Week`, `This Month`, `Budget`을 primary KPI로 보여주고, `Total`, `Top source`, `Top sourceName`, `Top model`, `Unknown pricing`을 secondary signal로 보여줍니다. 각 기간 KPI는 event count, token total, estimated cost label을 표시합니다. 비용은 local planning용 추정치이며 billing-grade charge, provider invoice, quota, rate-limit 자료가 아닙니다. 가격을 모르는 이벤트는 `unknown` 또는 `null`로 남기고, 화면과 export에서 `$0.00`, free, zero, no cost로 바꾸지 않습니다.
+
+`Budget` KPI는 canonical budget row에서 status와 progress label을 읽습니다. `Budget Status` view는 `budget status`와 같은 canonical status/progress row를 쓰는 기존 화면입니다. `Activity Heatmap`도 기존 heatmap report DTO의 UTC day buckets와 level을 terminal-safe row로 렌더링하는 기존 화면입니다. `watch`, `heatmap`, `graph`는 기존 report 또는 validation surface이며, 이 Overview work가 다시 만든 기능이 아닙니다. `graph`는 현재 2D report와 PNG 출력이며 3D graph가 아닙니다.
+
+`Usage`는 이벤트별 sanitized usage row, `Minutely Usage`는 local minute bucket, `Stats`는 safe aggregate/stat row, `Agents`는 agent별 summary를 보여줍니다. 추가로 source/sourceName/model/agent, daily/hourly/monthly, sessions/session metrics/session intervals/concurrency, recent scan runs, unknown pricing, help view를 제공합니다. Overview sparkline은 MVP에 포함하지 않았으며, 나중에 선택 기능으로 다룰 수 있습니다.
 
 Theme은 `blue`, `green`, `amber`, `mono` 중 하나를 사용할 수 있고 기본값은 `blue`입니다. Auto-refresh는 기본적으로 꺼져 있으며 설정 또는 CLI override로 켤 수 있습니다.
 
@@ -354,7 +358,7 @@ TUI는 versioned sanitized cache를 TUI 경계에서만 사용하며 상태는 `
 
 키보드는 `?` help, `r` refresh, `s` sort column cycle, `S` sort direction reverse, `e` current-view export, 방향키 이동, `Enter` details, `Space` selection, `Esc` details close, `q` quit을 지원합니다. Mouse parity는 문서화하지 않습니다.
 
-Current-view export는 `tokenwatch-current-view.json`에 현재 view key와 현재 정렬이 반영된 primitive row 배열만 씁니다. Overview, Budget Status, Activity Heatmap export도 service가 제공한 sanitized primitive row만 씁니다. Export status는 basename, view label, row count 같은 safe 정보만 보여주며 prompt, response, credential, raw path, raw record, raw session ID, SQL payload, stack trace, arbitrary metadata dump는 저장하거나 렌더링하지 않습니다.
+Current-view export는 `tokenwatch-current-view.json`에 현재 view key와 현재 정렬이 반영된 primitive row 배열만 씁니다. Overview export도 dashboard internals가 아니라 service가 제공한 sanitized primitive current-view row만 씁니다. Budget Status와 Activity Heatmap export도 같은 primitive row 경계를 따릅니다. Export status는 basename, view label, row count 같은 safe 정보만 보여주며 prompt, response, credential, raw path, raw record, raw session ID, SQL payload, stack trace, arbitrary metadata dump는 저장하거나 렌더링하지 않습니다.
 
 ## 요약과 세션 지표
 
@@ -373,12 +377,14 @@ Session interval 지표는 `(source, sessionIdHash)` 기준으로 묶이며 acti
 이 릴리스는 로컬 aggregate usage metadata를 읽고 보여주는 범위에 집중합니다. 다음 기능은 포함하지 않습니다.
 
 - Native tray 또는 menu-bar app
-- Background daemon
-- OS notification
+- Background daemon과 OS notification
 - Cloud sync, social sharing, leaderboard
-- LLM recommendation이나 자동 최적화 조언
 - Provider credential storage
+- Desktop write workflow와 read-only dashboard를 넘는 desktop expansion
+- 3D graph 또는 3D renderer dependency
+- LLM recommendation이나 자동 최적화 조언
 - Arbitrary date grammar, 예를 들어 `last Tuesday` 같은 자연어 window
+- TUI Overview sparkline
 - Insights/trend PNG export
 - Heatmap PNG export support is not included
 
@@ -395,5 +401,5 @@ corepack pnpm build
 CLI, TUI, import/export, scan, doctor, DB 경로를 검증할 때는 실제 사용자 DB를 건드리지 않도록 임시 DB를 사용하세요.
 
 ```bash
-TOKENWATCH_DB_PATH=/tmp/tokenwatch-dev.db node dist/cli.js doctor
+TOKENWATCH_DB_PATH=<temporary-db-path> node dist/cli.js doctor
 ```

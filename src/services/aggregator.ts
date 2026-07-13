@@ -193,6 +193,60 @@ export type TuiOverviewRow = {
   detail: string;
 };
 
+export type TuiOverviewPeriodKpi = {
+  readonly label: string;
+  readonly eventCount: number;
+  readonly totalTokens: number;
+  readonly knownEstimatedCostUsd: number | null;
+  readonly costLabel: string;
+  readonly unknownCostEvents: number;
+};
+
+export type TuiOverviewTopLabel = {
+  readonly label: string;
+  readonly totalTokens: number;
+};
+
+export type TuiOverviewUnknownPricing = {
+  readonly label: string;
+  readonly eventCount: number;
+  readonly totalTokens: number;
+  readonly estimatedCostUsd: number | null;
+  readonly costLabel: string;
+};
+
+export type TuiOverviewBudgetStatus = BudgetStatusRow['status'] | 'not_configured';
+
+export type TuiOverviewBudgetSummary = {
+  readonly label: string;
+  readonly status: TuiOverviewBudgetStatus;
+  readonly statusLabel: string;
+  readonly detail: string;
+  readonly primary?: BudgetStatusRow | null;
+};
+
+export type TuiOverviewDashboard = {
+  readonly today: TuiOverviewPeriodKpi;
+  readonly thisWeek: TuiOverviewPeriodKpi;
+  readonly thisMonth: TuiOverviewPeriodKpi;
+  readonly total: TuiOverviewPeriodKpi;
+  readonly budget: TuiOverviewBudgetSummary;
+  readonly topSource: TuiOverviewTopLabel;
+  readonly topSourceName: TuiOverviewTopLabel;
+  readonly topModel: TuiOverviewTopLabel;
+  readonly unknownPricing: TuiOverviewUnknownPricing;
+};
+
+const overviewBudgetStatusPrecedence = ['exceeded', 'unknown', 'warning', 'ok'] as const;
+
+const overviewBudgetStatusLabels = {
+  not_configured: 'not configured',
+  exceeded: 'exceeded',
+  unknown: 'unknown',
+  warning: 'warning',
+  ok: 'ok'
+} as const satisfies Readonly<Record<TuiOverviewBudgetStatus, string>>;
+
 export type TuiActivityRow = {
   section: string;
   label: string;
@@ -203,6 +257,7 @@ export type TuiActivityRow = {
 
 export type TuiData = {
   totals: SummaryTotals;
+  overviewDashboard: TuiOverviewDashboard;
   overviewRows: TuiOverviewRow[];
   usageRows: TuiUsageRow[];
   minutelyBuckets: TuiMinutelyBucket[];
@@ -412,14 +467,16 @@ export class AggregatorService {
     options: TuiDataOptions = {}
   ): TuiData {
     const totals = this.summarize(events);
+    const now = options.now ?? new Date();
     const budgetStatusRows = this.budgetStatus.buildRows(budgets);
     const heatmapReport = this.heatmap.buildReport(events, {
-      year: options.heatmapYear ?? (options.now ?? new Date()).getUTCFullYear(),
+      year: options.heatmapYear ?? now.getUTCFullYear(),
       metric: options.heatmapMetric ?? 'tokens'
     });
     return {
       totals,
-      overviewRows: overviewRows(events, totals, budgetStatusRows, options.now ?? new Date()),
+      overviewDashboard: overviewDashboard(events, totals, budgetStatusRows, now),
+      overviewRows: overviewRows(events, totals, budgetStatusRows, now),
       usageRows: usageRows(events),
       minutelyBuckets: minutelyBuckets(events),
       insightsRows: buildTuiInsightRows(events, budgets),
@@ -475,6 +532,88 @@ function overviewRows(
     { metric: 'Top source', value: totals.topSource ?? 'none', detail: 'by total tokens' },
     { metric: 'Top sourceName', value: totals.topSourceName ?? 'none', detail: 'by total tokens' }
   ];
+}
+
+function overviewDashboard(
+  events: UsageEvent[],
+  totals: SummaryTotals,
+  budgetRows: readonly BudgetStatusRow[],
+  now: Date
+): TuiOverviewDashboard {
+  const unknownEvents = events.filter((event) => event.estimatedCostUsd === null);
+  const budgetStatus = overviewBudgetStatus(budgetRows);
+  const budget = {
+    label: 'Budget',
+    status: budgetStatus,
+    statusLabel: overviewBudgetStatusLabels[budgetStatus],
+    detail: budgetOverviewDetail(budgetRows),
+    primary: budgetRows.find((row) => row.scopeKind === 'monthly_total') ?? budgetRows[0] ?? null
+  } satisfies TuiOverviewBudgetSummary;
+  return {
+    today: overviewPeriod('Today', summarizeWindow(events, localDayRange(now))),
+    thisWeek: overviewPeriod('This Week', summarizeWindow(events, localWeekRange(now))),
+    thisMonth: overviewPeriod('This Month', summarizeWindow(events, localMonthRange(now))),
+    total: overviewPeriod('Total', {
+      events: totals.totalEvents,
+      tokens: totals.totalTokens,
+      cost: totals.estimatedTotalCostUsd,
+      unknownCostEvents: unknownEvents.length
+    }),
+    budget,
+    topSource: overviewTopLabel(events, totals.topSource, (event) => event.source),
+    topSourceName: overviewTopLabel(events, totals.topSourceName, (event) => event.sourceName),
+    topModel: overviewTopLabel(events, totals.topModel, (event) => event.model),
+    unknownPricing: {
+      label: 'Unknown pricing',
+      eventCount: unknownEvents.length,
+      totalTokens: sum(unknownEvents, 'totalTokens'),
+      estimatedCostUsd: null,
+      costLabel: 'unknown'
+    }
+  };
+}
+
+function overviewBudgetStatus(rows: readonly BudgetStatusRow[]): TuiOverviewBudgetStatus {
+  if (rows.length === 0) return 'not_configured';
+  return (
+    overviewBudgetStatusPrecedence.find((status) => rows.some((row) => row.status === status)) ??
+    'ok'
+  );
+}
+
+function overviewPeriod(label: string, summary: TuiWindowSummary): TuiOverviewPeriodKpi {
+  return {
+    label,
+    eventCount: summary.events,
+    totalTokens: summary.tokens,
+    knownEstimatedCostUsd: summary.cost,
+    costLabel: overviewCostLabel(summary.cost, summary.unknownCostEvents),
+    unknownCostEvents: summary.unknownCostEvents
+  };
+}
+
+function overviewCostLabel(knownCost: number | null, unknownCostEvents: number): string {
+  if (unknownCostEvents > 0) {
+    return knownCost === null ? 'unknown' : `${formatUsd(knownCost)} + unknown`;
+  }
+  return formatUsd(knownCost);
+}
+
+function overviewTopLabel(
+  events: UsageEvent[],
+  label: string | null,
+  selector: (event: UsageEvent) => string
+): TuiOverviewTopLabel {
+  return {
+    label: label ?? 'none',
+    totalTokens:
+      label === null
+        ? 0
+        : sum(
+            events.filter((event) => selector(event) === label),
+            'totalTokens'
+          )
+  };
 }
 
 function activityRows(report: HeatmapReport): TuiActivityRow[] {
@@ -534,6 +673,7 @@ type TuiWindowSummary = {
   readonly events: number;
   readonly tokens: number;
   readonly cost: number | null;
+  readonly unknownCostEvents: number;
 };
 
 type LocalWindow = {
@@ -549,7 +689,8 @@ function summarizeWindow(events: UsageEvent[], window: LocalWindow): TuiWindowSu
   return {
     events: included.length,
     tokens: sum(included, 'totalTokens'),
-    cost: sumNullableCost(included)
+    cost: sumNullableCost(included),
+    unknownCostEvents: included.filter((event) => event.estimatedCostUsd === null).length
   };
 }
 
@@ -578,11 +719,7 @@ function localMonthRange(now: Date): LocalWindow {
 }
 
 function budgetOverviewStatus(rows: readonly BudgetStatusRow[]): string {
-  if (rows.length === 0) return 'not configured';
-  if (rows.some((row) => row.status === 'exceeded')) return 'exceeded';
-  if (rows.some((row) => row.status === 'warning')) return 'warning';
-  if (rows.some((row) => row.status === 'unknown')) return 'unknown';
-  return 'ok';
+  return overviewBudgetStatusLabels[overviewBudgetStatus(rows)];
 }
 
 function budgetOverviewDetail(rows: readonly BudgetStatusRow[]): string {

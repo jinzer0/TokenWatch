@@ -18,6 +18,7 @@ import { Header } from './components/Header.js';
 import { HelpView } from './components/HelpView.js';
 import { Layout } from './components/Layout.js';
 import { Navigation } from './components/Navigation.js';
+import { OverviewDashboard, overviewLayoutMode } from './components/OverviewDashboard.js';
 import { views, type TuiProps, type ViewKey } from './state.js';
 import { tuiRefreshLabel } from './theme.js';
 
@@ -34,7 +35,8 @@ export function App({
   initialViewKey,
   initialDetails,
   settings = DEFAULT_TUI_SETTINGS,
-  cache
+  cache,
+  overviewWidthColumns
 }: TuiProps) {
   const app = useApp();
   const initialDataRef = useRef<InitialTuiData | null>(null);
@@ -106,6 +108,9 @@ export function App({
   );
   const safeRowIndex = rows.length === 0 ? 0 : Math.min(rowIndex, rows.length - 1);
   const sortLabel = sortLabelForView(view.key, rowSort);
+  const responsiveOverviewMode =
+    view.key === 'overview' ? overviewLayoutMode(overviewWidthColumns) : 'wide';
+  const useCompactOverviewFrame = responsiveOverviewMode !== 'wide';
 
   useEffect(() => {
     setRowIndex((index) => (rows.length === 0 ? 0 : Math.min(index, rows.length - 1)));
@@ -186,14 +191,20 @@ export function App({
 
   return (
     <Layout theme={settings.theme}>
-      <Header
-        totals={data.totals}
-        settings={settings}
-        refreshStatus={refreshStatus}
-        cacheStatus={cacheStatus}
-      />
+      {useCompactOverviewFrame ? (
+        <CompactOverviewHeader theme={settings.theme} cacheStatus={cacheStatus} />
+      ) : (
+        <Header
+          totals={data.totals}
+          settings={settings}
+          refreshStatus={refreshStatus}
+          cacheStatus={cacheStatus}
+        />
+      )}
       <Box>
-        <Navigation activeIndex={viewIndex} theme={settings.theme} />
+        {useCompactOverviewFrame ? null : (
+          <Navigation activeIndex={viewIndex} theme={settings.theme} />
+        )}
         <Box flexDirection="column" flexGrow={1}>
           <Text bold>
             {view.label} {sortLabel}
@@ -201,6 +212,12 @@ export function App({
           {message ? <Text>{message}</Text> : null}
           {view.key === 'help' ? (
             <HelpView />
+          ) : view.key === 'overview' ? (
+            <OverviewDashboard
+              dashboard={data.overviewDashboard}
+              widthColumns={overviewWidthColumns}
+              theme={settings.theme}
+            />
           ) : rows.length === 0 ? (
             <EmptyState theme={settings.theme} />
           ) : (
@@ -214,15 +231,37 @@ export function App({
           {details ? <DetailPanel row={rows[safeRowIndex] ?? null} theme={settings.theme} /> : null}
         </Box>
       </Box>
-      <Footer
-        settings={settings}
-        refreshStatus={refreshStatus}
-        cacheStatus={cacheStatus}
-        message={message}
-        statuslineText={statuslineText}
-      />
+      {useCompactOverviewFrame ? (
+        <CompactOverviewFooter theme={settings.theme} />
+      ) : (
+        <Footer
+          settings={settings}
+          refreshStatus={refreshStatus}
+          cacheStatus={cacheStatus}
+          message={message}
+          statuslineText={statuslineText}
+        />
+      )}
     </Layout>
   );
+}
+
+function CompactOverviewHeader({
+  cacheStatus,
+  theme
+}: {
+  readonly cacheStatus: string;
+  readonly theme: TuiSettings['theme'];
+}) {
+  return (
+    <Text bold>
+      TokenWatch | Overview | Theme: {theme} | Cache: {cacheStatus}
+    </Text>
+  );
+}
+
+function CompactOverviewFooter({ theme }: { readonly theme: TuiSettings['theme'] }) {
+  return <Text dimColor>r refresh e export ? help q quit | Shell: {theme}</Text>;
 }
 
 function exportStatusMessage(viewLabel: string, rowCount: number, out: string): string {
