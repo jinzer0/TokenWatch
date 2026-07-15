@@ -100,7 +100,7 @@ export const heatmapLegend = [
 ] as const;
 
 function parseHeatmapYear(value: unknown): number {
-  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1970 || value > 9999) {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1970 || value > 9998) {
     throw new Error('invalid_report_option');
   }
   return value;

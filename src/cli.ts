@@ -30,7 +30,12 @@ import {
   renderStatuslineText
 } from './services/statusline.js';
 import { BudgetStatusError, BudgetStatusService } from './services/budgetStatusService.js';
-import { WatchService, WatchServiceError, parseWatchInterval } from './services/watchService.js';
+import {
+  WatchService,
+  WatchServiceError,
+  parseWatchInterval,
+  parseWatchWindow
+} from './services/watchService.js';
 import { formatInteger, formatTable, formatUsd } from './utils/format.js';
 import { defaultPrices } from './pricing/defaultPrices.js';
 import {
@@ -52,7 +57,7 @@ import type { UsageEvent } from './models/usageEvent.js';
 import type { BudgetScopeKind, BudgetThreshold } from './db/repositories/budgetThresholds.js';
 import type { BudgetEvaluation } from './services/budgetService.js';
 import { headlessCodexInputSchema } from './services/reportContracts.js';
-import type { BudgetStatusReport } from './services/reportContracts.js';
+import type { BudgetStatusReport, WatchTickReport } from './services/reportContracts.js';
 import type {
   PricingDiagnosticGroup,
   SessionSummaryGroup,
@@ -67,6 +72,7 @@ type WatchCliOptions = {
   readonly once?: boolean;
   readonly json?: boolean;
   readonly interval?: string;
+  readonly window?: string;
   readonly source?: readonly string[];
   readonly sourceName?: readonly string[];
 };
@@ -112,6 +118,7 @@ export async function main(argv = process.argv): Promise<void> {
     .option('--once', 'print one tick and exit')
     .option('--json', 'output JSON')
     .option('--interval <value>', 'poll interval using milliseconds, s, or m grammar', '5s')
+    .option('--window <window>', 'rolling window using milliseconds, s, or m grammar', '10m')
     .option(
       '--source <source>',
       `filter by source adapter: ${parserSourceHelp}`,
@@ -126,7 +133,7 @@ export async function main(argv = process.argv): Promise<void> {
   program
     .command('heatmap')
     .description('Print or write a privacy-safe yearly usage heatmap')
-    .option('--year <yyyy>', 'UTC year, 1970 through 9999')
+    .option('--year <yyyy>', 'UTC year, 1970 through 9998')
     .option('--metric <metric>', 'metric: tokens, events, or cost', 'tokens')
     .option('--json', 'output JSON')
     .option('--out <path>', 'write .json, .txt, or .svg heatmap output')
@@ -798,54 +805,67 @@ function heatmapFormatLabel(
 
 async function runWatchCommand(options: WatchCliOptions): Promise<void> {
   const intervalMs = parseCliWatchInterval(options.interval);
+  const windowMs = parseCliWatchWindow(options.window);
   const sources = parseWatchSources(options.source ?? []);
   const sourceNames = parseWatchSourceNames(options.sourceName ?? []);
   const emitTick = await createWatchTickEmitter({
     intervalMs,
+    windowMs,
     sources,
-    sourceNames,
-    json: options.json
+    sourceNames
   });
   if (options.once) {
-    emitTick();
+    const tick = emitTick();
+    console.log(options.json ? JSON.stringify(tick, null, 2) : renderWatchTick(tick));
     return;
   }
-  await runContinuousWatch(intervalMs, emitTick);
+  await runContinuousWatch(intervalMs, emitTick, options.json === true);
 }
 
 type WatchEmitterOptions = {
   readonly intervalMs: number;
+  readonly windowMs: number;
   readonly sources: readonly ParserName[];
   readonly sourceNames: readonly string[];
-  readonly json?: boolean;
 };
 
-async function createWatchTickEmitter(options: WatchEmitterOptions): Promise<() => void> {
+async function createWatchTickEmitter(
+  options: WatchEmitterOptions
+): Promise<(previousTickAt?: Date) => WatchTickReport> {
   const services = await createCliServices();
   const watch = new WatchService();
-  return () => {
-    const tick = watch.buildTick(services.usageEvents.listAll(), {
+  return (previousTickAt?: Date) =>
+    watch.buildTick(services.usageEvents.listAll(), {
       intervalMs: options.intervalMs,
+      windowMs: options.windowMs,
       source: options.sources.length === 0 ? undefined : options.sources,
       sourceName: options.sourceNames.length === 0 ? undefined : options.sourceNames,
-      budgets: services.budget.evaluateCurrentMonth()
+      budgets: services.budget.evaluateCurrentMonth(),
+      ...(previousTickAt === undefined ? {} : { previousTickAt })
     });
-    console.log(options.json ? JSON.stringify(tick, null, 2) : renderWatchTick(tick));
-  };
 }
 
-function runContinuousWatch(intervalMs: number, emitTick: () => void): Promise<void> {
+function runContinuousWatch(
+  intervalMs: number,
+  emitTick: (previousTickAt?: Date) => WatchTickReport,
+  json: boolean
+): Promise<void> {
   return new Promise((resolve, reject) => {
+    let previousTickAt: Date | undefined;
     const cleanup = () => {
       clearInterval(timer);
       process.off('SIGINT', handleSigint);
     };
     const runTick = () => {
       try {
-        emitTick();
+        const tick = emitTick(previousTickAt);
+        console.log(json ? JSON.stringify(tick) : renderWatchTick(tick));
+        previousTickAt = new Date(tick.timestamp);
       } catch (error) {
         cleanup();
-        reject(error);
+        reject(
+          error instanceof Error ? error : new TokenWatchError('unknown_error', 1, 'unknown_error')
+        );
       }
     };
     const handleSigint = () => {
@@ -861,6 +881,17 @@ function runContinuousWatch(intervalMs: number, emitTick: () => void): Promise<v
 function parseCliWatchInterval(value: string | undefined): number {
   try {
     return parseWatchInterval(value ?? '5s');
+  } catch (error) {
+    if (error instanceof WatchServiceError) {
+      throw new TokenWatchError('invalid_report_option', 1, 'invalid_report_option');
+    }
+    throw error;
+  }
+}
+
+function parseCliWatchWindow(value: string | undefined): number {
+  try {
+    return parseWatchWindow(value);
   } catch (error) {
     if (error instanceof WatchServiceError) {
       throw new TokenWatchError('invalid_report_option', 1, 'invalid_report_option');
@@ -890,13 +921,15 @@ function parseWatchSourceNames(values: readonly string[]): readonly string[] {
 
 function renderWatchTick(tick: import('./services/reportContracts.js').WatchTickReport): string {
   return [
-    `TokenWatch watch | last refresh ${tick.timestamp} | interval ${formatDuration(tick.intervalMs)}`,
-    `delta ${tick.delta.events} events | ${formatInteger(tick.delta.totalTokens)} tokens | cost ${formatUsd(tick.delta.estimatedCostUsd)}`,
-    `delta input ${formatInteger(tick.delta.inputTokens)} | output ${formatInteger(tick.delta.outputTokens)} | cached ${formatInteger(tick.delta.cachedTokens)} | reasoning ${formatInteger(tick.delta.reasoningTokens)}`,
+    `TokenWatch watch | last refresh ${tick.timestamp} | interval ${formatDuration(tick.intervalMs)} | window ${formatDuration(tick.windowMs)}`,
+    `delta totals ${tick.delta.events} events | ${formatInteger(tick.delta.totalTokens)} tokens | cost ${formatUsd(tick.delta.estimatedCostUsd)}`,
+    `delta tokens input ${formatInteger(tick.delta.inputTokens)} | output ${formatInteger(tick.delta.outputTokens)} | cached ${formatInteger(tick.delta.cachedTokens)} | reasoning ${formatInteger(tick.delta.reasoningTokens)}`,
+    `window totals ${tick.window.events} events | ${formatInteger(tick.window.totalTokens)} tokens | cost ${formatUsd(tick.window.estimatedCostUsd)}`,
+    `window tokens input ${formatInteger(tick.window.inputTokens)} | output ${formatInteger(tick.window.outputTokens)} | cached ${formatInteger(tick.window.cachedTokens)} | reasoning ${formatInteger(tick.window.reasoningTokens)}`,
     `velocity ${formatInteger(tick.velocity.tokensPerMinute)} tok/min | cost ${formatUsd(tick.velocity.estimatedCostUsdPerHour)}/h`,
     `top model ${tick.top.model} | source ${tick.top.source} | sourceName ${tick.top.sourceName} | agent ${tick.top.agent} | project ${tick.top.project}`,
-    `budgets ${tick.budgets.status} | warnings ${tick.budgets.warningCount}`,
-    'privacy: sanitized'
+    `budgets ${tick.budgets.status} | warnings ${tick.budgets.warningCount} | exceeded ${tick.budgets.exceededCount} | unknown ${tick.budgets.unknownCount}`,
+    `privacy: ${tick.privacy.sanitized ? 'sanitized' : 'unknown'}`
   ].join('\n');
 }
 

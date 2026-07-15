@@ -111,6 +111,7 @@ tokenwatch budget status --json
 tokenwatch watch --once
 tokenwatch watch --once --json
 tokenwatch watch --interval 30s
+tokenwatch watch --window 10m
 tokenwatch heatmap
 tokenwatch heatmap --json
 tokenwatch heatmap --metric cost --out heatmap.json
@@ -332,10 +333,19 @@ tokenwatch tui
 tokenwatch watch --once
 tokenwatch watch --once --json
 tokenwatch watch --interval 30s
-tokenwatch watch --source codex --source-name local
+tokenwatch watch --window 10m
+tokenwatch watch --source codex --source opencode --source-name local --source-name lab-server
 ```
 
-각 tick은 rolling UTC window `(now - intervalMs, now]`의 이벤트만 집계합니다. 기본 continuous mode는 첫 tick을 바로 출력한 뒤 interval마다 다시 polling합니다. `--interval`은 milliseconds, `s`, `m` suffix를 받으며 최소값은 5초입니다. `watch --once --json`은 strict `kind: "watch_tick"` JSON을 출력하고 종료합니다. Cost delta나 velocity에 unknown pricing이 섞이면 JSON cost field는 `null`, text output은 `unknown`으로 남습니다.
+기본 continuous mode는 첫 tick을 바로 출력한 뒤 interval마다 다시 polling합니다. `--interval`은 polling cadence만 정합니다. 기본값은 `5s`이고, milliseconds, `s`, `m` suffix를 받으며 최소값은 5초입니다. `--window`는 activity, velocity, top label을 계산하는 rolling UTC window입니다. 기본값은 `10m`, 즉 `600_000ms`입니다.
+
+Tick delta는 tick 종류에 따라 다릅니다. `--once`와 continuous 첫 tick은 rolling window 합계를 그대로 delta로 씁니다. Continuous later tick은 직전 출력 tick의 emitted timestamp 이후부터 현재 tick timestamp까지의 새 activity만 delta로 셉니다. Rolling `window`, `velocity`, `top`은 later tick에서도 계속 `(now - windowMs, now]` 범위를 씁니다.
+
+`watch --once --json`은 parseable JSON document 하나를 출력하고 종료합니다. Continuous `watch --json`은 NDJSON을 출력합니다. 각 줄은 compact JSON object 하나이며 array wrapper나 pretty-print block을 쓰지 않습니다.
+
+Watch JSON은 strict v2 shape입니다. High-level fields are `version: 2`, `windowMs`, `filters`, `delta`, `window`, `velocity`, `top`, `budgets`, and `privacy`. Repeated `--source` and `--source-name` filters are OR filters inside each dimension and AND filters across dimensions. JSON reports them as arrays under `filters.source` and `filters.sourceName`.
+
+`budgets`는 rolling watch window가 아니라 current-month budget summary입니다. Cost delta, window cost, velocity cost, 또는 budget row에 unknown pricing이 섞이면 JSON cost field는 `null`, text output은 `unknown`으로 남습니다. Unknown cost를 `$0.00`, free, zero, no-cost로 바꾸지 않습니다.
 
 ## Ink TUI
 

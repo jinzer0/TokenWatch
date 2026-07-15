@@ -1,3 +1,4 @@
+// allow: SIZE_OK - heatmap CLI contract regressions intentionally share one isolated harness.
 import { existsSync, readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -206,6 +207,12 @@ describe('heatmap CLI', () => {
 
       // Then: visible text carries the canonical legend and report context.
       expect(result).toMatchObject({ status: 0, stderr: '' });
+      expect.soft(contents).toContain('Year: 2026');
+      expect.soft(contents).toContain('Metric: cost');
+      expect.soft(contents).toContain('Range: 2026-01-01 to 2026-12-31');
+      expect
+        .soft(contents)
+        .toContain('Summary: 1 events, 140 tokens, unknown cost, unknownCostEvents: 1');
       expect
         .soft(contents)
         .toContain(
@@ -214,7 +221,7 @@ describe('heatmap CLI', () => {
       expect.soft(contents).toMatch(/Filters:.*source.*codex/i);
       expect.soft(contents).toMatch(/Filters:.*sourceName.*lab-server/i);
       expect.soft(contents).toContain('unknownCostEvents: 1');
-      expect(contents).not.toContain('$0.00');
+      expect(contents).not.toMatch(/\$0(?:\.0+)?|\bfree\b|\b(?:zero|no) cost\b/i);
       assertExportFilePrivacy(contents);
       assertCliOutputPrivacy(result);
     } finally {
@@ -270,18 +277,32 @@ describe('heatmap CLI', () => {
       const escapedTitleSvg = renderHeatmapSvg(report, {
         title: 'TokenWatch <safe aggregate> & usage'
       });
+      const dayCellDates = [
+        ...contents.matchAll(/<rect\b[^>]*><title>(\d{4}-\d{2}-\d{2})\b[^<]*<\/title><\/rect>/g)
+      ]
+        .map((match) => match[1])
+        .filter((date): date is string => date !== undefined);
 
       // Then: accessibility, visible unknown-cost context, escaping, and resource safety hold.
       expect(svgResult).toMatchObject({ status: 0, stderr: '' });
       expect.soft(contents).toMatch(/^<svg[^>]*><title>[^<]+<\/title>/);
       expect.soft(contents).toMatch(/^<svg[^>]*><title>[^<]+<\/title><desc>[^<]+<\/desc>/);
+      expect
+        .soft(contents)
+        .toContain('Year 2026 | Metric cost | 1 events | 140 tokens | unknown cost');
+      expect.soft(contents).toContain('Range 2026-01-01 to 2026-12-31');
+      expect.soft(contents).toContain('Filters: sourceName=lab-server');
       expect.soft(contents).toContain('unknownCostEvents: 1');
       for (const symbol of ['·', '▁', '▂', '▃', '▅', '█'] as const) {
         expect.soft(contents).toContain(symbol);
       }
+      expect(dayCellDates).toEqual(report.days.map(({ date }) => date));
+      expect(new Set(dayCellDates)).toHaveLength(report.days.length);
       expect(escapedTitleSvg).toContain('TokenWatch &lt;safe aggregate&gt; &amp; usage');
-      expect(contents).not.toMatch(/(?:href|src)=|<script|<image|<link|@import|url\(/i);
-      expect(contents).not.toContain('$0.00');
+      expect(contents).not.toMatch(
+        /<script\b|<image\b|<link\b|\bhref\s*=|\bsrc\s*=|@import|url\s*\(/i
+      );
+      expect(contents).not.toMatch(/\$0(?:\.0+)?|\bfree\b|\b(?:zero|no) cost\b/i);
       assertExportFilePrivacy(contents);
       assertExportFilePrivacy(escapedTitleSvg);
       assertCliOutputPrivacy(svgResult);
@@ -328,21 +349,103 @@ describe('heatmap CLI', () => {
     }
   });
 
-  it('rejects invalid heatmap options with bounded sanitized errors', async () => {
+  it('rejects --json with --out without creating a file', async () => {
     const temp = createTempDb();
     try {
       const jsonOutPath = join(temp.dir, 'json-out.json');
-      const pngPath = join(temp.dir, 'usage-heatmap.png');
-      const jsonOut = await runCli(['heatmap', '--json', '--out', jsonOutPath], temp.dbPath);
-      const png = await runCli(['heatmap', '--out', pngPath], temp.dbPath);
-      const invalidYears: CliResult[] = [];
-      for (const year of ['99', '10000', '2026.5', 'last-year', 'RAW_PATH_SENTINEL_DO_NOT_LEAK']) {
-        invalidYears.push(await runCli(['heatmap', '--year', year], temp.dbPath));
-      }
-      const invalidMetrics: CliResult[] = [];
+
+      const result = await runCli(['heatmap', '--json', '--out', jsonOutPath], temp.dbPath);
+
+      expect(result).toEqual({
+        status: 1,
+        stdout: '',
+        stderr: 'error: invalid_report_option\n'
+      });
+      expect(existsSync(jsonOutPath)).toBe(false);
+      assertCliOutputPrivacy(result);
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('rejects an unsupported output extension with a bounded path-safe error', async () => {
+    const temp = createTempDb();
+    try {
+      const outputPath = join(temp.dir, 'RAW_PATH_SENTINEL_DO_NOT_LEAK.png');
+
+      const result = await runCli(['heatmap', '--out', outputPath], temp.dbPath);
+
+      expect(result).toEqual({
+        status: 1,
+        stdout: '',
+        stderr: 'error: invalid_output_path\n'
+      });
+      expect(result.stderr).not.toContain(outputPath);
+      expect(existsSync(outputPath)).toBe(false);
+      assertCliOutputPrivacy(result);
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('rejects unsupported sources instead of returning an empty report', async () => {
+    const temp = createTempDb();
+    try {
+      const result = await runCli(
+        ['heatmap', '--year', '2026', '--json', '--source', 'unsupported-adapter'],
+        temp.dbPath
+      );
+
+      expect(result).toEqual({
+        status: 1,
+        stdout: '',
+        stderr: 'error: unsupported_source\n'
+      });
+      assertCliOutputPrivacy(result);
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('rejects invalid metrics with bounded sanitized errors', async () => {
+    const temp = createTempDb();
+    try {
       for (const metric of ['sessions', 'PROMPT_SENTINEL_DO_NOT_LEAK']) {
-        invalidMetrics.push(await runCli(['heatmap', '--metric', metric], temp.dbPath));
+        const result = await runCli(['heatmap', '--metric', metric], temp.dbPath);
+
+        expect(result).toEqual({
+          status: 1,
+          stdout: '',
+          stderr: 'error: invalid_report_option\n'
+        });
+        assertCliOutputPrivacy(result);
       }
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('rejects malformed and out-of-range years with bounded sanitized errors', async () => {
+    const temp = createTempDb();
+    try {
+      for (const year of ['abc', '0', '-1', '1969', '9999', '10000']) {
+        const result = await runCli(['heatmap', '--year', year], temp.dbPath);
+
+        expect(result).toEqual({
+          status: 1,
+          stdout: '',
+          stderr: 'error: invalid_report_option\n'
+        });
+        assertCliOutputPrivacy(result);
+      }
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('does not echo rejected source or sourceName privacy sentinels', async () => {
+    const temp = createTempDb();
+    try {
       const invalidSource = await runCli(
         ['heatmap', '--source', 'RAW_PATH_SENTINEL_DO_NOT_LEAK'],
         temp.dbPath
@@ -352,28 +455,24 @@ describe('heatmap CLI', () => {
         temp.dbPath
       );
 
-      for (const result of [jsonOut, ...invalidYears, ...invalidMetrics]) {
-        expect(result.status).not.toBe(0);
-        expect(result.stdout).toBe('');
-        expect(result.stderr).toBe('error: invalid_report_option\n');
-        assertCliOutputPrivacy(result);
-      }
-      for (const result of [png, invalidSource, invalidSourceName]) {
-        expect(result.status).not.toBe(0);
-        expect(result.stdout).toBe('');
-        assertCliOutputPrivacy(result);
-      }
-      expect(png.stderr).toBe('error: invalid_output_path\n');
-      expect(invalidSource.stderr).toBe('error: unsupported_source\n');
-      expect(invalidSourceName.stderr).toBe('error: invalid_source_name\n');
-      expect(existsSync(jsonOutPath)).toBe(false);
-      expect(existsSync(pngPath)).toBe(false);
+      expect(invalidSource).toEqual({
+        status: 1,
+        stdout: '',
+        stderr: 'error: unsupported_source\n'
+      });
+      expect(invalidSourceName).toEqual({
+        status: 1,
+        stdout: '',
+        stderr: 'error: invalid_source_name\n'
+      });
+      assertCliOutputPrivacy(invalidSource);
+      assertCliOutputPrivacy(invalidSourceName);
     } finally {
       temp.cleanup();
     }
   });
 
-  it('applies repeated source and sourceName filters and returns empty safe reports for no matches', async () => {
+  it('uses OR semantics for repeated source filters', async () => {
     const temp = createTempDb();
     try {
       insertEvents(temp.dbPath, [
@@ -382,16 +481,40 @@ describe('heatmap CLI', () => {
         event('claude-prod', { source: 'claude', sourceName: 'prod-server', totalTokens: 400 })
       ]);
 
-      const selected = await runCli(
+      const result = await runCli(
+        ['heatmap', '--year', '2026', '--json', '--source', 'codex', '--source', 'opencode'],
+        temp.dbPath
+      );
+      const payload = parseHeatmap(result.stdout);
+
+      expect(result).toMatchObject({ status: 0, stderr: '' });
+      expect(payload.totals).toMatchObject({ events: 2, totalTokens: 300 });
+      expect(payload.filters).toEqual({
+        source: ['codex', 'opencode'],
+        sourceName: []
+      });
+      assertJsonOutputPrivacy(payload);
+      assertCliOutputPrivacy(result);
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('uses OR semantics for repeated sourceName filters', async () => {
+    const temp = createTempDb();
+    try {
+      insertEvents(temp.dbPath, [
+        event('local', { sourceName: 'local', totalTokens: 100 }),
+        event('lab', { sourceName: 'lab-server', totalTokens: 200 }),
+        event('prod', { sourceName: 'prod-server', totalTokens: 400 })
+      ]);
+
+      const result = await runCli(
         [
           'heatmap',
           '--year',
           '2026',
           '--json',
-          '--source',
-          'codex',
-          '--source',
-          'opencode',
           '--source-name',
           'local',
           '--source-name',
@@ -399,36 +522,95 @@ describe('heatmap CLI', () => {
         ],
         temp.dbPath
       );
-      const empty = await runCli(
+      const payload = parseHeatmap(result.stdout);
+
+      expect(result).toMatchObject({ status: 0, stderr: '' });
+      expect(payload.totals).toMatchObject({ events: 2, totalTokens: 300 });
+      expect(payload.filters).toEqual({
+        source: [],
+        sourceName: ['local', 'lab-server']
+      });
+      assertJsonOutputPrivacy(payload);
+      assertCliOutputPrivacy(result);
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('uses AND semantics across source and sourceName filters', async () => {
+    const temp = createTempDb();
+    try {
+      insertEvents(temp.dbPath, [
+        event('codex-local', { source: 'codex', sourceName: 'local', totalTokens: 100 }),
+        event('codex-prod', { source: 'codex', sourceName: 'prod-server', totalTokens: 200 }),
+        event('opencode-local', { source: 'opencode', sourceName: 'local', totalTokens: 400 })
+      ]);
+
+      const result = await runCli(
+        ['heatmap', '--year', '2026', '--json', '--source', 'codex', '--source-name', 'local'],
+        temp.dbPath
+      );
+      const payload = parseHeatmap(result.stdout);
+
+      expect(result).toMatchObject({ status: 0, stderr: '' });
+      expect(payload.totals).toMatchObject({ events: 1, totalTokens: 100 });
+      expect(payload.filters).toEqual({ source: ['codex'], sourceName: ['local'] });
+      assertJsonOutputPrivacy(payload);
+      assertCliOutputPrivacy(result);
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('returns an empty full-year report for an unknown valid sourceName', async () => {
+    const temp = createTempDb();
+    try {
+      insertEvents(temp.dbPath, [event('existing-label', { sourceName: 'local' })]);
+
+      const result = await runCli(
         ['heatmap', '--year', '2026', '--json', '--source-name', 'unknown-safe-label'],
         temp.dbPath
       );
-      const selectedPayload = parseHeatmap(selected.stdout);
-      const emptyPayload = parseHeatmap(empty.stdout);
+      const payload = parseHeatmap(result.stdout);
 
-      expect(selected).toMatchObject({ status: 0, stderr: '' });
-      expect(selectedPayload.totals).toMatchObject({ events: 2, totalTokens: 300 });
-      expect(selectedPayload).toMatchObject({
-        filters: {
-          source: ['codex', 'opencode'],
-          sourceName: ['local', 'lab-server']
-        }
-      });
-      expect(JSON.stringify(selectedPayload)).not.toContain('prod-server');
-      expect(empty).toMatchObject({ status: 0, stderr: '' });
-      expect(emptyPayload).toMatchObject({
-        filters: { source: [], sourceName: ['unknown-safe-label'] }
-      });
-      expect(emptyPayload.totals).toMatchObject({
+      expect(result).toMatchObject({ status: 0, stderr: '' });
+      expect(payload.filters).toEqual({ source: [], sourceName: ['unknown-safe-label'] });
+      expect(payload.totals).toEqual({
         events: 0,
         totalTokens: 0,
-        estimatedCostUsd: null
+        estimatedCostUsd: null,
+        unknownCostEvents: 0
       });
-      expect(emptyPayload.days).toHaveLength(365);
-      assertJsonOutputPrivacy(selectedPayload);
-      assertJsonOutputPrivacy(emptyPayload);
-      assertCliOutputPrivacy(selected);
-      assertCliOutputPrivacy(empty);
+      expect(payload.days).toHaveLength(365);
+      assertJsonOutputPrivacy(payload);
+      assertCliOutputPrivacy(result);
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('returns an empty full-year report for a supported source with no rows', async () => {
+    const temp = createTempDb();
+    try {
+      insertEvents(temp.dbPath, [event('different-source', { source: 'codex' })]);
+
+      const result = await runCli(
+        ['heatmap', '--year', '2024', '--json', '--source', 'opencode'],
+        temp.dbPath
+      );
+      const payload = parseHeatmap(result.stdout);
+
+      expect(result).toMatchObject({ status: 0, stderr: '' });
+      expect(payload.filters).toEqual({ source: ['opencode'], sourceName: [] });
+      expect(payload.totals).toEqual({
+        events: 0,
+        totalTokens: 0,
+        estimatedCostUsd: null,
+        unknownCostEvents: 0
+      });
+      expect(payload.days).toHaveLength(366);
+      assertJsonOutputPrivacy(payload);
+      assertCliOutputPrivacy(result);
     } finally {
       temp.cleanup();
     }

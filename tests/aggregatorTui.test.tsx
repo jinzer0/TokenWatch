@@ -19,6 +19,9 @@ import { localMinuteBucket, localMonthBucket } from '../src/utils/time.js';
 import { containsPrivacySentinel, createTempDb, createTestEvent } from './helpers.js';
 import { assertNoForbiddenOutput } from './privacyOutput.js';
 
+// allow: SIZE_OK - existing focused Ink aggregation suite;
+// Todo 8 only strengthens Activity coverage.
+
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -1381,7 +1384,28 @@ describe('aggregation and TUI', () => {
     vi.setSystemTime(new Date('2026-06-15T12:00:00.000Z'));
     const aggregator = new AggregatorService();
     const exported: unknown[] = [];
-    const data = aggregator.buildTuiData(createTuiDashboardFixtureEvents(), []);
+    const data = aggregator.buildTuiData(
+      createTuiDashboardFixtureEvents(),
+      [],
+      undefined,
+      [],
+      {},
+      {
+        heatmapMetric: 'cost',
+        heatmapYear: 2026
+      }
+    );
+    expect(data.heatmapReport).toMatchObject({
+      year: 2026,
+      metric: 'cost',
+      totals: {
+        events: 3,
+        totalTokens: 530,
+        estimatedCostUsd: 0.05,
+        unknownCostEvents: 1
+      },
+      privacy: { sanitized: true }
+    });
     const app = render(
       <App
         loadData={() => data}
@@ -1395,20 +1419,44 @@ describe('aggregation and TUI', () => {
     );
 
     const frame = app.lastFrame() ?? '';
+    const normalized = normalizedFrame(frame);
     expect(frame).toContain('Activity Heatmap');
     expectNonOverviewPrimitiveFrame(frame);
     expect(frame).toContain('year');
     expect(frame).toContain('2026');
     expect(frame).toContain('metric');
-    expect(frame).toContain('tokens');
+    expect(frame).toContain('cost');
+    expect(normalized).toContain('events 3');
+    expect(normalized).toContain('tokens 530');
+    expect(normalized).toContain('cost 0.05');
     expect(frame).toContain('density legend');
+    for (const legend of [
+      ['No usage', '·'],
+      ['Very low usage', '▁'],
+      ['Low usage', '▂'],
+      ['Medium usage', '▃'],
+      ['High usage', '▅'],
+      ['Peak usage', '█']
+    ] as const) {
+      expect(frame).toContain(legend[0]);
+      expect(frame).toContain(legend[1]);
+    }
     expect(frame).toContain('active days');
+    expect(frame).toContain('3');
     expect(frame).toContain('unknown cost warning');
     expect(frame).toContain('unknown cost events present');
+    expect(frame).toContain('1 events');
     expect(frame).toContain('Peak usage');
     expect(frame).toContain('Details');
+    expect(frame).toContain('detail: 2026-01-01T00:00:00.000Z');
+    expect(frame).not.toContain('PROMPT_SENTINEL_DO_NOT_LEAK');
+    expect(frame).not.toContain('RESPONSE_SENTINEL_DO_NOT_LEAK');
+    expect(frame).not.toContain('FAKE_CREDENTIAL_SENTINEL_DO_NOT_LEAK');
+    expect(frame).not.toContain('RAW_PATH_SENTINEL_DO_NOT_LEAK');
+    expect(frame).not.toContain('RAW_RECORD_SENTINEL_DO_NOT_LEAK');
     expect(frame).not.toContain('$0.00');
     expect(frame).not.toContain('/private/raw/path');
+    expectNoHorizontalOverflow(frame, 100);
     expect(containsPrivacySentinel(frame)).toBe(false);
     assertNoForbiddenOutput(frame);
 
@@ -1421,14 +1469,50 @@ describe('aggregation and TUI', () => {
         viewKey: 'activity',
         rows: expect.arrayContaining([
           expect.objectContaining({ section: 'summary', label: 'year', value: 2026 }),
-          expect.objectContaining({ section: 'summary', label: 'metric', value: 'tokens' }),
+          expect.objectContaining({ section: 'summary', label: 'metric', value: 'cost' }),
           expect.objectContaining({ section: 'summary', label: 'active days', value: 3 }),
           expect.objectContaining({
             section: 'summary',
             label: 'unknown cost warning',
-            value: 'unknown cost events present'
+            value: 'unknown cost events present',
+            detail: '1 events'
           }),
-          expect.objectContaining({ section: 'density legend', label: 'Peak usage', level: 5 })
+          expect.objectContaining({
+            section: 'density legend',
+            label: 'No usage',
+            value: '·',
+            level: 0
+          }),
+          expect.objectContaining({
+            section: 'density legend',
+            label: 'Very low usage',
+            value: '▁',
+            level: 1
+          }),
+          expect.objectContaining({
+            section: 'density legend',
+            label: 'Low usage',
+            value: '▂',
+            level: 2
+          }),
+          expect.objectContaining({
+            section: 'density legend',
+            label: 'Medium usage',
+            value: '▃',
+            level: 3
+          }),
+          expect.objectContaining({
+            section: 'density legend',
+            label: 'High usage',
+            value: '▅',
+            level: 4
+          }),
+          expect.objectContaining({
+            section: 'density legend',
+            label: 'Peak usage',
+            value: '█',
+            level: 5
+          })
         ])
       }
     ]);

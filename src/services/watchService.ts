@@ -11,9 +11,16 @@ const minimumIntervalMs = 5_000;
 export type BuildWatchTickOptions = {
   readonly now?: Date;
   readonly intervalMs: number;
+  readonly windowMs: number;
+  readonly previousTickAt?: Date;
   readonly source?: SourceType | readonly SourceType[];
   readonly sourceName?: string | readonly string[];
   readonly budgets?: readonly BudgetEvaluation[];
+};
+
+type WatchTimeRange = {
+  readonly startExclusiveMs: number;
+  readonly endInclusiveMs: number;
 };
 
 export class WatchServiceError extends Error {
@@ -30,26 +37,36 @@ export class WatchService {
 
   buildTick(events: readonly UsageEvent[], options: BuildWatchTickOptions): WatchTickReport {
     const now = options.now ?? new Date();
+    const nowMs = now.getTime();
     const intervalMs = validIntervalMs(options.intervalMs);
-    const windowStartExclusiveMs = now.getTime() - intervalMs;
-    const windowEndInclusiveMs = now.getTime();
-    const windowEvents = events.filter((event) => {
-      const timestampMs = Date.parse(event.timestamp);
-      return (
-        timestampMs > windowStartExclusiveMs &&
-        timestampMs <= windowEndInclusiveMs &&
-        matchesFilters(event, options)
-      );
-    });
+    const windowMs = validWindowMs(options.windowMs);
+    const filters = buildFilters(options);
+    const windowRange = { startExclusiveMs: nowMs - windowMs, endInclusiveMs: nowMs };
+    const windowEvents = events.filter((event) => isIncludedEvent(event, windowRange, filters));
+    const previousTickAt = options.previousTickAt;
+    const deltaEvents =
+      previousTickAt === undefined
+        ? windowEvents
+        : events.filter((event) =>
+            isIncludedEvent(
+              event,
+              { startExclusiveMs: previousTickAt.getTime(), endInclusiveMs: nowMs },
+              filters
+            )
+          );
     const summary = this.aggregator.summarize([...windowEvents]);
-    const delta = buildDelta(windowEvents);
+    const window = buildDelta(windowEvents);
+    const delta = options.previousTickAt === undefined ? window : buildDelta(deltaEvents);
     const dto = {
-      version: 1,
+      version: 2,
       kind: 'watch_tick',
       timestamp: now.toISOString(),
       intervalMs,
+      windowMs,
+      filters,
       delta,
-      velocity: buildVelocity(delta, intervalMs),
+      window,
+      velocity: buildVelocity(window, windowMs),
       top: {
         ...buildTopLabels(windowEvents, summary.topModel, summary.topSourceName),
         source: summary.topSource ?? 'unknown',
@@ -63,14 +80,21 @@ export class WatchService {
 }
 
 export function parseWatchInterval(value: string): number {
+  return validIntervalMs(parseWatchDuration(value));
+}
+
+export function parseWatchWindow(value = '10m'): number {
+  return validWindowMs(parseWatchDuration(value));
+}
+
+function parseWatchDuration(value: string): number {
   const match = /^([1-9][0-9]*)([sm]?)$/.exec(value);
   if (!match) {
     throw new WatchServiceError('invalid_report_option');
   }
   const amount = Number(match[1]);
   const unit = match[2];
-  const intervalMs = unit === 'm' ? amount * 60_000 : unit === 's' ? amount * 1_000 : amount;
-  return validIntervalMs(intervalMs);
+  return unit === 'm' ? amount * 60_000 : unit === 's' ? amount * 1_000 : amount;
 }
 
 function validIntervalMs(intervalMs: number): number {
@@ -80,14 +104,37 @@ function validIntervalMs(intervalMs: number): number {
   return intervalMs;
 }
 
-function matchesFilters(event: UsageEvent, options: BuildWatchTickOptions): boolean {
-  if (options.source !== undefined && !matchesOne(event.source, options.source)) {
-    return false;
+function validWindowMs(windowMs: number): number {
+  if (!Number.isInteger(windowMs) || windowMs <= 0) {
+    throw new WatchServiceError('invalid_report_option');
   }
-  if (options.sourceName !== undefined && !matchesOne(event.sourceName, options.sourceName)) {
-    return false;
-  }
-  return true;
+  return windowMs;
+}
+
+function buildFilters(options: BuildWatchTickOptions): WatchTickReport['filters'] {
+  return {
+    source: toArray(options.source),
+    sourceName: toArray(options.sourceName)
+  };
+}
+
+function toArray<T extends string>(value: T | readonly T[] | undefined): T[] {
+  if (value === undefined) return [];
+  return typeof value === 'string' ? [value] : [...value];
+}
+
+function isIncludedEvent(
+  event: UsageEvent,
+  range: WatchTimeRange,
+  filters: WatchTickReport['filters']
+): boolean {
+  const timestampMs = Date.parse(event.timestamp);
+  return (
+    timestampMs > range.startExclusiveMs &&
+    timestampMs <= range.endInclusiveMs &&
+    (filters.source.length === 0 || filters.source.includes(event.source)) &&
+    (filters.sourceName.length === 0 || filters.sourceName.includes(event.sourceName))
+  );
 }
 
 function matchesOne<T extends string>(value: T, filter: T | readonly T[]): boolean {
@@ -110,15 +157,15 @@ function buildDelta(events: readonly UsageEvent[]): WatchTickReport['delta'] {
 }
 
 function buildVelocity(
-  delta: WatchTickReport['delta'],
-  intervalMs: number
+  usage: WatchTickReport['window'],
+  windowMs: number
 ): WatchTickReport['velocity'] {
-  const minutes = intervalMs / 60_000;
-  const hours = intervalMs / 3_600_000;
+  const minutes = windowMs / 60_000;
+  const hours = windowMs / 3_600_000;
   return {
-    tokensPerMinute: roundMetric(delta.totalTokens / minutes),
+    tokensPerMinute: roundMetric(usage.totalTokens / minutes),
     estimatedCostUsdPerHour:
-      delta.estimatedCostUsd === null ? null : roundMetric(delta.estimatedCostUsd / hours)
+      usage.estimatedCostUsd === null ? null : roundMetric(usage.estimatedCostUsd / hours)
   };
 }
 

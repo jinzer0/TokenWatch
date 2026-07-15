@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { BudgetEvaluation } from '../src/services/budgetService.js';
 import { watchTickReportSchema } from '../src/services/reportContracts.js';
-import { WatchService, parseWatchInterval } from '../src/services/watchService.js';
+import {
+  WatchService,
+  WatchServiceError,
+  parseWatchInterval,
+  parseWatchWindow
+} from '../src/services/watchService.js';
 import { createTestEvent } from './helpers.js';
 import { assertNoForbiddenOutput } from './privacyOutput.js';
 
@@ -35,17 +40,59 @@ describe('watch service interval parser', () => {
   });
 });
 
+describe('watch service window parser', () => {
+  it('accepts positive integer milliseconds, seconds, and minutes', () => {
+    expect([parseWatchWindow('600000'), parseWatchWindow('10m'), parseWatchWindow('30s')]).toEqual([
+      600_000, 600_000, 30_000
+    ]);
+  });
+
+  it('defaults to ten minutes', () => {
+    expect(parseWatchWindow()).toBe(600_000);
+  });
+
+  it('rejects malformed and non-positive values with a sanitized service error', () => {
+    for (const value of [
+      '',
+      '0',
+      '-1s',
+      '1.5s',
+      '1m30s',
+      'ten minutes',
+      'RAW_PATH_SENTINEL_DO_NOT_LEAK'
+    ]) {
+      expect(() => parseWatchWindow(value)).toThrowError(
+        new WatchServiceError('invalid_report_option')
+      );
+    }
+  });
+});
+
 describe('watch service tick builder', () => {
-  it('builds an empty immediate tick for the rolling UTC interval', () => {
+  it('builds an empty first tick with the canonical v2 rolling window shape', () => {
     const now = new Date('2026-06-04T00:10:00.000Z');
 
-    const tick = service.buildTick([], { now, intervalMs: 60_000 });
+    const tick = service.buildTick([], { now, intervalMs: 5_000, windowMs: 60_000 });
 
     expect(tick).toMatchObject({
+      version: 2,
       kind: 'watch_tick',
       timestamp: '2026-06-04T00:10:00.000Z',
-      intervalMs: 60_000,
+      intervalMs: 5_000,
+      windowMs: 60_000,
+      filters: { source: [], sourceName: [] },
       delta: {
+        events: 0,
+        totalTokens: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        cachedTokens: 0,
+        reasoningTokens: 0,
+        estimatedCostUsd: null,
+        unknownCostEvents: 0,
+        unknownCostTokens: 0
+      },
+      window: {
         events: 0,
         totalTokens: 0,
         inputTokens: 0,
@@ -73,170 +120,193 @@ describe('watch service tick builder', () => {
       },
       privacy: { sanitized: true }
     });
+    expect(tick.delta).toEqual(tick.window);
     expect(watchTickReportSchema.parse(tick)).toEqual(tick);
     assertNoForbiddenOutput(tick);
   });
 
-  it('uses non-cumulative deltas from the half-open rolling window and exact velocity denominator', () => {
+  it('sets a non-empty once or first continuous delta equal to its rolling window', () => {
     const now = new Date('2026-06-04T00:10:00.000Z');
     const events = [
-      event('outside-start', '2026-06-04T00:09:00.000Z', { totalTokens: 1 }),
-      event('inside-added', '2026-06-04T00:09:00.001Z', {
+      event('inside-window', '2026-06-04T00:09:30.000Z', {
         inputTokens: 80,
         outputTokens: 20,
         cachedTokens: 5,
         reasoningTokens: 7,
         totalTokens: 100,
         estimatedCostUsd: 0.02
-      }),
-      event('inside-end', '2026-06-04T00:10:00.000Z', {
-        inputTokens: 40,
-        outputTokens: 10,
-        cachedTokens: 3,
-        reasoningTokens: 2,
-        totalTokens: 50,
-        estimatedCostUsd: 0.01
-      }),
-      event('future', '2026-06-04T00:10:00.001Z', { totalTokens: 999 })
+      })
     ];
 
-    const tick = service.buildTick(events, { now, intervalMs: 60_000 });
+    const tick = service.buildTick(events, { now, intervalMs: 5_000, windowMs: 60_000 });
 
-    expect(tick.delta).toEqual({
-      events: 2,
-      totalTokens: 150,
-      inputTokens: 120,
-      outputTokens: 30,
-      cachedTokens: 8,
-      reasoningTokens: 9,
-      estimatedCostUsd: 0.03,
+    expect(tick.window).toEqual({
+      events: 1,
+      totalTokens: 100,
+      inputTokens: 80,
+      outputTokens: 20,
+      cachedTokens: 5,
+      reasoningTokens: 7,
+      estimatedCostUsd: 0.02,
       unknownCostEvents: 0,
       unknownCostTokens: 0
     });
-    expect(tick.velocity).toEqual({ tokensPerMinute: 150, estimatedCostUsdPerHour: 1.8 });
+    expect(tick.delta).toEqual(tick.window);
+    expect(tick.velocity).toEqual({ tokensPerMinute: 100, estimatedCostUsdPerHour: 1.2 });
   });
 
-  it('keeps cost deltas and cost velocity unknown when the tick contains unknown-cost events', () => {
+  it('uses exclusive starts, inclusive now, and ignores future events on later ticks', () => {
     const now = new Date('2026-06-04T00:10:00.000Z');
+    const previousTickAt = new Date('2026-06-04T00:09:30.000Z');
     const events = [
-      event('known', '2026-06-04T00:09:30.001Z', { totalTokens: 100, estimatedCostUsd: 0.02 }),
-      unknownCostEvent('unknown', '2026-06-04T00:09:45.000Z', { totalTokens: 200 })
+      event('window-start', '2026-06-04T00:09:00.000Z', { totalTokens: 10 }),
+      event('backfilled', '2026-06-04T00:09:20.000Z', { totalTokens: 20 }),
+      event('delta-start', '2026-06-04T00:09:30.000Z', { totalTokens: 30 }),
+      event('after-delta-start', '2026-06-04T00:09:30.001Z', { totalTokens: 40 }),
+      event('at-now', '2026-06-04T00:10:00.000Z', { totalTokens: 50 }),
+      event('future', '2026-06-04T00:10:00.001Z', { totalTokens: 1_000 })
     ];
 
-    const tick = service.buildTick(events, { now, intervalMs: 30_000 });
-
-    expect(tick.delta).toMatchObject({
-      events: 2,
-      totalTokens: 300,
-      estimatedCostUsd: null,
-      unknownCostEvents: 1,
-      unknownCostTokens: 200
+    const tick = service.buildTick(events, {
+      now,
+      previousTickAt,
+      intervalMs: 5_000,
+      windowMs: 60_000
     });
-    expect(tick.velocity).toEqual({ tokensPerMinute: 600, estimatedCostUsdPerHour: null });
+
+    expect(tick.delta).toMatchObject({ events: 2, totalTokens: 90 });
+    expect(tick.window).toMatchObject({ events: 4, totalTokens: 140 });
+    expect(tick.velocity.tokensPerMinute).toBe(140);
   });
 
-  it('applies source and sourceName filters before delta, top labels, and budgets', () => {
+  it('combines OR-within filters with AND-across source and sourceName', () => {
     const now = new Date('2026-06-04T00:10:00.000Z');
     const events = [
       event('codex-local', '2026-06-04T00:09:30.000Z', {
         source: 'codex',
         sourceName: 'local',
-        model: 'gpt-5.5-fast',
-        workspaceLabel: 'client-alpha',
-        metadata: { projectLabelSource: 'scan-option' },
         totalTokens: 100,
         estimatedCostUsd: 0.01
       }),
-      event('opencode-local', '2026-06-04T00:09:40.000Z', {
+      event('opencode-lab', '2026-06-04T00:09:40.000Z', {
         source: 'opencode',
-        sourceName: 'local',
-        model: 'claude-sonnet-4',
-        totalTokens: 500,
-        estimatedCostUsd: 0.05
-      }),
-      event('codex-lab', '2026-06-04T00:09:50.000Z', {
-        source: 'codex',
         sourceName: 'lab-server',
-        model: 'gpt-5.5-slow',
-        totalTokens: 900,
-        estimatedCostUsd: 0.09
+        totalTokens: 200,
+        estimatedCostUsd: 0.02
+      }),
+      event('claude-local', '2026-06-04T00:09:45.000Z', {
+        source: 'claude',
+        sourceName: 'local',
+        totalTokens: 400
+      }),
+      event('codex-remote', '2026-06-04T00:09:50.000Z', {
+        source: 'codex',
+        sourceName: 'remote',
+        totalTokens: 800
       })
     ];
 
     const tick = service.buildTick(events, {
       now,
-      intervalMs: 60_000,
-      source: 'codex',
-      sourceName: 'local',
-      budgets: [
-        budgetEvaluation('monthly_total', null, 'ok', []),
-        budgetEvaluation('sourceName', 'local', 'over', ['budget_threshold_exceeded']),
-        budgetEvaluation('sourceName', 'lab-server', 'unknown-costs-present', [
-          'budget_unknown_cost_present'
-        ])
-      ]
+      intervalMs: 5_000,
+      windowMs: 60_000,
+      source: ['codex', 'opencode'],
+      sourceName: ['local', 'lab-server']
     });
 
-    expect(tick.delta).toMatchObject({ events: 1, totalTokens: 100, estimatedCostUsd: 0.01 });
-    expect(tick.top).toEqual({
-      model: 'gpt-5.5-fast',
-      source: 'codex',
-      sourceName: 'local',
-      agent: 'codex',
-      project: 'client-alpha'
+    expect(tick.filters).toEqual({
+      source: ['codex', 'opencode'],
+      sourceName: ['local', 'lab-server']
     });
-    expect(tick.budgets).toMatchObject({
-      status: 'exceeded',
-      warningCount: 1,
-      exceededCount: 1,
-      unknownCount: 0,
-      rows: expect.arrayContaining([
-        expect.objectContaining({ status: 'ok', scopeKind: 'monthly_total' }),
-        expect.objectContaining({
-          status: 'exceeded',
-          sourceName: 'local',
-          warnings: ['budget_threshold_exceeded']
-        })
-      ])
-    });
-    expect(JSON.stringify(tick)).not.toContain('lab-server');
+    expect(tick.window).toMatchObject({ events: 2, totalTokens: 300, estimatedCostUsd: 0.03 });
   });
 
-  it('includes configured ok budget rows and reports ok when every matching budget is ok', () => {
+  it('computes later-tick top labels and velocity from window rather than delta', () => {
+    const now = new Date('2026-06-04T00:10:00.000Z');
+    const events = [
+      event('backfilled-window-leader', '2026-06-04T00:09:20.000Z', {
+        source: 'opencode',
+        sourceName: 'lab-server',
+        agent: 'opencode',
+        model: 'window-model',
+        workspaceLabel: 'window-project',
+        metadata: { projectLabelSource: 'scan-option' },
+        totalTokens: 900,
+        estimatedCostUsd: 0.09
+      }),
+      event('delta-event', '2026-06-04T00:09:45.000Z', {
+        source: 'codex',
+        sourceName: 'local',
+        agent: 'codex',
+        model: 'delta-model',
+        totalTokens: 100,
+        estimatedCostUsd: 0.01
+      })
+    ];
+
+    const tick = service.buildTick(events, {
+      now,
+      previousTickAt: new Date('2026-06-04T00:09:30.000Z'),
+      intervalMs: 5_000,
+      windowMs: 60_000
+    });
+
+    expect(tick.delta).toMatchObject({ events: 1, totalTokens: 100 });
+    expect(tick.window).toMatchObject({ events: 2, totalTokens: 1_000 });
+    expect(tick.velocity).toEqual({ tokensPerMinute: 1_000, estimatedCostUsdPerHour: 6 });
+    expect(tick.top).toEqual({
+      model: 'window-model',
+      source: 'opencode',
+      sourceName: 'lab-server',
+      agent: 'opencode',
+      project: 'window-project'
+    });
+  });
+
+  it('preserves unknown cost independently on delta, window, and window velocity', () => {
+    const now = new Date('2026-06-04T00:10:00.000Z');
+    const events = [
+      unknownCostEvent('backfilled-unknown', '2026-06-04T00:09:20.000Z', { totalTokens: 200 }),
+      event('known-delta', '2026-06-04T00:09:45.000Z', {
+        totalTokens: 100,
+        estimatedCostUsd: 0.02
+      })
+    ];
+
+    const laterTick = service.buildTick(events, {
+      now,
+      previousTickAt: new Date('2026-06-04T00:09:30.000Z'),
+      intervalMs: 5_000,
+      windowMs: 60_000
+    });
+    const firstTick = service.buildTick(events, { now, intervalMs: 5_000, windowMs: 60_000 });
+
+    expect(laterTick.delta).toMatchObject({ estimatedCostUsd: 0.02, unknownCostEvents: 0 });
+    expect(laterTick.window).toMatchObject({
+      estimatedCostUsd: null,
+      unknownCostEvents: 1,
+      unknownCostTokens: 200
+    });
+    expect(laterTick.velocity.estimatedCostUsdPerHour).toBeNull();
+    expect(firstTick.delta).toMatchObject({ estimatedCostUsd: null, unknownCostEvents: 1 });
+    expect(firstTick.window.estimatedCostUsd).toBeNull();
+  });
+
+  it('summarizes canonical current-month budgets while retaining monthly total rows', () => {
     const now = new Date('2026-06-04T00:10:00.000Z');
 
     const tick = service.buildTick([], {
       now,
-      intervalMs: 60_000,
-      sourceName: 'local',
+      intervalMs: 5_000,
+      windowMs: 60_000,
+      sourceName: ['local'],
       budgets: [
         budgetEvaluation('monthly_total', null, 'ok', []),
-        budgetEvaluation('sourceName', 'local', 'ok', []),
+        budgetEvaluation('sourceName', 'local', 'unknown-costs-present', [
+          'budget_unknown_cost_present'
+        ]),
         overBudget('lab-server')
       ]
-    });
-
-    expect(tick.budgets).toMatchObject({
-      status: 'ok',
-      warningCount: 0,
-      exceededCount: 0,
-      unknownCount: 0,
-      rows: expect.arrayContaining([
-        expect.objectContaining({ status: 'ok', scopeKind: 'monthly_total' }),
-        expect.objectContaining({ status: 'ok', scopeKind: 'sourceName', sourceName: 'local' })
-      ])
-    });
-    expect(tick.budgets.rows).toHaveLength(2);
-    expect(JSON.stringify(tick)).not.toContain('lab-server');
-  });
-
-  it('summarizes canonical budget rows with unknown status when unknown rows are most severe', () => {
-    const now = new Date('2026-06-04T00:10:00.000Z');
-
-    const tick = service.buildTick([], {
-      now,
-      intervalMs: 60_000,
-      budgets: [budgetEvaluation('monthly_total', null, 'ok', []), unknownBudget('local')]
     });
 
     expect(tick.budgets).toMatchObject({
@@ -245,10 +315,14 @@ describe('watch service tick builder', () => {
       exceededCount: 0,
       unknownCount: 1,
       rows: expect.arrayContaining([
-        expect.objectContaining({ status: 'ok', scopeKind: 'monthly_total' }),
-        expect.objectContaining({ label: 'local', status: 'unknown' })
+        expect.objectContaining({ scopeKind: 'monthly_total', month: '2026-06', status: 'ok' }),
+        expect.objectContaining({ scopeKind: 'sourceName', sourceName: 'local', status: 'unknown' })
       ])
     });
+    expect(tick.budgets.rows).toHaveLength(2);
+    expect(JSON.stringify(tick)).not.toContain('lab-server');
+    expect(tick.privacy).toEqual({ sanitized: true });
+    assertNoForbiddenOutput(tick);
   });
 });
 
@@ -275,12 +349,6 @@ function unknownCostEvent(rawIdHash: string, timestamp: string, overrides: Event
 
 function overBudget(sourceName: string): BudgetEvaluation {
   return budgetEvaluation('sourceName', sourceName, 'over', ['budget_threshold_exceeded']);
-}
-
-function unknownBudget(sourceName: string): BudgetEvaluation {
-  return budgetEvaluation('sourceName', sourceName, 'unknown-costs-present', [
-    'budget_unknown_cost_present'
-  ]);
 }
 
 function budgetEvaluation(

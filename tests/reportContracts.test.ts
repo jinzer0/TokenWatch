@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { inflateSync } from 'node:zlib';
-import { containsPrivacySentinel } from './helpers.js';
+import { containsPrivacySentinel, createTestEvent, privacySentinels } from './helpers.js';
 
 const expectedErrorCodes = [
   'invalid_report_option',
@@ -65,6 +65,106 @@ function countAccentPixels(png: Buffer, minX: number, maxX: number): number {
     }
   }
   return count;
+}
+
+function createHeatmapPayload() {
+  return {
+    version: 1,
+    kind: 'heatmap',
+    generatedAt: '2026-06-04T00:00:00.000Z',
+    year: 2026,
+    metric: 'tokens',
+    range: { from: '2026-01-01T00:00:00.000Z', to: '2027-01-01T00:00:00.000Z' },
+    filters: {
+      source: ['codex', 'opencode'],
+      sourceName: ['lab-one', 'lab-two']
+    },
+    totals: { events: 2, totalTokens: 300, estimatedCostUsd: null, unknownCostEvents: 1 },
+    days: [
+      {
+        date: '2026-01-01',
+        value: 300,
+        level: 5,
+        events: 2,
+        totalTokens: 300,
+        estimatedCostUsd: null,
+        unknownCostEvents: 1
+      }
+    ],
+    legend: [
+      { level: 0, label: 'No usage', symbol: '·' },
+      { level: 1, label: 'Very low usage', symbol: '▁' },
+      { level: 2, label: 'Low usage', symbol: '▂' },
+      { level: 3, label: 'Medium usage', symbol: '▃' },
+      { level: 4, label: 'High usage', symbol: '▅' },
+      { level: 5, label: 'Peak usage', symbol: '█' }
+    ],
+    privacy: { sanitized: true }
+  };
+}
+
+function createWatchV2Payload() {
+  const delta = {
+    events: 1,
+    totalTokens: 150,
+    inputTokens: 120,
+    outputTokens: 30,
+    cachedTokens: 8,
+    reasoningTokens: 9,
+    estimatedCostUsd: 0.03,
+    unknownCostEvents: 0,
+    unknownCostTokens: 0
+  };
+  return {
+    version: 2,
+    kind: 'watch_tick',
+    timestamp: '2026-06-04T00:10:00.000Z',
+    intervalMs: 5_000,
+    windowMs: 600_000,
+    filters: { source: ['codex', 'opencode'], sourceName: ['local'] },
+    delta,
+    window: {
+      ...delta,
+      events: 2,
+      totalTokens: 300,
+      inputTokens: 240,
+      outputTokens: 60,
+      estimatedCostUsd: null,
+      unknownCostEvents: 1,
+      unknownCostTokens: 150
+    },
+    velocity: { tokensPerMinute: 30, estimatedCostUsdPerHour: null },
+    top: {
+      model: 'gpt-5.5-fast',
+      source: 'codex',
+      sourceName: 'local',
+      agent: 'codex',
+      project: 'client-alpha'
+    },
+    budgets: {
+      status: 'unknown',
+      warningCount: 1,
+      exceededCount: 0,
+      unknownCount: 1,
+      rows: [
+        {
+          scopeKind: 'sourceName',
+          label: 'local',
+          sourceName: 'local',
+          month: '2026-06',
+          status: 'unknown',
+          knownSpendUsd: 4,
+          thresholdUsd: 10,
+          percent: 40,
+          progress: { width: 10, filled: 4, empty: 6, label: '40%' },
+          unknownCostEvents: 1,
+          unknownCostTokens: 150,
+          warnings: ['budget_unknown_cost_present']
+        }
+      ]
+    },
+    privacy: { sanitized: true }
+  };
 }
 
 describe('report contract schemas', () => {
@@ -224,112 +324,138 @@ describe('report contract schemas', () => {
     ).toThrow('headless_payload_rejected');
   });
 
-  it('validates watch tick JSON fields and rejects unsafe top labels', async () => {
+  it('accepts a complete strict v2 watch tick report', async () => {
     const contracts = await loadReportContracts();
     const parse = parser(contracts.watchTickReportSchema);
-    const payload = {
-      version: 1,
-      kind: 'watch_tick',
-      timestamp: '2026-06-04T00:10:00.000Z',
-      intervalMs: 60000,
-      delta: {
-        events: 2,
-        totalTokens: 300,
-        inputTokens: 120,
-        outputTokens: 150,
-        cachedTokens: 20,
-        reasoningTokens: 10,
-        estimatedCostUsd: null,
-        unknownCostEvents: 1,
-        unknownCostTokens: 100
-      },
-      velocity: { tokensPerMinute: 300, estimatedCostUsdPerHour: null },
-      top: {
-        model: 'gpt-5.5-fast',
-        source: 'codex',
-        sourceName: 'local',
-        agent: 'codex',
-        project: 'client-alpha'
-      },
-      budgets: {
-        status: 'unknown',
-        warningCount: 0,
-        exceededCount: 0,
-        unknownCount: 1,
-        rows: [
-          {
-            scopeKind: 'sourceName',
-            label: 'local',
-            sourceName: 'local',
-            month: '2026-06',
-            status: 'unknown',
-            knownSpendUsd: 4,
-            thresholdUsd: 10,
-            percent: 40,
-            progress: { width: 10, filled: 4, empty: 6, label: '40%' },
-            unknownCostEvents: 1,
-            unknownCostTokens: 100,
-            warnings: ['budget_unknown_cost_present']
-          }
-        ]
-      },
-      privacy: { sanitized: true }
-    };
+    const payload = createWatchV2Payload();
 
     expect(parse(payload)).toMatchObject({
+      version: 2,
       kind: 'watch_tick',
-      intervalMs: 60000,
-      delta: { estimatedCostUsd: null, unknownCostEvents: 1 },
+      intervalMs: 5_000,
+      windowMs: 600_000,
+      filters: { source: ['codex', 'opencode'], sourceName: ['local'] },
+      delta: { totalTokens: 150, unknownCostEvents: 0 },
+      window: { totalTokens: 300, estimatedCostUsd: null, unknownCostEvents: 1 },
       velocity: { estimatedCostUsdPerHour: null },
       budgets: { status: 'unknown' },
       privacy: { sanitized: true }
     });
     expect(containsPrivacySentinel(parse(payload))).toBe(false);
+  });
+
+  it('requires version 2 and rejects the stale v1-only watch shape', async () => {
+    const contracts = await loadReportContracts();
+    const parse = parser(contracts.watchTickReportSchema);
+    const payload = createWatchV2Payload();
+    const staleV1 = {
+      version: 1,
+      kind: payload.kind,
+      timestamp: payload.timestamp,
+      intervalMs: payload.intervalMs,
+      delta: payload.delta,
+      velocity: payload.velocity,
+      top: payload.top,
+      budgets: payload.budgets,
+      privacy: payload.privacy
+    };
+
+    expect(() => parse({ ...payload, version: 1 })).toThrow();
+    expect(() => parse(staleV1)).toThrow();
+  });
+
+  it('requires windowMs and window metrics', async () => {
+    const contracts = await loadReportContracts();
+    const parse = parser(contracts.watchTickReportSchema);
+    const malformedWindowMsPayload = structuredClone(createWatchV2Payload());
+    const malformedWindowPayload = structuredClone(createWatchV2Payload());
+    Reflect.deleteProperty(malformedWindowMsPayload, 'windowMs');
+    Reflect.deleteProperty(malformedWindowPayload, 'window');
+
+    expect(() => parse(malformedWindowMsPayload)).toThrow();
+    expect(() => parse(malformedWindowPayload)).toThrow();
+  });
+
+  it('requires source and sourceName filter arrays and rejects scalar filters', async () => {
+    const contracts = await loadReportContracts();
+    const parse = parser(contracts.watchTickReportSchema);
+    const payload = createWatchV2Payload();
+
+    expect(() =>
+      parse({ ...payload, filters: { source: 'codex', sourceName: ['local'] } })
+    ).toThrow();
+    expect(() =>
+      parse({ ...payload, filters: { source: ['codex'], sourceName: 'local' } })
+    ).toThrow();
+    expect(() => parse({ ...payload, filters: { source: ['codex'] } })).toThrow();
+  });
+
+  it('rejects unknown watch fields and schema creep in both metric objects', async () => {
+    const contracts = await loadReportContracts();
+    const parse = parser(contracts.watchTickReportSchema);
+    const payload = createWatchV2Payload();
+
     expect(() => parse({ ...payload, extra: true })).toThrow();
+    expect(() => parse({ ...payload, delta: { ...payload.delta, extra: true } })).toThrow();
+    expect(() => parse({ ...payload, window: { ...payload.window, extra: true } })).toThrow();
+  });
+
+  it('requires the strict sanitized privacy marker and rejects draft booleans', async () => {
+    const contracts = await loadReportContracts();
+    const parse = parser(contracts.watchTickReportSchema);
+    const payload = createWatchV2Payload();
+    const draftPrivacy = {
+      excludesPrompts: true,
+      excludesResponses: true,
+      excludesCredentials: true,
+      excludesRawIdentifiers: true
+    };
+
+    expect(() => parse({ ...payload, privacy: { sanitized: false } })).toThrow();
+    expect(() => parse({ ...payload, privacy: draftPrivacy })).toThrow();
+  });
+
+  it('recursively rejects every privacy sentinel from nested watch JSON', async () => {
+    const contracts = await loadReportContracts();
+    const parse = parser(contracts.watchTickReportSchema);
+    const payload = createWatchV2Payload();
+
+    for (const sentinel of privacySentinels) {
+      expect(() =>
+        parse({ ...payload, filters: { ...payload.filters, sourceName: [sentinel] } })
+      ).toThrow('headless_payload_rejected');
+    }
+    expect(() =>
+      parse({ ...payload, top: { ...payload.top, project: 'SQL_PAYLOAD_SENTINEL_DO_NOT_LEAK' } })
+    ).toThrow('headless_payload_rejected');
     expect(() =>
       parse({
         ...payload,
-        top: { ...payload.top, project: 'PROMPT_SENTINEL_DO_NOT_LEAK' }
+        budgets: {
+          ...payload.budgets,
+          rows: [{ ...payload.budgets.rows[0], label: 'STACK_TRACE_SENTINEL_DO_NOT_LEAK' }]
+        }
       })
     ).toThrow('headless_payload_rejected');
+  });
+
+  it('rejects unknown-cost detail fields on velocity', async () => {
+    const contracts = await loadReportContracts();
+    const parse = parser(contracts.watchTickReportSchema);
+    const payload = createWatchV2Payload();
+
+    expect(() =>
+      parse({
+        ...payload,
+        velocity: { ...payload.velocity, unknownCostEvents: 1, unknownCostTokens: 150 }
+      })
+    ).toThrow();
   });
 
   it('validates heatmap JSON fields with exact metric enum and unsafe label rejection', async () => {
     const contracts = await loadReportContracts();
     const parse = parser(contracts.heatmapReportSchema);
-    const payload = {
-      version: 1,
-      kind: 'heatmap',
-      generatedAt: '2026-06-04T00:00:00.000Z',
-      year: 2026,
-      metric: 'tokens',
-      range: { from: '2026-01-01T00:00:00.000Z', to: '2027-01-01T00:00:00.000Z' },
-      filters: {
-        source: ['codex', 'opencode'],
-        sourceName: ['lab-one', 'lab-two']
-      },
-      totals: { events: 2, totalTokens: 300, estimatedCostUsd: null, unknownCostEvents: 1 },
-      days: [
-        {
-          date: '2026-01-01',
-          value: 300,
-          level: 5,
-          events: 2,
-          totalTokens: 300,
-          estimatedCostUsd: null,
-          unknownCostEvents: 1
-        }
-      ],
-      legend: [
-        { level: 0, label: 'No usage', symbol: '·' },
-        { level: 1, label: 'Very low usage', symbol: '▁' },
-        { level: 2, label: 'Low usage', symbol: '▂' },
-        { level: 3, label: 'Medium usage', symbol: '▃' },
-        { level: 4, label: 'High usage', symbol: '▅' },
-        { level: 5, label: 'Peak usage', symbol: '█' }
-      ],
-      privacy: { sanitized: true }
-    };
+    const payload = createHeatmapPayload();
 
     expect(parse(payload)).toMatchObject({
       version: 1,
@@ -382,6 +508,72 @@ describe('report contract schemas', () => {
         }
       })
     ).toThrow('headless_payload_rejected');
+  });
+
+  it('rejects heatmap year 9999 at the schema boundary', async () => {
+    // Given: an otherwise valid authoritative v1 heatmap payload.
+    const contracts = await loadReportContracts();
+    const parse = parser(contracts.heatmapReportSchema);
+    const payload = createHeatmapPayload();
+
+    // When: year 9999 crosses the schema with otherwise valid four-digit datetimes.
+    const parseUnsupportedYear = () => parse({ ...payload, year: 9999 });
+
+    // Then: the schema rejects the unsupported year independently of range formatting.
+    expect(parseUnsupportedYear).toThrow();
+  });
+
+  it('rejects stale heatmap shapes and invalid levels', async () => {
+    // Given: an otherwise valid authoritative v1 heatmap payload.
+    const contracts = await loadReportContracts();
+    const parse = parser(contracts.heatmapReportSchema);
+    const payload = createHeatmapPayload();
+
+    // When: stale draft shapes or invalid boundary values cross the schema.
+    const stalePrivacy = {
+      excludesPrompts: true,
+      excludesResponses: true,
+      excludesCredentials: true,
+      excludesRawIdentifiers: true
+    };
+
+    // Then: only array filters, array legend, the v1 privacy marker, and levels 0..5 parse.
+    expect(() => parse({ ...payload, filters: { source: null, sourceName: null } })).toThrow();
+    expect(() => parse({ ...payload, legend: { empty: '·', peak: '█' } })).toThrow();
+    expect(() => parse({ ...payload, privacy: stalePrivacy })).toThrow();
+    for (const level of [null, -1, 6, 1.5]) {
+      expect(() => parse({ ...payload, days: [{ ...payload.days[0], level }] })).toThrow();
+    }
+  });
+
+  it('parses generated heatmap reports without privacy sentinels', async () => {
+    // Given: a sanitized synthetic usage event.
+    const contracts = await loadReportContracts();
+    const parse = parser(contracts.heatmapReportSchema);
+    const { HeatmapService } = await import('../src/services/heatmapService.js');
+    const event = createTestEvent({
+      timestamp: '2026-07-01T00:00:00.000Z',
+      rawIdHash: 'generated-contract',
+      sourceName: 'synthetic-lab'
+    });
+
+    // When: the service emits a report and the public schema parses it.
+    const report = parse(
+      new HeatmapService().buildReport([event], {
+        year: 2026,
+        metric: 'events',
+        filters: { source: ['codex'], sourceName: ['synthetic-lab'] }
+      })
+    );
+
+    // Then: the generated v1 DTO remains sanitized and sentinel-free.
+    expect(report).toMatchObject({
+      version: 1,
+      kind: 'heatmap',
+      filters: { source: ['codex'], sourceName: ['synthetic-lab'] },
+      privacy: { sanitized: true }
+    });
+    expect(containsPrivacySentinel(report)).toBe(false);
   });
 
   it('validates report options and preserves exact validation error codes', async () => {

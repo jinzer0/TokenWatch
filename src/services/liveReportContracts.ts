@@ -115,11 +115,19 @@ const topLabelsSchema = z
 
 export const watchTickReportSchema = z
   .object({
-    version: z.literal(1),
+    version: z.literal(2),
     kind: z.literal('watch_tick'),
     timestamp: isoDateTimeSchema,
     intervalMs: z.number().int().positive(),
+    windowMs: z.number().int().positive(),
+    filters: z
+      .object({
+        source: z.array(safeOutputLabelSchema),
+        sourceName: z.array(safeOutputLabelSchema)
+      })
+      .strict(),
     delta: usageTotalsSchema,
+    window: usageTotalsSchema,
     velocity: z
       .object({
         tokensPerMinute: nonNegativeNumberSchema,
@@ -168,7 +176,7 @@ export const heatmapReportSchema = z
     version: z.literal(1),
     kind: z.literal('heatmap'),
     generatedAt: isoDateTimeSchema,
-    year: z.number().int().min(1970).max(9999),
+    year: z.number().int().min(1970).max(9998),
     metric: z.enum(heatmapMetrics),
     range: z.object({ from: isoDateTimeSchema, to: isoDateTimeSchema }).strict(),
     filters: z
