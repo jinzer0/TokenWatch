@@ -7,6 +7,9 @@ import { APP_VERSION } from './app/constants.js';
 import { sanitizeCliError } from './app/cliErrors.js';
 import { TokenWatchError } from './app/errors.js';
 import { containsUnsafeOutputPathShape } from './privacy.js';
+import { HeatmapService, type HeatmapMetric } from './services/heatmapService.js';
+import { renderHeatmapSvg } from './services/heatmapSvgRenderer.js';
+import { renderHeatmapText } from './services/heatmapTextRenderer.js';
 import { probeProviderUsage } from './services/providerUsage.js';
 import { writeReportPng } from './services/pngRenderer.js';
 import {
@@ -26,6 +29,13 @@ import {
   renderStatuslinePresetText,
   renderStatuslineText
 } from './services/statusline.js';
+import { BudgetStatusError, BudgetStatusService } from './services/budgetStatusService.js';
+import {
+  WatchService,
+  WatchServiceError,
+  parseWatchInterval,
+  parseWatchWindow
+} from './services/watchService.js';
 import { formatInteger, formatTable, formatUsd } from './utils/format.js';
 import { defaultPrices } from './pricing/defaultPrices.js';
 import {
@@ -42,9 +52,12 @@ import type {
 } from './db/repositories/pricingModels.js';
 import type { ParserName } from './parsers/base.js';
 import { isParserName, parserSourceHelp } from './parsers/registry.js';
+import { validateSourceName } from './privacy.js';
+import type { UsageEvent } from './models/usageEvent.js';
 import type { BudgetScopeKind, BudgetThreshold } from './db/repositories/budgetThresholds.js';
 import type { BudgetEvaluation } from './services/budgetService.js';
 import { headlessCodexInputSchema } from './services/reportContracts.js';
+import type { BudgetStatusReport, WatchTickReport } from './services/reportContracts.js';
 import type {
   PricingDiagnosticGroup,
   SessionSummaryGroup,
@@ -55,6 +68,26 @@ import type {
 type PricingRefreshSource = ExternalPricingSource | 'all';
 type GraphBucketOption = NonNullable<BuildGraphReportOptions['bucket']>;
 type GraphMetricOption = NonNullable<BuildGraphReportOptions['metric']>;
+type WatchCliOptions = {
+  readonly once?: boolean;
+  readonly json?: boolean;
+  readonly interval?: string;
+  readonly window?: string;
+  readonly source?: readonly string[];
+  readonly sourceName?: readonly string[];
+};
+type HeatmapCliOptions = {
+  readonly json?: boolean;
+  readonly out?: string;
+  readonly year?: string;
+  readonly metric?: string;
+  readonly source?: readonly string[];
+  readonly sourceName?: readonly string[];
+};
+type HeatmapOutputPlan =
+  | { readonly kind: 'stdout-json' }
+  | { readonly kind: 'stdout-text' }
+  | { readonly kind: 'file'; readonly format: 'json' | 'txt' | 'svg'; readonly outputPath: string };
 
 const GROUP_BY_VALUES = [
   'model',
@@ -78,6 +111,42 @@ export async function main(argv = process.argv): Promise<void> {
     .version(APP_VERSION);
   program.exitOverride();
   program.configureOutput({ writeErr: () => undefined });
+
+  program
+    .command('watch')
+    .description('Print rolling live usage ticks')
+    .option('--once', 'print one tick and exit')
+    .option('--json', 'output JSON')
+    .option('--interval <value>', 'poll interval using milliseconds, s, or m grammar', '5s')
+    .option('--window <window>', 'rolling window using milliseconds, s, or m grammar', '10m')
+    .option(
+      '--source <source>',
+      `filter by source adapter: ${parserSourceHelp}`,
+      collectRepeatedOption,
+      []
+    )
+    .option('--source-name <name>', 'filter by sourceName label', collectRepeatedOption, [])
+    .action(async (options: WatchCliOptions) => {
+      await runWatchCommand(options);
+    });
+
+  program
+    .command('heatmap')
+    .description('Print or write a privacy-safe yearly usage heatmap')
+    .option('--year <yyyy>', 'UTC year, 1970 through 9998')
+    .option('--metric <metric>', 'metric: tokens, events, or cost', 'tokens')
+    .option('--json', 'output JSON')
+    .option('--out <path>', 'write .json, .txt, or .svg heatmap output')
+    .option(
+      '--source <source>',
+      `filter by source adapter: ${parserSourceHelp}`,
+      collectRepeatedOption,
+      []
+    )
+    .option('--source-name <name>', 'filter by sourceName label', collectRepeatedOption, [])
+    .action(async (options: HeatmapCliOptions) => {
+      await runHeatmapCommand(options);
+    });
 
   program
     .command('statusline')
@@ -484,6 +553,15 @@ export async function main(argv = process.argv): Promise<void> {
       );
     });
   budget
+    .command('status')
+    .description('Show monthly budget threshold status')
+    .option('--json', 'output JSON')
+    .action(async (options: { json?: boolean }) => {
+      const services = await createCliServices();
+      const report = buildBudgetStatusReport(services.budget.evaluateCurrentMonth());
+      console.log(options.json ? JSON.stringify(report, null, 2) : renderBudgetStatus(report));
+    });
+  budget
     .command('unset')
     .description('Remove a monthly budget threshold')
     .requiredOption('--scope <scope>', 'monthly_total or sourceName')
@@ -583,6 +661,282 @@ export async function main(argv = process.argv): Promise<void> {
     if (sanitized.message) console.error(sanitized.message);
     process.exitCode = sanitized.exitCode;
   }
+}
+
+function collectRepeatedOption(value: string, previous: string[]): string[] {
+  return [...previous, value];
+}
+
+async function runHeatmapCommand(options: HeatmapCliOptions): Promise<void> {
+  const plan = planHeatmapOutput(options);
+  const year = parseHeatmapYearOption(options.year);
+  const metric = parseHeatmapMetricOption(options.metric);
+  const sources = parseWatchSources(options.source ?? []);
+  const sourceNames = parseWatchSourceNames(options.sourceName ?? []);
+  const services = await createCliServices();
+  const report = buildCliHeatmapReport(
+    filterUsageEvents(services.usageEvents.listAll(), {
+      sources,
+      sourceNames
+    }),
+    {
+      year,
+      metric,
+      filters: { source: sources, sourceName: sourceNames }
+    }
+  );
+
+  if (plan.kind === 'stdout-json') {
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+  if (plan.kind === 'stdout-text') {
+    console.log(renderHeatmapText(report));
+    return;
+  }
+  writeHeatmapOutputFile(plan, report);
+  console.log(`Wrote heatmap ${heatmapFormatLabel(plan.format)}: ${basename(plan.outputPath)}`);
+}
+
+function planHeatmapOutput(options: HeatmapCliOptions): HeatmapOutputPlan {
+  if (options.json && options.out) {
+    throw new TokenWatchError('invalid_report_option', 1, 'invalid_report_option');
+  }
+  if (options.json) return { kind: 'stdout-json' };
+  if (options.out === undefined) return { kind: 'stdout-text' };
+  return validateHeatmapOutputPath(options.out);
+}
+
+function validateHeatmapOutputPath(outputPath: string): HeatmapOutputPlan {
+  if (
+    outputPath.length < 1 ||
+    containsUnsafeOutputPathShape(outputPath) ||
+    (existsSync(outputPath) && statSync(outputPath).isDirectory())
+  ) {
+    throw new TokenWatchError('invalid_output_path', 1, 'invalid_output_path');
+  }
+  const extension = extname(outputPath).toLowerCase();
+  if (extension === '.json') return { kind: 'file', format: 'json', outputPath };
+  if (extension === '.txt') return { kind: 'file', format: 'txt', outputPath };
+  if (extension === '.svg') return { kind: 'file', format: 'svg', outputPath };
+  throw new TokenWatchError('invalid_output_path', 1, 'invalid_output_path');
+}
+
+function parseHeatmapYearOption(value: string | undefined): number {
+  if (value === undefined) return new Date().getUTCFullYear();
+  if (!/^[0-9]{4}$/.test(value)) {
+    throw new TokenWatchError('invalid_report_option', 1, 'invalid_report_option');
+  }
+  const year = Number(value);
+  if (year < 1970 || year > 9999) {
+    throw new TokenWatchError('invalid_report_option', 1, 'invalid_report_option');
+  }
+  return year;
+}
+
+function parseHeatmapMetricOption(value: string | undefined): HeatmapMetric {
+  if (value === undefined || value === 'tokens') return 'tokens';
+  if (value === 'events' || value === 'cost') return value;
+  throw new TokenWatchError('invalid_report_option', 1, 'invalid_report_option');
+}
+
+function filterUsageEvents(
+  events: readonly UsageEvent[],
+  filters: { readonly sources: readonly ParserName[]; readonly sourceNames: readonly string[] }
+): readonly UsageEvent[] {
+  return events.filter((event) => {
+    const sourceMatches = filters.sources.length === 0 || filters.sources.includes(event.source);
+    const sourceNameMatches =
+      filters.sourceNames.length === 0 || filters.sourceNames.includes(event.sourceName);
+    return sourceMatches && sourceNameMatches;
+  });
+}
+
+function buildCliHeatmapReport(
+  events: readonly UsageEvent[],
+  options: {
+    readonly year: number;
+    readonly metric: HeatmapMetric;
+    readonly filters: {
+      readonly source: readonly ParserName[];
+      readonly sourceName: readonly string[];
+    };
+  }
+) {
+  try {
+    return new HeatmapService().buildReport(events, options);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'invalid_report_option') {
+      throw new TokenWatchError('invalid_report_option', 1, 'invalid_report_option');
+    }
+    throw error;
+  }
+}
+
+function writeHeatmapOutputFile(
+  plan: Extract<HeatmapOutputPlan, { readonly kind: 'file' }>,
+  report: ReturnType<HeatmapService['buildReport']>
+): void {
+  switch (plan.format) {
+    case 'json':
+      writeFileSync(plan.outputPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+      return;
+    case 'txt':
+      writeFileSync(plan.outputPath, `${renderHeatmapText(report)}\n`, 'utf8');
+      return;
+    case 'svg':
+      writeFileSync(plan.outputPath, `${renderHeatmapSvg(report)}\n`, 'utf8');
+      return;
+  }
+}
+
+function heatmapFormatLabel(
+  format: Extract<HeatmapOutputPlan, { readonly kind: 'file' }>['format']
+): string {
+  switch (format) {
+    case 'json':
+      return 'JSON';
+    case 'txt':
+      return 'text';
+    case 'svg':
+      return 'SVG';
+  }
+}
+
+async function runWatchCommand(options: WatchCliOptions): Promise<void> {
+  const intervalMs = parseCliWatchInterval(options.interval);
+  const windowMs = parseCliWatchWindow(options.window);
+  const sources = parseWatchSources(options.source ?? []);
+  const sourceNames = parseWatchSourceNames(options.sourceName ?? []);
+  const emitTick = await createWatchTickEmitter({
+    intervalMs,
+    windowMs,
+    sources,
+    sourceNames
+  });
+  if (options.once) {
+    const tick = emitTick();
+    console.log(options.json ? JSON.stringify(tick, null, 2) : renderWatchTick(tick));
+    return;
+  }
+  await runContinuousWatch(intervalMs, emitTick, options.json === true);
+}
+
+type WatchEmitterOptions = {
+  readonly intervalMs: number;
+  readonly windowMs: number;
+  readonly sources: readonly ParserName[];
+  readonly sourceNames: readonly string[];
+};
+
+async function createWatchTickEmitter(
+  options: WatchEmitterOptions
+): Promise<(previousTickAt?: Date) => WatchTickReport> {
+  const services = await createCliServices();
+  const watch = new WatchService();
+  return (previousTickAt?: Date) =>
+    watch.buildTick(services.usageEvents.listAll(), {
+      intervalMs: options.intervalMs,
+      windowMs: options.windowMs,
+      source: options.sources.length === 0 ? undefined : options.sources,
+      sourceName: options.sourceNames.length === 0 ? undefined : options.sourceNames,
+      budgets: services.budget.evaluateCurrentMonth(),
+      ...(previousTickAt === undefined ? {} : { previousTickAt })
+    });
+}
+
+function runContinuousWatch(
+  intervalMs: number,
+  emitTick: (previousTickAt?: Date) => WatchTickReport,
+  json: boolean
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let previousTickAt: Date | undefined;
+    const cleanup = () => {
+      clearInterval(timer);
+      process.off('SIGINT', handleSigint);
+    };
+    const runTick = () => {
+      try {
+        const tick = emitTick(previousTickAt);
+        console.log(json ? JSON.stringify(tick) : renderWatchTick(tick));
+        previousTickAt = new Date(tick.timestamp);
+      } catch (error) {
+        cleanup();
+        reject(
+          error instanceof Error ? error : new TokenWatchError('unknown_error', 1, 'unknown_error')
+        );
+      }
+    };
+    const handleSigint = () => {
+      cleanup();
+      resolve();
+    };
+    const timer = setInterval(runTick, intervalMs);
+    process.once('SIGINT', handleSigint);
+    runTick();
+  });
+}
+
+function parseCliWatchInterval(value: string | undefined): number {
+  try {
+    return parseWatchInterval(value ?? '5s');
+  } catch (error) {
+    if (error instanceof WatchServiceError) {
+      throw new TokenWatchError('invalid_report_option', 1, 'invalid_report_option');
+    }
+    throw error;
+  }
+}
+
+function parseCliWatchWindow(value: string | undefined): number {
+  try {
+    return parseWatchWindow(value);
+  } catch (error) {
+    if (error instanceof WatchServiceError) {
+      throw new TokenWatchError('invalid_report_option', 1, 'invalid_report_option');
+    }
+    throw error;
+  }
+}
+
+function parseWatchSources(values: readonly string[]): readonly ParserName[] {
+  return values.map((value) => {
+    if (!isParserName(value)) {
+      throw new TokenWatchError('unsupported_source', 1, 'unsupported_source');
+    }
+    return value;
+  });
+}
+
+function parseWatchSourceNames(values: readonly string[]): readonly string[] {
+  return values.map((value) => {
+    try {
+      return validateSourceName(value);
+    } catch {
+      throw new TokenWatchError('invalid_source_name', 1, 'invalid_source_name');
+    }
+  });
+}
+
+function renderWatchTick(tick: import('./services/reportContracts.js').WatchTickReport): string {
+  return [
+    `TokenWatch watch | last refresh ${tick.timestamp} | interval ${formatDuration(tick.intervalMs)} | window ${formatDuration(tick.windowMs)}`,
+    `delta totals ${tick.delta.events} events | ${formatInteger(tick.delta.totalTokens)} tokens | cost ${formatUsd(tick.delta.estimatedCostUsd)}`,
+    `delta tokens input ${formatInteger(tick.delta.inputTokens)} | output ${formatInteger(tick.delta.outputTokens)} | cached ${formatInteger(tick.delta.cachedTokens)} | reasoning ${formatInteger(tick.delta.reasoningTokens)}`,
+    `window totals ${tick.window.events} events | ${formatInteger(tick.window.totalTokens)} tokens | cost ${formatUsd(tick.window.estimatedCostUsd)}`,
+    `window tokens input ${formatInteger(tick.window.inputTokens)} | output ${formatInteger(tick.window.outputTokens)} | cached ${formatInteger(tick.window.cachedTokens)} | reasoning ${formatInteger(tick.window.reasoningTokens)}`,
+    `velocity ${formatInteger(tick.velocity.tokensPerMinute)} tok/min | cost ${formatUsd(tick.velocity.estimatedCostUsdPerHour)}/h`,
+    `top model ${tick.top.model} | source ${tick.top.source} | sourceName ${tick.top.sourceName} | agent ${tick.top.agent} | project ${tick.top.project}`,
+    `budgets ${tick.budgets.status} | warnings ${tick.budgets.warningCount} | exceeded ${tick.budgets.exceededCount} | unknown ${tick.budgets.unknownCount}`,
+    `privacy: ${tick.privacy.sanitized ? 'sanitized' : 'unknown'}`
+  ].join('\n');
+}
+
+function formatDuration(intervalMs: number): string {
+  if (intervalMs % 60_000 === 0) return `${intervalMs / 60_000}m`;
+  if (intervalMs % 1_000 === 0) return `${intervalMs / 1_000}s`;
+  return `${intervalMs}ms`;
 }
 
 function normalizeScriptRunnerArgv(argv: string[]): string[] {
@@ -949,6 +1303,55 @@ function renderBudgetThresholds(rows: BudgetThreshold[]): string {
     ['scope', 'sourceName', 'threshold'],
     ...rows.map((row) => [row.scopeKind, row.sourceName ?? 'all', formatUsd(row.thresholdUsd)])
   ]);
+}
+
+function buildBudgetStatusReport(evaluations: readonly BudgetEvaluation[]): BudgetStatusReport {
+  try {
+    return new BudgetStatusService().buildReport(evaluations);
+  } catch (error) {
+    if (error instanceof BudgetStatusError) {
+      throw new TokenWatchError('validation_failed', 1, 'validation_failed');
+    }
+    throw error;
+  }
+}
+
+function renderBudgetStatus(report: BudgetStatusReport): string {
+  if (report.rows.length === 0) {
+    return ['Budget status', 'No budget thresholds set', 'privacy: sanitized'].join('\n');
+  }
+  return [
+    'Budget status',
+    formatTable([
+      [
+        'scope',
+        'sourceName',
+        'month',
+        'known spend',
+        'threshold',
+        'progress',
+        'percent',
+        'status',
+        'unknown events'
+      ],
+      ...report.rows.map((row) => [
+        row.scopeKind,
+        row.sourceName ?? 'all',
+        row.month,
+        formatUsd(row.knownSpendUsd),
+        formatUsd(row.thresholdUsd),
+        renderProgressBar(row.progress.filled, row.progress.empty),
+        row.percent === null ? 'unknown' : row.progress.label,
+        row.status,
+        String(row.unknownCostEvents)
+      ])
+    ]),
+    'privacy: sanitized'
+  ].join('\n');
+}
+
+function renderProgressBar(filled: number, empty: number): string {
+  return `[${'#'.repeat(filled)}${'-'.repeat(empty)}]`;
 }
 
 function renderBudgetEvaluations(rows: BudgetEvaluation[]): string {

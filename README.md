@@ -2,7 +2,7 @@
 
 AI 코딩 에이전트의 토큰 사용량 메타데이터를 로컬 SQLite에 저장하고, Commander CLI와 Ink TUI로 요약해 보는 로컬 우선 터미널 유틸리티입니다.
 
-TokenWatch는 프롬프트, 응답, API 키, OAuth 토큰, 자격 증명, 원본 경로, 원본 session ID, 원본 레코드, 임의 메타데이터 덤프를 저장하거나 내보내거나 화면에 렌더링하지 않습니다. 토큰 수, 모델명, 에이전트명, 소스명, 타임스탬프, 추정 비용 같은 정규화된 사용량 메타데이터만 다룹니다.
+TokenWatch는 프롬프트, 응답, API 키, OAuth 토큰, 자격 증명, 원본 경로, 원본 session ID, 원본 레코드, SQL payload, stack trace, 임의 메타데이터 덤프를 저장하거나 내보내거나 화면에 렌더링하지 않습니다. 토큰 수, 모델명, 에이전트명, 소스명, 타임스탬프, 추정 비용 같은 정규화된 사용량 메타데이터만 다룹니다.
 
 ## 주요 기능
 
@@ -13,9 +13,10 @@ TokenWatch는 프롬프트, 응답, API 키, OAuth 토큰, 자격 증명, 원본
 - 모델, 에이전트, 소스, 날짜/시간/월별 요약, 세션 요약/시간 지표, 7일/30일 insights와 trend report
 - `sessionIdHash` 기반 session interval, active/wall duration, longest continuous activity, max concurrency, no-session event count
 - SQLite 기반 로컬 저장소와 JSON 가져오기/내보내기
-- Ink 기반 로컬 TUI: Usage, Minutely, Stats, Agents view, theme/refresh 설정, 정렬, current-view export
+- Ink 기반 로컬 TUI: 개선된 Overview, Budget Status, Activity Heatmap, Usage, Minutely, Stats, Agents view, theme/refresh 설정, 정렬, current-view export
 - 명시적 project label, `statusline`, 데스크톱 diagnostics hub, 로컬 safe share/export workflow
 - custom/LiteLLM/OpenRouter 가격 메타데이터, 항상 켜진 가격 lookup, 지속 캐시, fallback warning
+- `budget status`, polling 기반 `watch`, JSON/text/SVG 파일 출력을 지원하는 `heatmap`
 - native SQLite, DB, 마이그레이션 상태를 점검하는 privacy-safe `doctor`
 
 ## 요구 사항
@@ -78,14 +79,14 @@ corepack pnpm test:desktop
 데스크톱 smoke check도 실제 사용자 DB를 건드리지 않도록 임시 DB를 지정하세요.
 
 ```bash
-TOKENWATCH_DB_PATH=/tmp/tokenwatch-desktop-smoke.db corepack pnpm dev:desktop
-TOKENWATCH_DB_PATH=/tmp/tokenwatch-desktop-smoke.db corepack pnpm test:desktop
+TOKENWATCH_DB_PATH=<temporary-db-path> corepack pnpm dev:desktop
+TOKENWATCH_DB_PATH=<temporary-db-path> corepack pnpm test:desktop
 ```
 
 기본 DB 위치는 `~/.tokenwatch/tokenwatch.db`입니다. 테스트나 격리 실행에서는 임시 DB 경로를 지정하세요.
 
 ```bash
-TOKENWATCH_DB_PATH=/tmp/tokenwatch.db tokenwatch seed
+TOKENWATCH_DB_PATH=<temporary-db-path> tokenwatch seed
 ```
 
 ## 명령어
@@ -105,6 +106,19 @@ tokenwatch summary --group-by month
 tokenwatch summary --group-by session
 tokenwatch summary --group-by sessionInterval --json
 tokenwatch summary --json
+tokenwatch budget status
+tokenwatch budget status --json
+tokenwatch watch --once
+tokenwatch watch --once --json
+tokenwatch watch --interval 30s
+tokenwatch watch --window 10m
+tokenwatch heatmap
+tokenwatch heatmap --json
+tokenwatch heatmap --metric cost --out heatmap.json
+tokenwatch heatmap --metric tokens --out heatmap.txt
+tokenwatch heatmap --year 2026 --out heatmap.svg
+tokenwatch heatmap --year 2026 --metric events --source codex --source opencode
+tokenwatch heatmap --source-name local --source-name lab-server --json
 tokenwatch insights --window 7d --json
 tokenwatch optimize --window 30d
 tokenwatch insights --window 7d --out tokenwatch-insights.json --format json
@@ -208,15 +222,16 @@ Parser는 지원되는 로컬 아티팩트를 읽을 수 있지만, 서비스와
 - 원본 파일 경로와 private path marker
 - 원본 session ID와 raw identifier
 - 원본 레코드, 원본 JSON 조각, 임의 메타데이터 덤프
+- SQL payload와 stack trace
 - free-form parser/native/Zod/SQLite 예외 메시지
 
-Workspace와 session 값은 필요한 경우 hash 또는 sanitized label만 사용합니다. Export, TUI view, summary JSON은 normalized usage metadata와 sanitized pricing/session diagnostics만 포함합니다.
+Workspace와 session 값은 필요한 경우 hash 또는 sanitized label만 사용합니다. Export, TUI view, summary JSON, `budget status --json`, `watch --once --json`, `heatmap --json`, heatmap 파일 출력은 normalized usage metadata와 sanitized pricing/session diagnostics만 포함합니다.
 
 `doctor`는 native SQLite load, DB open, migration 실패 상황에서도 parse 가능한 degraded JSON을 출력하며, hostname이나 raw DB path를 노출하지 않습니다.
 
 ## 로컬 리포트와 provider 사용량
 
-리포트 명령은 로컬 SQLite의 정규화된 usage metadata만 읽습니다. 프롬프트, 응답, 자격 증명, 원본 경로, 원본 레코드, raw provider response, 임의 메타데이터 덤프는 JSON, Markdown, PNG에 포함하지 않습니다.
+리포트 명령은 로컬 SQLite의 정규화된 usage metadata만 읽습니다. 프롬프트, 응답, 자격 증명, 원본 경로, 원본 session ID, 원본 레코드, raw provider response, SQL payload, stack trace, 임의 메타데이터 덤프는 JSON, Markdown, PNG, heatmap text, heatmap SVG에 포함하지 않습니다.
 
 ```bash
 tokenwatch insights --window 7d --json
@@ -226,6 +241,12 @@ tokenwatch optimize --window 30d --out tokenwatch-optimize.md --format markdown
 tokenwatch graph
 tokenwatch graph --bucket day --metric tokens --json
 tokenwatch graph --bucket month --metric cost --out usage-graph.png
+tokenwatch heatmap
+tokenwatch heatmap --json
+tokenwatch heatmap --metric events --out heatmap.txt
+tokenwatch heatmap --metric tokens --out heatmap.svg
+tokenwatch heatmap --year 2026 --metric cost --source codex --source opencode --json
+tokenwatch heatmap --source-name local --source-name lab-server --out heatmap.json
 tokenwatch wrapped --year 2026 --json
 tokenwatch wrapped --year 2026 --out wrapped.png
 tokenwatch doctor --sources
@@ -245,11 +266,13 @@ Metric caveats도 리포트 해석에 포함하세요. Rework는 실패, prompt,
 
 `graph` JSON은 `kind: "graph"`, `bucket`, `metric`, `totals`, `series`, `unknownCostEvents`, `privacy`를 포함합니다. `series` row는 bucket key, event count, token count, nullable estimated cost를 담습니다. 가격을 알 수 없는 이벤트는 cost를 `null`로 유지하고 `unknownCostEvents`로 따로 셉니다.
 
+`heatmap`은 선택한 UTC year의 일별 activity report입니다. `--year`는 선택한 해의 UTC 시작부터 다음 해 UTC 시작 전까지의 half-open report range를 사용하며, 렌더링된 calendar는 선택한 해의 365일 또는 366일을 표시합니다. Metric은 정확히 `tokens`, `events`, `cost`만 지원합니다. 기본 출력은 terminal-safe text이며, density symbol은 정확히 `· ▁ ▂ ▃ ▅ █`입니다. `--json`은 strict `kind: "heatmap"` JSON을 stdout에 출력합니다. `--source`와 `--source-name`은 반복해서 지정할 수 있고, report JSON은 선택된 filter를 `filters.source`와 `filters.sourceName` 배열로 보여줍니다. `--out`은 확장자에 따라 `.json`, `.txt`, `.svg` 파일만 씁니다. `--json`과 `--out`은 함께 쓰지 않습니다. Heatmap PNG 출력은 지원하지 않습니다. Cost heatmap은 local planning용 estimated cost만 다루며 billing-grade charge, provider invoice, quota, rate-limit 자료가 아닙니다. Known cost만 합산하고, 가격을 알 수 없는 이벤트는 `unknownCostEvents`로 따로 세며 cost 값을 `null` 또는 `unknown`으로 유지합니다. 알 수 없는 비용을 `$0.00`, free, zero로 바꾸지 않습니다.
+
 `wrapped` JSON은 `kind: "wrapped"`, `year`, `totals`, `highlights`, `topModels`, `topAgents`, `topSources`, `topSourceNames`, `monthly`, `sessionMetrics`, `unknownCostEvents`, `privacy`를 포함합니다. 월별 배열과 top-level ranking 배열은 모두 sanitized aggregate row만 담고, session 지표는 hash 기반 session metadata로 계산합니다.
 
 `graph --out`과 `wrapped --out`의 PNG는 로컬에서 검증된 JSON report object를 렌더링한 결과입니다. PNG에는 원본 레코드, 원본 경로, raw provider response, 프롬프트, 응답, 자격 증명이 들어가지 않습니다.
 
-`insights`와 `trend` report는 이 릴리스에서 JSON과 Markdown export만 지원합니다. PNG export는 `graph`와 `wrapped` report에만 지원됩니다.
+`insights`와 `trend` report는 이 릴리스에서 JSON과 Markdown export만 지원합니다. PNG export는 `graph`와 `wrapped` report에만 지원됩니다. Heatmap PNG는 지원하지 않으며, `heatmap`은 JSON, text, SVG만 지원합니다. CLI heatmap JSON, text, SVG 파일, stdout 출력, TUI Activity Heatmap current-view export에는 프롬프트, 응답, 자격 증명, 원본 경로, 원본 session ID, 원본 레코드, SQL payload, stack trace, 임의 메타데이터 덤프를 넣지 않습니다.
 
 `doctor --sources`는 지원 source별 status report를 JSON으로 출력합니다. Parser가 실제 local artifact를 지원하는지, status-only source인지, privacy-safe warning이 있는지를 보여주며 raw local artifact 내용이나 machine-local path는 출력하지 않습니다.
 
@@ -259,7 +282,7 @@ Metric caveats도 리포트 해석에 포함하세요. Rework는 실패, prompt,
 
 ## 비용 추정
 
-비용은 provider/model을 정규화한 뒤 custom 가격, 캐시된 LiteLLM/OpenRouter 가격, bundled 기본 가격 순서로 추정합니다. 가격표에 없는 모델은 이벤트를 저장하되 `estimatedCostUsd`를 `null`로 유지하고 화면에는 `unknown`으로 표시합니다. 요약과 내보내기에는 sanitized `pricingSource`, `pricingConfidence`, `normalizedProvider`, `normalizedModel` 메타데이터만 포함됩니다.
+비용은 provider/model을 정규화한 뒤 custom 가격, 캐시된 LiteLLM/OpenRouter 가격, bundled 기본 가격 순서로 추정합니다. 이 값은 local planning용 추정치이며 billing-grade charge, provider invoice, quota, rate-limit 보증이 아닙니다. 가격표에 없는 모델은 이벤트를 저장하되 `estimatedCostUsd`를 `null`로 유지하고 화면에는 `unknown`으로 표시합니다. 알 수 없는 비용을 `$0.00`이나 free로 바꾸지 않습니다. 요약과 내보내기에는 sanitized `pricingSource`, `pricingConfidence`, `normalizedProvider`, `normalizedModel` 메타데이터만 포함됩니다.
 
 가격 lookup은 scan, summary, TUI 경로에서 항상 켜져 있습니다. Resolver는 custom 가격과 direct external match를 먼저 보고, 그다음 Tokscale parity에 맞춘 alias, provider prefix, original provider hint, Cursor override, fuzzy match, tier/suffix handling, persistent lookup cache를 사용합니다. Lookup이 실패하면 any-age cache를 fallback으로 쓰거나 sanitized `pricing_lookup_unavailable` warning을 남기며, raw lookup URL이나 provider 응답을 저장하거나 표시하지 않습니다.
 
@@ -284,11 +307,15 @@ tokenwatch budget set --scope monthly_total --threshold 25
 tokenwatch budget set --scope sourceName --source-name lab-server --threshold 10
 tokenwatch budget list
 tokenwatch budget list --json
+tokenwatch budget status
+tokenwatch budget status --json
 tokenwatch budget unset --scope monthly_total
 tokenwatch budget unset --scope sourceName --source-name lab-server
 ```
 
 `monthly_total`은 현재 월 전체 known cost를 기준으로 평가합니다. `sourceName` scope는 같은 월의 특정 `sourceName` row만 평가합니다. 가격을 알 수 없는 이벤트는 비용을 0으로 세지 않고, unknown-cost event count와 token count로 따로 표시합니다.
+
+`budget status`는 shared budget status service의 canonical row를 보여줍니다. Status 값은 `ok`, `warning`, `exceeded`, `unknown` 중 하나입니다. `warning`은 known spend가 threshold의 80% 이상이고 threshold 미만일 때, `exceeded`는 known spend가 threshold 이상일 때, `unknown`은 unknown-cost events 때문에 확정 판단이 어려울 때 쓰입니다. Text output은 scope, month, known spend, threshold, ASCII progress bar, status, unknown-cost count를 포함합니다. `budget status --json`은 `kind: "budget_status"`와 `privacy: { "sanitized": true }`를 포함하는 strict JSON report를 출력합니다.
 
 ```bash
 tokenwatch summary
@@ -296,13 +323,39 @@ tokenwatch summary --json
 tokenwatch tui
 ```
 
-`summary --json`에는 `budgets` 배열이 포함됩니다. Text summary는 현재 월 threshold 초과와 unknown-cost present row를 경고 행으로 보여줍니다. TUI에는 `Budget Warnings` view가 있으며, export current view는 현재 view의 sanitized primitive row만 내보냅니다.
+`summary --json`에는 `budgets` 배열이 포함됩니다. Text summary는 현재 월 threshold 초과와 unknown-cost present row를 경고 행으로 보여줍니다. TUI에는 `Budget Status` view가 있으며, export current view는 현재 view의 sanitized primitive row만 내보냅니다.
+
+## Watch
+
+`tokenwatch watch`는 polling 기반 live summary입니다. 파일 시스템 watcher나 background daemon이 아니라, 같은 tick 계산 path를 interval마다 반복합니다. Continuous watch도 `--once`와 같은 tick service를 재사용하므로 delta, velocity, top labels, budget summary, privacy shape가 같습니다.
+
+```bash
+tokenwatch watch --once
+tokenwatch watch --once --json
+tokenwatch watch --interval 30s
+tokenwatch watch --window 10m
+tokenwatch watch --source codex --source opencode --source-name local --source-name lab-server
+```
+
+기본 continuous mode는 첫 tick을 바로 출력한 뒤 interval마다 다시 polling합니다. `--interval`은 polling cadence만 정합니다. 기본값은 `5s`이고, milliseconds, `s`, `m` suffix를 받으며 최소값은 5초입니다. `--window`는 activity, velocity, top label을 계산하는 rolling UTC window입니다. 기본값은 `10m`, 즉 `600_000ms`입니다.
+
+Tick delta는 tick 종류에 따라 다릅니다. `--once`와 continuous 첫 tick은 rolling window 합계를 그대로 delta로 씁니다. Continuous later tick은 직전 출력 tick의 emitted timestamp 이후부터 현재 tick timestamp까지의 새 activity만 delta로 셉니다. Rolling `window`, `velocity`, `top`은 later tick에서도 계속 `(now - windowMs, now]` 범위를 씁니다.
+
+`watch --once --json`은 parseable JSON document 하나를 출력하고 종료합니다. Continuous `watch --json`은 NDJSON을 출력합니다. 각 줄은 compact JSON object 하나이며 array wrapper나 pretty-print block을 쓰지 않습니다.
+
+Watch JSON은 strict v2 shape입니다. High-level fields are `version: 2`, `windowMs`, `filters`, `delta`, `window`, `velocity`, `top`, `budgets`, and `privacy`. Repeated `--source` and `--source-name` filters are OR filters inside each dimension and AND filters across dimensions. JSON reports them as arrays under `filters.source` and `filters.sourceName`.
+
+`budgets`는 rolling watch window가 아니라 current-month budget summary입니다. Cost delta, window cost, velocity cost, 또는 budget row에 unknown pricing이 섞이면 JSON cost field는 `null`, text output은 `unknown`으로 남습니다. Unknown cost를 `$0.00`, free, zero, no-cost로 바꾸지 않습니다.
 
 ## Ink TUI
 
-`tokenwatch tui`는 Rust/Ratatui rewrite나 web dashboard가 아니라 기존 Node.js CLI와 같은 로컬 SQLite를 읽는 Ink 기반 터미널 UI입니다. 네트워크, 서버, 소셜, leaderboard 기능 없이 normalized usage metadata와 sanitized pricing/session/budget diagnostics만 표시합니다.
+`tokenwatch tui`는 Rust/Ratatui rewrite나 web dashboard가 아니라 기존 Node.js CLI와 같은 로컬 SQLite를 읽는 Ink 기반 터미널 UI입니다. 네트워크, 서버, 소셜, leaderboard 기능 없이 normalized usage metadata와 sanitized pricing/session/budget diagnostics만 표시합니다. `Overview`는 로컬 Ink TUI 화면이며, 서비스가 만든 sanitized dashboard DTO와 current-view export용 primitive row를 경계로 씁니다.
 
-주요 view는 기존 summary 축과 함께 balanced native TUI parity용 `Usage`, `Minutely Usage`, `Stats`, `Agents`를 포함합니다. `Usage`는 이벤트별 sanitized usage row, `Minutely Usage`는 local minute bucket, `Stats`는 safe aggregate/stat row, `Agents`는 agent별 summary를 보여줍니다. 추가로 overview, source/sourceName/model/agent, daily/hourly/monthly, sessions/session metrics/session intervals/concurrency, recent scan runs, unknown pricing, budget warnings, help view를 제공합니다.
+주요 view는 개선된 `Overview`, 기존 `Budget Status`, 기존 `Activity Heatmap`과 함께 balanced native TUI parity용 `Usage`, `Minutely Usage`, `Stats`, `Agents`를 포함합니다. `Overview`는 전용 KPI dashboard로 `Today`, `This Week`, `This Month`, `Budget`을 primary KPI로 보여주고, `Total`, `Top source`, `Top sourceName`, `Top model`, `Unknown pricing`을 secondary signal로 보여줍니다. 각 기간 KPI는 event count, token total, estimated cost label을 표시합니다. 비용은 local planning용 추정치이며 billing-grade charge, provider invoice, quota, rate-limit 자료가 아닙니다. 가격을 모르는 이벤트는 `unknown` 또는 `null`로 남기고, 화면과 export에서 `$0.00`, free, zero, no cost로 바꾸지 않습니다.
+
+`Budget` KPI는 canonical budget row에서 status와 progress label을 읽습니다. `Budget Status` view는 `budget status`와 같은 canonical status/progress row를 쓰는 기존 화면입니다. `Activity Heatmap`도 기존 heatmap report DTO의 UTC day buckets와 level을 terminal-safe row로 렌더링하는 기존 화면입니다. `watch`, `heatmap`, `graph`는 기존 report 또는 validation surface이며, 이 Overview work가 다시 만든 기능이 아닙니다. `graph`는 현재 2D report와 PNG 출력이며 3D graph가 아닙니다.
+
+`Usage`는 이벤트별 sanitized usage row, `Minutely Usage`는 local minute bucket, `Stats`는 safe aggregate/stat row, `Agents`는 agent별 summary를 보여줍니다. 추가로 source/sourceName/model/agent, daily/hourly/monthly, sessions/session metrics/session intervals/concurrency, recent scan runs, unknown pricing, help view를 제공합니다. Overview sparkline은 MVP에 포함하지 않았으며, 나중에 선택 기능으로 다룰 수 있습니다.
 
 Theme은 `blue`, `green`, `amber`, `mono` 중 하나를 사용할 수 있고 기본값은 `blue`입니다. Auto-refresh는 기본적으로 꺼져 있으며 설정 또는 CLI override로 켤 수 있습니다.
 
@@ -315,7 +368,7 @@ TUI는 versioned sanitized cache를 TUI 경계에서만 사용하며 상태는 `
 
 키보드는 `?` help, `r` refresh, `s` sort column cycle, `S` sort direction reverse, `e` current-view export, 방향키 이동, `Enter` details, `Space` selection, `Esc` details close, `q` quit을 지원합니다. Mouse parity는 문서화하지 않습니다.
 
-Current-view export는 `tokenwatch-current-view.json`에 현재 view key와 현재 정렬이 반영된 primitive row 배열만 씁니다. Export status는 basename, view label, row count 같은 safe 정보만 보여주며 prompt, response, credential, raw path, raw record, raw session ID, arbitrary metadata dump는 저장하거나 렌더링하지 않습니다.
+Current-view export는 `tokenwatch-current-view.json`에 현재 view key와 현재 정렬이 반영된 primitive row 배열만 씁니다. Overview export도 dashboard internals가 아니라 service가 제공한 sanitized primitive current-view row만 씁니다. Budget Status와 Activity Heatmap export도 같은 primitive row 경계를 따릅니다. Export status는 basename, view label, row count 같은 safe 정보만 보여주며 prompt, response, credential, raw path, raw record, raw session ID, SQL payload, stack trace, arbitrary metadata dump는 저장하거나 렌더링하지 않습니다.
 
 ## 요약과 세션 지표
 
@@ -327,20 +380,23 @@ tokenwatch summary --group-by session --json
 tokenwatch summary --group-by sessionInterval --json
 ```
 
-Session interval 지표는 `(source, sessionIdHash)` 기준으로 묶이며 active duration, wall duration, longest continuous activity, max concurrency, no-session event count를 제공합니다. TUI도 monthly, sessions, session metrics, session intervals, concurrency, pricing, unknown pricing, Budget Warnings 관련 화면을 포함하며 동일한 sanitized DB row 데이터만 표시합니다.
+Session interval 지표는 `(source, sessionIdHash)` 기준으로 묶이며 active duration, wall duration, longest continuous activity, max concurrency, no-session event count를 제공합니다. TUI도 monthly, sessions, session metrics, session intervals, concurrency, pricing, unknown pricing, Budget Status, Activity Heatmap 관련 화면을 포함하며 동일한 sanitized DB row 데이터만 표시합니다.
 
 ## 명시적 비목표
 
 이 릴리스는 로컬 aggregate usage metadata를 읽고 보여주는 범위에 집중합니다. 다음 기능은 포함하지 않습니다.
 
 - Native tray 또는 menu-bar app
-- Background daemon
-- OS notification
+- Background daemon과 OS notification
 - Cloud sync, social sharing, leaderboard
-- LLM recommendation이나 자동 최적화 조언
 - Provider credential storage
+- Desktop write workflow와 read-only dashboard를 넘는 desktop expansion
+- 3D graph 또는 3D renderer dependency
+- LLM recommendation이나 자동 최적화 조언
 - Arbitrary date grammar, 예를 들어 `last Tuesday` 같은 자연어 window
+- TUI Overview sparkline
 - Insights/trend PNG export
+- Heatmap PNG export support is not included
 
 ## 개발
 
@@ -355,5 +411,5 @@ corepack pnpm build
 CLI, TUI, import/export, scan, doctor, DB 경로를 검증할 때는 실제 사용자 DB를 건드리지 않도록 임시 DB를 사용하세요.
 
 ```bash
-TOKENWATCH_DB_PATH=/tmp/tokenwatch-dev.db node dist/cli.js doctor
+TOKENWATCH_DB_PATH=<temporary-db-path> node dist/cli.js doctor
 ```

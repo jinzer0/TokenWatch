@@ -8,6 +8,14 @@ import {
 import { parserNames } from '../parsers/base.js';
 import { validateExplicitProjectLabel } from '../projectLabel.js';
 export {
+  budgetStatusReportSchema,
+  heatmapReportSchema,
+  watchTickReportSchema,
+  type BudgetStatusReport,
+  type HeatmapReport,
+  type WatchTickReport
+} from './liveReportContracts.js';
+export {
   assertSafeOutputText,
   insightsCommandReportSchema,
   insightsReportOptionsSchema,

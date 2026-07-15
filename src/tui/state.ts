@@ -10,6 +10,7 @@ export type ViewKey =
   | 'insights'
   | 'trends'
   | 'reports'
+  | 'activity'
   | 'source'
   | 'sourceName'
   | 'model'
@@ -43,6 +44,7 @@ export type TuiProps = {
   initialDetails?: boolean;
   settings?: TuiSettings;
   cache?: TuiDataCacheAdapter;
+  overviewWidthColumns?: number;
 };
 
 export const views: ViewDefinition[] = [
@@ -52,6 +54,7 @@ export const views: ViewDefinition[] = [
   { key: 'insights', label: 'Insights' },
   { key: 'trends', label: 'Trends' },
   { key: 'reports', label: 'Reports' },
+  { key: 'activity', label: 'Activity Heatmap' },
   { key: 'source', label: 'By Source' },
   { key: 'sourceName', label: 'By Source Name' },
   { key: 'model', label: 'By Model' },
@@ -67,6 +70,6 @@ export const views: ViewDefinition[] = [
   { key: 'sessionMetrics', label: 'Session Metrics' },
   { key: 'runs', label: 'Recent Scan Runs' },
   { key: 'pricing', label: 'Unknown Pricing' },
-  { key: 'budgets', label: 'Budget Warnings' },
+  { key: 'budgets', label: 'Budget Status' },
   { key: 'help', label: 'Help' }
 ];

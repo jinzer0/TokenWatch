@@ -9,9 +9,18 @@ import type { BudgetEvaluation } from '../src/services/budgetService.js';
 import { StatuslineService, renderStatuslineText } from '../src/services/statusline.js';
 import { App } from '../src/tui/App.js';
 import { createFileTuiDataCache, readTuiDataCache } from '../src/tui/cache.js';
+import {
+  OverviewDashboard,
+  overviewLayoutMode,
+  overviewPrimaryLines,
+  overviewSecondaryLines
+} from '../src/tui/components/OverviewDashboard.js';
 import { localMinuteBucket, localMonthBucket } from '../src/utils/time.js';
 import { containsPrivacySentinel, createTempDb, createTestEvent } from './helpers.js';
 import { assertNoForbiddenOutput } from './privacyOutput.js';
+
+// allow: SIZE_OK - existing focused Ink aggregation suite;
+// Todo 8 only strengthens Activity coverage.
 
 afterEach(() => {
   vi.useRealTimers();
@@ -194,6 +203,246 @@ describe('aggregation and TUI', () => {
     expect(containsPrivacySentinel(data)).toBe(false);
   });
 
+  it('keeps primitive Overview rows deterministic and sanitized for KPI fixture data', () => {
+    const aggregator = new AggregatorService();
+    const data = aggregator.buildTuiData(
+      createOverviewKpiFixtureEvents(),
+      [],
+      undefined,
+      [],
+      {},
+      { now: new Date('2026-06-17T12:00:00.000Z') }
+    );
+
+    expect(data.overviewRows).toEqual([
+      { metric: 'Today', value: '1 event', detail: '1000 tokens, $0.100000' },
+      { metric: 'This Week', value: '2 events', detail: '3000 tokens, $0.300000' },
+      { metric: 'This Month', value: '3 events', detail: '6000 tokens, $0.300000' },
+      { metric: 'Budget', value: 'not configured', detail: '0 thresholds' },
+      { metric: 'Unknown pricing', value: '1 event', detail: '3000 tokens' },
+      { metric: 'Top model', value: 'claude-sonnet-4', detail: 'by total tokens' },
+      { metric: 'Top source', value: 'opencode', detail: 'by total tokens' },
+      { metric: 'Top sourceName', value: 'lab-server', detail: 'by total tokens' }
+    ]);
+    expect(containsPrivacySentinel(data.overviewRows)).toBe(false);
+  });
+
+  it('defines Overview dashboard period KPIs with known and unknown pricing confidence', () => {
+    const aggregator = new AggregatorService();
+    const data = aggregator.buildTuiData(
+      createOverviewKpiFixtureEvents(),
+      [],
+      undefined,
+      [],
+      {},
+      { now: new Date('2026-06-17T12:00:00.000Z') }
+    );
+
+    expect(containsPrivacySentinel(data)).toBe(false);
+    expect(data).toMatchObject({
+      overviewDashboard: {
+        today: {
+          totalTokens: 1000,
+          knownEstimatedCostUsd: 0.1,
+          unknownCostEvents: 0
+        },
+        thisWeek: {
+          totalTokens: 3000,
+          knownEstimatedCostUsd: 0.3,
+          unknownCostEvents: 0
+        },
+        thisMonth: {
+          totalTokens: 6000,
+          knownEstimatedCostUsd: 0.3,
+          unknownCostEvents: 1
+        },
+        total: {
+          totalTokens: 10000,
+          knownEstimatedCostUsd: 0.7,
+          unknownCostEvents: 1
+        },
+        budget: { status: 'not_configured' }
+      }
+    });
+  });
+
+  it('defines Overview dashboard top labels and unknown pricing aggregate', () => {
+    const aggregator = new AggregatorService();
+    const data = aggregator.buildTuiData(
+      createOverviewKpiFixtureEvents(),
+      [],
+      undefined,
+      [],
+      {},
+      { now: new Date('2026-06-17T12:00:00.000Z') }
+    );
+
+    expect(containsPrivacySentinel(data)).toBe(false);
+    expect(data).toMatchObject({
+      overviewDashboard: {
+        topSource: { label: 'opencode', totalTokens: 5000 },
+        topSourceName: { label: 'lab-server', totalTokens: 5000 },
+        topModel: { label: 'claude-sonnet-4', totalTokens: 5000 },
+        unknownPricing: { eventCount: 1, totalTokens: 3000 }
+      }
+    });
+  });
+
+  it.each([
+    {
+      label: 'not configured',
+      budgets: [],
+      expectedStatus: 'not_configured'
+    },
+    {
+      label: 'exceeded',
+      budgets: [createOverviewBudgetEvaluation({ knownSpendUsd: 1, thresholdUsd: 1 })],
+      expectedStatus: 'exceeded'
+    },
+    {
+      label: 'unknown',
+      budgets: [
+        createOverviewBudgetEvaluation({
+          knownSpendUsd: 0.1,
+          thresholdUsd: 1,
+          unknownCostEventCount: 1,
+          unknownCostTokenCount: 3000
+        })
+      ],
+      expectedStatus: 'unknown'
+    },
+    {
+      label: 'warning',
+      budgets: [createOverviewBudgetEvaluation({ knownSpendUsd: 0.8, thresholdUsd: 1 })],
+      expectedStatus: 'warning'
+    },
+    {
+      label: 'ok',
+      budgets: [createOverviewBudgetEvaluation({ knownSpendUsd: 0.1, thresholdUsd: 1 })],
+      expectedStatus: 'ok'
+    }
+  ] satisfies Array<{
+    readonly label: string;
+    readonly budgets: BudgetEvaluation[];
+    readonly expectedStatus: 'not_configured' | 'exceeded' | 'unknown' | 'warning' | 'ok';
+  }>)(
+    'defines Overview dashboard budget status as $expectedStatus when $label',
+    ({ budgets, expectedStatus }) => {
+      const aggregator = new AggregatorService();
+      const data = aggregator.buildTuiData(
+        createOverviewKpiFixtureEvents(),
+        [],
+        undefined,
+        budgets,
+        {},
+        { now: new Date('2026-06-17T12:00:00.000Z') }
+      );
+
+      expect(data).toMatchObject({
+        overviewDashboard: { budget: { status: expectedStatus } }
+      });
+    }
+  );
+
+  it('selects the first monthly total row as the Overview dashboard primary budget', () => {
+    const aggregator = new AggregatorService();
+    const data = aggregator.buildTuiData(
+      createOverviewKpiFixtureEvents(),
+      [],
+      undefined,
+      [
+        createOverviewBudgetEvaluation({ sourceName: 'other-budget', knownSpendUsd: 0.1 }),
+        createOverviewBudgetEvaluation({
+          scopeKind: 'monthly_total',
+          sourceName: null,
+          knownSpendUsd: 0.4
+        }),
+        createOverviewBudgetEvaluation({
+          scopeKind: 'monthly_total',
+          sourceName: null,
+          knownSpendUsd: 0.9
+        })
+      ],
+      {},
+      { now: new Date('2026-06-17T12:00:00.000Z') }
+    );
+
+    expect(data).toMatchObject({
+      overviewDashboard: {
+        budget: {
+          primary: {
+            scopeKind: 'monthly_total',
+            knownSpendUsd: 0.4,
+            thresholdUsd: 1,
+            progress: { label: '40%' }
+          }
+        }
+      }
+    });
+  });
+
+  it('falls back to the first canonical row when no monthly total budget exists', () => {
+    const aggregator = new AggregatorService();
+    const data = aggregator.buildTuiData(
+      createOverviewKpiFixtureEvents(),
+      [],
+      undefined,
+      [
+        createOverviewBudgetEvaluation({
+          sourceName: 'first-fallback-budget',
+          knownSpendUsd: 0.25
+        }),
+        createOverviewBudgetEvaluation({ sourceName: 'second-budget', knownSpendUsd: 0.85 })
+      ],
+      {},
+      { now: new Date('2026-06-17T12:00:00.000Z') }
+    );
+
+    expect(data).toMatchObject({
+      overviewDashboard: {
+        budget: {
+          primary: {
+            scopeKind: 'sourceName',
+            sourceName: 'first-fallback-budget',
+            knownSpendUsd: 0.25,
+            thresholdUsd: 1,
+            progress: { label: '25%' }
+          }
+        }
+      }
+    });
+  });
+
+  it('keeps unknown pricing visible and semantically unknown in the Overview dashboard', () => {
+    const aggregator = new AggregatorService();
+    const data = aggregator.buildTuiData(
+      createOverviewKpiFixtureEvents(),
+      [],
+      undefined,
+      [],
+      {},
+      { now: new Date('2026-06-17T12:00:00.000Z') }
+    );
+
+    expect(data).toMatchObject({
+      overviewDashboard: {
+        budget: { status: 'not_configured' },
+        unknownPricing: {
+          eventCount: 1,
+          totalTokens: 3000,
+          estimatedCostUsd: null,
+          costLabel: 'unknown'
+        }
+      }
+    });
+    const dashboard = JSON.stringify(data);
+    expect(dashboard).not.toContain('$0.00');
+    expect(dashboard.toLowerCase()).not.toContain('free');
+    expect(dashboard.toLowerCase()).not.toContain('zero');
+    expect(dashboard.toLowerCase()).not.toContain('no cost');
+    expect(containsPrivacySentinel(data)).toBe(false);
+  });
+
   it('renders seeded data, help, and sanitized current-view export', async () => {
     const aggregator = new AggregatorService();
     const events = [
@@ -306,7 +555,7 @@ describe('aggregation and TUI', () => {
         renderStatuslineText(statusline.build(nextEvents, { window: 'today', now }))
       )
     );
-    expect(app.lastFrame()).toContain('cost unknown');
+    expect(normalizedFrame(app.lastFrame())).toContain('cost unknown');
     expect(containsPrivacySentinel(app.lastFrame())).toBe(false);
   });
 
@@ -666,7 +915,317 @@ describe('aggregation and TUI', () => {
     expect(containsPrivacySentinel(exported)).toBe(false);
   });
 
-  it('renders budget warning rows and exports only sanitized budget view data', () => {
+  it('renders dashboard overview rows from shared aggregate data', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-15T12:00:00.000Z'));
+    const aggregator = new AggregatorService();
+    const budgets: BudgetEvaluation[] = [
+      {
+        scopeKind: 'monthly_total',
+        sourceName: null,
+        month: '2026-06',
+        knownSpendUsd: 0.4,
+        thresholdUsd: 1,
+        status: 'ok',
+        unknownCostEventCount: 0,
+        unknownCostTokenCount: 0,
+        warningRows: []
+      }
+    ];
+    const exported: unknown[] = [];
+    const data = aggregator.buildTuiData(createTuiDashboardFixtureEvents(), [], undefined, budgets);
+    const app = render(
+      <App
+        loadData={() => data}
+        initialViewKey="overview"
+        onExportView={(viewKey, rows) => {
+          exported.push({ viewKey, rows });
+          return '/private/raw/path/tokenwatch-current-view.json';
+        }}
+      />
+    );
+
+    const frame = app.lastFrame() ?? '';
+    expect(frame).toContain('Overview');
+    expect(frame).toContain('Today');
+    expect(frame).toContain('This Week');
+    expect(frame).toContain('This Month');
+    expect(frame).toContain('Budget');
+    expect(frame).toContain('Unknown pricing');
+    expect(frame).toContain('Top model');
+    expect(frame).toContain('Top source');
+    expect(frame).toContain('Top sourceName');
+    expect(frame).toContain('ok');
+    expect(frame).toContain('1 event');
+    expect(frame).toContain('2 events');
+    expect(frame).not.toContain('$0.00');
+    expect(containsPrivacySentinel(frame)).toBe(false);
+    assertNoForbiddenOutput(frame);
+
+    app.stdin.write('e');
+    expect(exported).toEqual([
+      {
+        viewKey: 'overview',
+        rows: expect.arrayContaining([
+          expect.objectContaining({ metric: 'Today' }),
+          expect.objectContaining({ metric: 'Budget', value: 'ok' }),
+          expect.objectContaining({ metric: 'Unknown pricing' })
+        ])
+      }
+    ]);
+    expectExportedPrimitiveRows(exported[0]);
+    await vi.waitFor(() => expect(app.lastFrame()).toContain('to tokenwatch-current-view.json'));
+    expect(app.lastFrame()).not.toContain('/private/raw/path');
+    expect(containsPrivacySentinel([app.lastFrame(), exported])).toBe(false);
+    assertNoForbiddenOutput([app.lastFrame(), exported]);
+  });
+
+  it('renders terminal-safe Overview dashboard component lines from the dashboard DTO', () => {
+    const aggregator = new AggregatorService();
+    const data = aggregator.buildTuiData(
+      createOverviewKpiFixtureEvents(),
+      [],
+      undefined,
+      [
+        createOverviewBudgetEvaluation({
+          scopeKind: 'monthly_total',
+          sourceName: null,
+          knownSpendUsd: 0.4
+        })
+      ],
+      {},
+      { now: new Date('2026-06-17T12:00:00.000Z') }
+    );
+
+    expect(overviewPrimaryLines(data.overviewDashboard).map((line) => line.label)).toEqual([
+      'Today',
+      'This Week',
+      'This Month',
+      'Budget'
+    ]);
+    expect(overviewSecondaryLines(data.overviewDashboard).map((line) => line.label)).toEqual([
+      'Total',
+      'Top source',
+      'Top sourceName',
+      'Top model',
+      'Unknown pricing'
+    ]);
+
+    const app = render(<OverviewDashboard dashboard={data.overviewDashboard} theme="blue" />);
+
+    const frame = app.lastFrame() ?? '';
+    expect(frame).toContain('Primary KPIs');
+    expect(frame).toContain('Secondary Signals');
+    expect(frame).toContain('Today');
+    expect(frame).toContain('This Week');
+    expect(frame).toContain('This Month');
+    expect(frame).toContain('Total');
+    expect(frame).toContain('Budget');
+    expect(frame).toContain('Top source');
+    expect(frame).toContain('Top sourceName');
+    expect(frame).toContain('Top model');
+    expect(frame).toContain('Unknown pricing');
+    expect(frame).toContain('1000 tokens');
+    expect(frame).toContain('3000 tokens');
+    expect(frame).toContain('6000 tokens');
+    expect(frame).toContain('10000 tokens');
+    expect(frame).toContain('$0.100000');
+    expect(frame).toContain('$0.300000');
+    expect(frame).toContain('$0.700000 + unknown');
+    expect(frame).toContain('progress 40%');
+    expect(frame).toContain('unknown pricing 1 event');
+    expect(frame).toContain('opencode');
+    expect(frame).toContain('lab-server');
+    expect(frame).toContain('claude-sonnet-4');
+    expect(frame).not.toContain('$0.00');
+    expect(frame.toLowerCase()).not.toContain('free');
+    expect(frame.toLowerCase()).not.toContain('zero');
+    expect(frame.toLowerCase()).not.toContain('no cost');
+    expect(containsPrivacySentinel(frame)).toBe(false);
+    assertNoForbiddenOutput(frame);
+  });
+
+  it('renders dedicated Overview dashboard KPI values from the dashboard DTO', () => {
+    const data = createOverviewKpiTuiData();
+    const app = render(
+      <App
+        loadData={() => data}
+        initialViewKey="overview"
+        onExportView={() => 'tokenwatch-current-view.json'}
+      />
+    );
+
+    const frame = app.lastFrame() ?? '';
+    expect(frame).toContain('Overview');
+    expect(frame).toContain('Today');
+    expect(frame).toContain('This Week');
+    expect(frame).toContain('This Month');
+    expect(frame).toContain('Total');
+    expect(frame).toContain('Budget');
+    expect(frame).toContain('Top source');
+    expect(frame).toContain('Top sourceName');
+    expect(frame).toContain('Top model');
+    expect(frame).toContain('Unknown pricing');
+    expect(frame).toContain('1000');
+    expect(frame).toContain('3000');
+    expect(frame).toContain('6000');
+    expect(frame).toContain('10000');
+    expect(frame).toContain('$0.100000');
+    expect(frame).toContain('$0.300000');
+    expect(frame).toContain('$0.700000');
+    expect(frame).toContain('unknown');
+    expect(frame).toContain('1 event');
+    expect(frame).toContain('opencode');
+    expect(frame).toContain('lab-server');
+    expect(frame).toContain('claude-sonnet-4');
+    expect(frame).not.toContain('$0.00');
+    expect(frame.toLowerCase()).not.toContain('free');
+    expect(frame.toLowerCase()).not.toContain('zero');
+    expect(frame.toLowerCase()).not.toContain('no cost');
+    expect(containsPrivacySentinel(frame)).toBe(false);
+    assertNoForbiddenOutput(frame);
+  });
+
+  it('exports Overview current view as sanitized primitive rows with a safe basename', async () => {
+    const data = createOverviewKpiTuiData();
+    const exported: unknown[] = [];
+    const app = render(
+      <App
+        loadData={() => data}
+        initialViewKey="overview"
+        onExportView={(viewKey, rows) => {
+          exported.push({ viewKey, rows });
+          return '/private/raw/path/tokenwatch-current-view.json';
+        }}
+      />
+    );
+
+    app.stdin.write('e');
+
+    expect(exported).toEqual([{ viewKey: 'overview', rows: createOverviewPrimitiveRows() }]);
+    expectExportedPrimitiveRows(exported[0]);
+    await vi.waitFor(() => expect(app.lastFrame()).toContain('tokenwatch-current-view.json'));
+    expect(app.lastFrame()).toContain('Exported Overview current view (8 rows)');
+    expect(app.lastFrame()).not.toContain('/private/raw/path');
+    expect(JSON.stringify(exported)).not.toContain('overviewDashboard');
+    expect(JSON.stringify(exported)).not.toContain('metadata');
+    expect(JSON.stringify(exported)).not.toContain('rawIdHash');
+    expect(containsPrivacySentinel([app.lastFrame(), exported])).toBe(false);
+    assertNoForbiddenOutput([app.lastFrame(), exported]);
+  });
+
+  it('renders Overview details from sanitized primitive rows', () => {
+    const data = createOverviewKpiTuiData();
+    const app = render(
+      <App
+        loadData={() => data}
+        initialViewKey="overview"
+        initialDetails
+        onExportView={() => 'tokenwatch-current-view.json'}
+      />
+    );
+
+    const frame = app.lastFrame() ?? '';
+    expect(frame).toContain('Details');
+    expect(frame).toContain('metric: Today');
+    expect(frame).toContain('value: 1 event');
+    expect(frame).toContain('detail: 1000 tokens, $0.100000');
+    expect(frame).not.toContain('overviewDashboard');
+    expect(frame).not.toContain('metadata');
+    expect(frame).not.toContain('rawIdHash');
+    expect(containsPrivacySentinel(frame)).toBe(false);
+    assertNoForbiddenOutput(frame);
+  });
+
+  it('preserves Overview cache labels and privacy while refreshing dashboard data', async () => {
+    vi.useFakeTimers();
+    const cachedData = createOverviewKpiTuiData({ totalTokens: 10000 });
+    const liveData = createOverviewKpiTuiData({ totalTokens: 11000 });
+    const writes: unknown[] = [];
+    const app = render(
+      <App
+        loadData={() => liveData}
+        initialViewKey="overview"
+        cache={{
+          read: () => cachedData,
+          write: (data) => writes.push(data)
+        }}
+        onExportView={() => 'tokenwatch-current-view.json'}
+      />
+    );
+
+    const cachedFrame = app.lastFrame() ?? '';
+    expect(cachedFrame).toContain('Cache: warm');
+    expect(cachedFrame).toContain('Total');
+    expect(cachedFrame).toContain('10000');
+    expect(containsPrivacySentinel(cachedFrame)).toBe(false);
+
+    await vi.runOnlyPendingTimersAsync();
+    await vi.waitFor(() => expect(app.lastFrame()).toContain('Cache: refreshed'));
+
+    const refreshedFrame = app.lastFrame() ?? '';
+    expect(refreshedFrame).toContain('Refresh: just now');
+    expect(refreshedFrame).toContain('Refresh: manual');
+    expect(refreshedFrame).toContain('Total');
+    expect(refreshedFrame).toContain('11000');
+    expect(writes).toHaveLength(1);
+    expect(containsPrivacySentinel([refreshedFrame, writes])).toBe(false);
+    assertNoForbiddenOutput([refreshedFrame, writes]);
+  });
+
+  it.each([
+    { mode: 'wide', width: 120 },
+    { mode: 'medium', width: 80 },
+    { mode: 'narrow', width: 50 }
+  ] satisfies Array<{ readonly mode: 'wide' | 'medium' | 'narrow'; readonly width: number }>)(
+    'renders deterministic Overview $mode layout at $width columns without dropping KPI content',
+    ({ mode, width }) => {
+      const frame = renderOverviewAtWidth(width);
+
+      expect(overviewLayoutMode(width)).toBe(mode);
+      expectNoHorizontalOverflow(frame, width);
+      expectOverviewResponsiveContent(frame);
+      expect(frame.toLowerCase()).not.toContain('sparkline');
+      expect(containsPrivacySentinel(frame)).toBe(false);
+      assertNoForbiddenOutput(frame);
+    }
+  );
+
+  it('preserves labels, units, estimated markers, budget, and unknown pricing in narrow Overview mode', () => {
+    const frame = renderOverviewAtWidth(50);
+    const normalized = normalizedFrame(frame);
+
+    for (const label of [
+      'Today',
+      'This Week',
+      'This Month',
+      'Total',
+      'Budget',
+      'Top source',
+      'Top sourceName',
+      'Top model',
+      'Unknown pricing'
+    ] as const) {
+      expect(normalized).toContain(label);
+    }
+    for (const value of ['1000', '3000', '6000', '10000'] as const) {
+      expect(normalized).toContain(value);
+    }
+    for (const estimatedCost of ['$0.100000', '$0.300000', '$0.700000'] as const) {
+      expect(normalized).toContain(estimatedCost);
+    }
+    expect(normalized).toContain('tokens');
+    expect(normalized).toContain('not configured');
+    expect(normalized).toContain('unknown');
+    expect(normalized).not.toContain('$0.00');
+    expect(normalized.toLowerCase()).not.toContain('free');
+    expect(normalized.toLowerCase()).not.toContain('zero');
+    expect(normalized.toLowerCase()).not.toContain('no cost');
+    expectNoHorizontalOverflow(frame, 50);
+    expect(frame.toLowerCase()).not.toContain('sparkline');
+  });
+
+  it('renders budget status rows and exports canonical sanitized budget view data', () => {
     const aggregator = new AggregatorService();
     const events = [
       createTestEvent({ metadata: { parser: 'test', prompt: 'PROMPT_SENTINEL_DO_NOT_LEAK' } })
@@ -701,6 +1260,17 @@ describe('aggregation and TUI', () => {
       },
       {
         scopeKind: 'sourceName',
+        sourceName: 'warn-source',
+        month: '2026-05',
+        knownSpendUsd: 0.85,
+        thresholdUsd: 1,
+        status: 'ok',
+        unknownCostEventCount: 0,
+        unknownCostTokenCount: 0,
+        warningRows: []
+      },
+      {
+        scopeKind: 'sourceName',
         sourceName: 'ok-source',
         month: '2026-05',
         knownSpendUsd: 0.1,
@@ -726,14 +1296,22 @@ describe('aggregation and TUI', () => {
     );
 
     const frame = app.lastFrame() ?? '';
-    expect(frame).toContain('Budget Warnings');
+    expect(frame).toContain('Budget Status');
+    expectNonOverviewPrimitiveFrame(frame);
     expect(frame).toContain('monthly_total');
     expect(frame).toContain('lab-a100');
+    expect(frame).toContain('warn-source');
+    expect(frame).toContain('ok-source');
     expect(frame).toContain('$2.000000');
     expect(frame).toContain('$1.000000');
-    expect(frame).toContain('over');
-    expect(frame).toContain('review budget threshold');
-    expect(frame).toContain('add custom price');
+    expect(frame).toContain('exceeded');
+    expect(frame).toContain('unknown');
+    expect(frame).toContain('warning');
+    expect(frame).toContain('ok');
+    expect(frame).toContain('200%');
+    expect(frame).toContain('50% + unknown cost');
+    expect(frame).toContain('85%');
+    expect(frame).toContain('10%');
     expect(frame).toContain('budget_threshold_exceeded,budget_unknown_cost_present');
     expect(frame).toContain('50');
     expect(frame).toContain('120');
@@ -741,8 +1319,11 @@ describe('aggregation and TUI', () => {
     expect(frame).toContain(
       'Enter details Space select r refresh e export ? help q quit Esc close'
     );
-    expect(frame).not.toContain('ok-source');
+    expect(frame).not.toContain('$0.00');
+    expect(frame.toLowerCase()).not.toContain('free');
+    expect(frame.toLowerCase()).not.toContain('no cost');
     expect(containsPrivacySentinel(frame)).toBe(false);
+    assertNoForbiddenOutput(frame);
 
     app.stdin.write('e');
     expect(exported).toEqual([
@@ -754,8 +1335,8 @@ describe('aggregation and TUI', () => {
             sourceName: 'all',
             known_spend: '$2.000000',
             threshold: '$1.000000',
-            status: 'over',
-            action: 'review budget threshold',
+            status: 'exceeded',
+            progress: '#################### 200%',
             warnings: 'budget_threshold_exceeded,budget_unknown_cost_present',
             unknown_events: 1,
             unknown_tokens: 50,
@@ -763,19 +1344,184 @@ describe('aggregation and TUI', () => {
           }),
           expect.objectContaining({
             scope: 'sourceName',
+            sourceName: 'warn-source',
+            status: 'warning',
+            progress: '#################... 85%',
+            unknown_events: 0,
+            unknown_tokens: 0
+          }),
+          expect.objectContaining({
+            scope: 'sourceName',
             sourceName: 'lab-a100',
-            status: 'unknown-costs-present',
-            action: 'add custom price',
+            status: 'unknown',
+            progress: '##########.......... 50% + unknown cost',
             unknown_events: 2,
             unknown_tokens: 120
+          }),
+          expect.objectContaining({
+            scope: 'sourceName',
+            sourceName: 'ok-source',
+            status: 'ok',
+            progress: '##.................. 10%',
+            unknown_events: 0,
+            unknown_tokens: 0
           })
         ]
       }
     ]);
-    expect(JSON.stringify(exported)).not.toContain('ok-source');
     expect(JSON.stringify(exported)).not.toContain('rawIdHash');
     expect(JSON.stringify(exported)).not.toContain('metadata');
+    expect(JSON.stringify(exported)).not.toContain('overviewDashboard');
+    expect(JSON.stringify(exported)).not.toContain('$0.00');
+    expect(JSON.stringify(exported).toLowerCase()).not.toContain('free');
+    expect(JSON.stringify(exported).toLowerCase()).not.toContain('no cost');
     expect(containsPrivacySentinel(exported)).toBe(false);
+    assertNoForbiddenOutput(exported);
+  });
+
+  it('renders activity heatmap rows and exports sanitized primitive activity data', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-15T12:00:00.000Z'));
+    const aggregator = new AggregatorService();
+    const exported: unknown[] = [];
+    const data = aggregator.buildTuiData(
+      createTuiDashboardFixtureEvents(),
+      [],
+      undefined,
+      [],
+      {},
+      {
+        heatmapMetric: 'cost',
+        heatmapYear: 2026
+      }
+    );
+    expect(data.heatmapReport).toMatchObject({
+      year: 2026,
+      metric: 'cost',
+      totals: {
+        events: 3,
+        totalTokens: 530,
+        estimatedCostUsd: 0.05,
+        unknownCostEvents: 1
+      },
+      privacy: { sanitized: true }
+    });
+    const app = render(
+      <App
+        loadData={() => data}
+        initialViewKey="activity"
+        initialDetails
+        onExportView={(viewKey, rows) => {
+          exported.push({ viewKey, rows });
+          return '/private/raw/path/tokenwatch-current-view.json';
+        }}
+      />
+    );
+
+    const frame = app.lastFrame() ?? '';
+    const normalized = normalizedFrame(frame);
+    expect(frame).toContain('Activity Heatmap');
+    expectNonOverviewPrimitiveFrame(frame);
+    expect(frame).toContain('year');
+    expect(frame).toContain('2026');
+    expect(frame).toContain('metric');
+    expect(frame).toContain('cost');
+    expect(normalized).toContain('events 3');
+    expect(normalized).toContain('tokens 530');
+    expect(normalized).toContain('cost 0.05');
+    expect(frame).toContain('density legend');
+    for (const legend of [
+      ['No usage', '·'],
+      ['Very low usage', '▁'],
+      ['Low usage', '▂'],
+      ['Medium usage', '▃'],
+      ['High usage', '▅'],
+      ['Peak usage', '█']
+    ] as const) {
+      expect(frame).toContain(legend[0]);
+      expect(frame).toContain(legend[1]);
+    }
+    expect(frame).toContain('active days');
+    expect(frame).toContain('3');
+    expect(frame).toContain('unknown cost warning');
+    expect(frame).toContain('unknown cost events present');
+    expect(frame).toContain('1 events');
+    expect(frame).toContain('Peak usage');
+    expect(frame).toContain('Details');
+    expect(frame).toContain('detail: 2026-01-01T00:00:00.000Z');
+    expect(frame).not.toContain('PROMPT_SENTINEL_DO_NOT_LEAK');
+    expect(frame).not.toContain('RESPONSE_SENTINEL_DO_NOT_LEAK');
+    expect(frame).not.toContain('FAKE_CREDENTIAL_SENTINEL_DO_NOT_LEAK');
+    expect(frame).not.toContain('RAW_PATH_SENTINEL_DO_NOT_LEAK');
+    expect(frame).not.toContain('RAW_RECORD_SENTINEL_DO_NOT_LEAK');
+    expect(frame).not.toContain('$0.00');
+    expect(frame).not.toContain('/private/raw/path');
+    expectNoHorizontalOverflow(frame, 100);
+    expect(containsPrivacySentinel(frame)).toBe(false);
+    assertNoForbiddenOutput(frame);
+
+    app.stdin.write('e');
+    await vi.waitFor(() =>
+      expect(app.lastFrame()).toContain('Exported Activity Heatmap current view')
+    );
+    expect(exported).toEqual([
+      {
+        viewKey: 'activity',
+        rows: expect.arrayContaining([
+          expect.objectContaining({ section: 'summary', label: 'year', value: 2026 }),
+          expect.objectContaining({ section: 'summary', label: 'metric', value: 'cost' }),
+          expect.objectContaining({ section: 'summary', label: 'active days', value: 3 }),
+          expect.objectContaining({
+            section: 'summary',
+            label: 'unknown cost warning',
+            value: 'unknown cost events present',
+            detail: '1 events'
+          }),
+          expect.objectContaining({
+            section: 'density legend',
+            label: 'No usage',
+            value: '·',
+            level: 0
+          }),
+          expect.objectContaining({
+            section: 'density legend',
+            label: 'Very low usage',
+            value: '▁',
+            level: 1
+          }),
+          expect.objectContaining({
+            section: 'density legend',
+            label: 'Low usage',
+            value: '▂',
+            level: 2
+          }),
+          expect.objectContaining({
+            section: 'density legend',
+            label: 'Medium usage',
+            value: '▃',
+            level: 3
+          }),
+          expect.objectContaining({
+            section: 'density legend',
+            label: 'High usage',
+            value: '▅',
+            level: 4
+          }),
+          expect.objectContaining({
+            section: 'density legend',
+            label: 'Peak usage',
+            value: '█',
+            level: 5
+          })
+        ])
+      }
+    ]);
+    expectExportedPrimitiveRows(exported[0]);
+    expect(JSON.stringify(exported)).not.toContain('rawIdHash');
+    expect(JSON.stringify(exported)).not.toContain('metadata');
+    expect(JSON.stringify(exported)).not.toContain('overviewDashboard');
+    expect(containsPrivacySentinel([app.lastFrame(), exported])).toBe(false);
+    assertNoForbiddenOutput([app.lastFrame(), exported]);
   });
 
   it('exports pricing diagnostic statuses for sanitized match and fallback distinctions', () => {
@@ -1161,9 +1907,52 @@ describe('aggregation and TUI', () => {
       expect(frame).toContain('events 1');
       expect(frame).toContain('Cache: live');
       expect(readTuiDataCache(cachePath)?.totals.totalEvents).toBe(1);
-      expect(readFileSync(cachePath, 'utf8')).toContain('"schemaVersion": 1');
+      expect(readFileSync(cachePath, 'utf8')).toContain('"schemaVersion": 2');
       expect(readFileSync(cachePath, 'utf8')).not.toContain('rawIdHash');
       expect(containsPrivacySentinel([frame, readFileSync(cachePath, 'utf8')])).toBe(false);
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('falls back to live data when the on-disk TUI cache lacks Overview dashboard data', () => {
+    const temp = createTempDb();
+    try {
+      const cachePath = join(temp.dir, 'tui-data-cache.v2.json');
+      const aggregator = new AggregatorService();
+      const cachedData = aggregator.buildTuiData(
+        [createTestEvent({ rawIdHash: 'cached-legacy-row' })],
+        []
+      );
+      const liveData = createOverviewKpiTuiData();
+      const legacyData = { ...cachedData, overviewDashboard: undefined };
+      writeFileSync(
+        cachePath,
+        JSON.stringify({
+          kind: 'tokenwatch-tui-data-cache',
+          schemaVersion: 2,
+          savedAt: '2026-06-17T12:00:00.000Z',
+          data: legacyData
+        }),
+        'utf8'
+      );
+
+      const app = render(
+        <App
+          loadData={() => liveData}
+          initialViewKey="overview"
+          cache={createFileTuiDataCache(cachePath)}
+          onExportView={() => 'tokenwatch-current-view.json'}
+        />
+      );
+
+      const frame = app.lastFrame() ?? '';
+      expect(frame).toContain('Cache: live');
+      expect(frame).toContain('Total');
+      expect(frame).toContain('10000');
+      expect(frame).not.toContain('cached-legacy-row');
+      expect(containsPrivacySentinel([frame, readFileSync(cachePath, 'utf8')])).toBe(false);
+      assertNoForbiddenOutput(frame);
     } finally {
       temp.cleanup();
     }
@@ -1187,6 +1976,7 @@ describe('aggregation and TUI', () => {
       );
 
       const frame = app.lastFrame() ?? '';
+      expectNonOverviewPrimitiveFrame(frame);
       expect(containsPrivacySentinel(frame)).toBe(false);
 
       app.stdin.write('e');
@@ -1236,6 +2026,7 @@ describe('aggregation and TUI', () => {
       );
 
       const frame = app.lastFrame() ?? '';
+      expectNonOverviewPrimitiveFrame(frame);
       expect(frame).toContain(targetView.title);
       expect(frame).toContain('No usage events');
       expect(containsPrivacySentinel(frame)).toBe(false);
@@ -1262,6 +2053,7 @@ describe('aggregation and TUI', () => {
       );
 
       const frame = app.lastFrame() ?? '';
+      expectNonOverviewPrimitiveFrame(frame);
       expect(frame).toContain('Details');
       for (const detailValue of targetView.detailValues) {
         expect(frame).toContain(detailValue);
@@ -1406,6 +2198,11 @@ describe('aggregation and TUI', () => {
     expect(helpFrame).toContain('s cycle sort column');
     expect(helpFrame).toContain('S reverse sort direction');
     expect(helpFrame).toContain('Usage, Minutely Usage, Stats, Insights, Trends, and Agents');
+    expect(helpFrame).toContain('Budget Status shows ok, warning, exceeded, and unknown rows');
+    expect(helpFrame).toContain(
+      'Activity Heatmap shows year, metric, density legend, and active-day summary'
+    );
+    expect(helpFrame).toContain('Heatmap JSON: heatmap --json');
     expect(helpFrame).toContain('Reports shows command guidance');
     expect(helpFrame).toContain('Insights JSON: insights --window 7d --json');
     expect(helpFrame).toContain('Optimize report: optimize --window 30d');
@@ -1625,6 +2422,7 @@ describe('aggregation and TUI', () => {
 const reportCommandFragments = [
   'graph --json',
   'graph --out',
+  'heatmap --json',
   'wrapped --year',
   'insights --window 7d --json',
   'optimize --window 30d',
@@ -1636,6 +2434,7 @@ const reportCommandFragments = [
 const footerReportCommandFragments = [
   'graph --json',
   'graph --out',
+  'heatmap --json',
   'wrapped --year',
   'doctor --sources',
   'usage --provider',
@@ -1741,6 +2540,11 @@ const balancedParityTargetViews = [
     }
   ]
 ] as const;
+
+function expectNonOverviewPrimitiveFrame(frame: string) {
+  expect(frame).not.toContain('Primary KPIs');
+  expect(frame).not.toContain('Secondary Signals');
+}
 
 function createBalancedParityFixtureEvents() {
   return [
@@ -1883,6 +2687,223 @@ function createTuiInsightsTrendFixtureEvents() {
   ];
 }
 
+function createTuiDashboardFixtureEvents() {
+  return [
+    createTestEvent({
+      timestamp: '2026-06-15T09:00:00.000Z',
+      source: 'codex',
+      sourceName: 'codex-cli',
+      agent: 'safe-agent-alpha',
+      model: 'gpt-5.5-fast',
+      rawIdHash: 'dashboard-known-row',
+      inputTokens: 100,
+      outputTokens: 25,
+      cachedTokens: 5,
+      totalTokens: 130,
+      estimatedCostUsd: 0.04,
+      metadata: {
+        parser: 'test',
+        prompt: 'PROMPT_SENTINEL_DO_NOT_LEAK',
+        response: 'RESPONSE_SENTINEL_DO_NOT_LEAK',
+        path: 'RAW_PATH_SENTINEL_DO_NOT_LEAK'
+      }
+    }),
+    createTestEvent({
+      timestamp: '2026-06-12T09:00:00.000Z',
+      source: 'opencode',
+      sourceName: 'opencode-local',
+      agent: 'safe-agent-beta',
+      model: 'unknown-fixture-model',
+      rawIdHash: 'dashboard-unknown-row',
+      inputTokens: 200,
+      outputTokens: 50,
+      cachedTokens: 10,
+      totalTokens: 260,
+      estimatedCostUsd: null,
+      metadata: {
+        parser: 'test',
+        credential: 'FAKE_CREDENTIAL_SENTINEL_DO_NOT_LEAK',
+        rawRecord: 'RAW_RECORD_SENTINEL_DO_NOT_LEAK'
+      }
+    }),
+    createTestEvent({
+      timestamp: '2026-05-20T09:00:00.000Z',
+      source: 'codex',
+      sourceName: 'codex-cli',
+      agent: 'safe-agent-alpha',
+      model: 'gpt-5.5-fast',
+      rawIdHash: 'dashboard-previous-month-row',
+      totalTokens: 90,
+      estimatedCostUsd: 0.01,
+      metadata: { parser: 'test', sql: 'SQL_PAYLOAD_SENTINEL_DO_NOT_LEAK' }
+    })
+  ];
+}
+
+function createOverviewKpiFixtureEvents() {
+  const unknownCostEvent = createTestEvent({
+    timestamp: '2026-06-03T10:00:00.000Z',
+    source: 'opencode',
+    sourceName: 'lab-server',
+    agent: 'opencode',
+    model: 'claude-sonnet-4',
+    rawIdHash: 'overview-kpi-event-c',
+    inputTokens: 2500,
+    outputTokens: 500,
+    cachedTokens: 0,
+    totalTokens: 3000,
+    metadata: {
+      parser: 'test',
+      prompt: 'PROMPT_SENTINEL_DO_NOT_LEAK',
+      response: 'RESPONSE_SENTINEL_DO_NOT_LEAK',
+      apiKey: 'FAKE_API_KEY_SENTINEL_DO_NOT_LEAK',
+      oauth: 'FAKE_OAUTH_SENTINEL_DO_NOT_LEAK',
+      credential: 'FAKE_CREDENTIAL_SENTINEL_DO_NOT_LEAK',
+      path: 'RAW_PATH_SENTINEL_DO_NOT_LEAK',
+      rawRecord: 'RAW_RECORD_SENTINEL_DO_NOT_LEAK',
+      sessionId: 'RAW_SESSION_SENTINEL_DO_NOT_LEAK'
+    }
+  });
+  return [
+    createTestEvent({
+      timestamp: '2026-06-17T09:00:00.000Z',
+      source: 'codex',
+      sourceName: 'local',
+      agent: 'codex',
+      model: 'gpt-5.5-fast',
+      rawIdHash: 'overview-kpi-event-a',
+      inputTokens: 700,
+      outputTokens: 300,
+      cachedTokens: 0,
+      totalTokens: 1000,
+      estimatedCostUsd: 0.1
+    }),
+    createTestEvent({
+      timestamp: '2026-06-16T10:00:00.000Z',
+      source: 'opencode',
+      sourceName: 'lab-server',
+      agent: 'opencode',
+      model: 'claude-sonnet-4',
+      rawIdHash: 'overview-kpi-event-b',
+      inputTokens: 1500,
+      outputTokens: 500,
+      cachedTokens: 0,
+      totalTokens: 2000,
+      estimatedCostUsd: 0.2
+    }),
+    { ...unknownCostEvent, estimatedCostUsd: null },
+    createTestEvent({
+      timestamp: '2026-05-20T10:00:00.000Z',
+      source: 'cursor',
+      sourceName: 'workstation',
+      agent: 'cursor',
+      model: 'gpt-5.5-fast',
+      rawIdHash: 'overview-kpi-event-d',
+      inputTokens: 3000,
+      outputTokens: 1000,
+      cachedTokens: 0,
+      totalTokens: 4000,
+      estimatedCostUsd: 0.4
+    })
+  ];
+}
+
+function createOverviewKpiTuiData(overrides: { readonly totalTokens?: number } = {}) {
+  const aggregator = new AggregatorService();
+  const data = aggregator.buildTuiData(
+    createOverviewKpiFixtureEvents(),
+    [],
+    undefined,
+    [],
+    {},
+    { now: new Date('2026-06-17T12:00:00.000Z') }
+  );
+  return {
+    ...data,
+    overviewRows: createOverviewPrimitiveRows(),
+    overviewDashboard: {
+      today: {
+        label: 'Today',
+        eventCount: 1,
+        totalTokens: 1000,
+        knownEstimatedCostUsd: 0.1,
+        costLabel: '$0.100000',
+        unknownCostEvents: 0
+      },
+      thisWeek: {
+        label: 'This Week',
+        eventCount: 2,
+        totalTokens: 3000,
+        knownEstimatedCostUsd: 0.3,
+        costLabel: '$0.300000',
+        unknownCostEvents: 0
+      },
+      thisMonth: {
+        label: 'This Month',
+        eventCount: 3,
+        totalTokens: 6000,
+        knownEstimatedCostUsd: 0.3,
+        costLabel: '$0.300000 + unknown',
+        unknownCostEvents: 1
+      },
+      total: {
+        label: 'Total',
+        eventCount: 4,
+        totalTokens: overrides.totalTokens ?? 10000,
+        knownEstimatedCostUsd: 0.7,
+        costLabel: '$0.700000 + unknown',
+        unknownCostEvents: 1
+      },
+      budget: {
+        label: 'Budget',
+        status: 'not_configured',
+        statusLabel: 'not configured',
+        detail: '0 thresholds'
+      },
+      topSource: { label: 'opencode', totalTokens: 5000 },
+      topSourceName: { label: 'lab-server', totalTokens: 5000 },
+      topModel: { label: 'claude-sonnet-4', totalTokens: 5000 },
+      unknownPricing: {
+        label: 'Unknown pricing',
+        eventCount: 1,
+        totalTokens: 3000,
+        estimatedCostUsd: null,
+        costLabel: 'unknown'
+      }
+    }
+  };
+}
+
+function createOverviewPrimitiveRows() {
+  return [
+    { metric: 'Today', value: '1 event', detail: '1000 tokens, $0.100000' },
+    { metric: 'This Week', value: '2 events', detail: '3000 tokens, $0.300000' },
+    { metric: 'This Month', value: '3 events', detail: '6000 tokens, $0.300000' },
+    { metric: 'Budget', value: 'not configured', detail: '0 thresholds' },
+    { metric: 'Unknown pricing', value: '1 event', detail: '3000 tokens, unknown' },
+    { metric: 'Top model', value: 'claude-sonnet-4', detail: '5000 tokens' },
+    { metric: 'Top source', value: 'opencode', detail: '5000 tokens' },
+    { metric: 'Top sourceName', value: 'lab-server', detail: '5000 tokens' }
+  ];
+}
+
+function createOverviewBudgetEvaluation(
+  overrides: Partial<BudgetEvaluation> = {}
+): BudgetEvaluation {
+  const scopeKind = overrides.scopeKind ?? 'sourceName';
+  return {
+    scopeKind,
+    sourceName: overrides.sourceName ?? (scopeKind === 'monthly_total' ? null : 'overview-lab'),
+    month: overrides.month ?? '2026-06',
+    knownSpendUsd: overrides.knownSpendUsd ?? 0,
+    thresholdUsd: overrides.thresholdUsd ?? 1,
+    status: overrides.status ?? 'ok',
+    unknownCostEventCount: overrides.unknownCostEventCount ?? 0,
+    unknownCostTokenCount: overrides.unknownCostTokenCount ?? 0,
+    warningRows: overrides.warningRows ?? []
+  };
+}
+
 function createSessionIntervalFixtureEvents() {
   return [
     createSessionEvent('2026-05-30T00:00:00.000Z', {
@@ -2000,6 +3021,65 @@ function expectExportedPrimitiveRows(entry: unknown) {
       expect(value === null || ['string', 'number', 'boolean'].includes(typeof value)).toBe(true);
     }
   }
+}
+
+type ResponsiveOverviewProps = React.ComponentProps<typeof App> & {
+  readonly overviewWidthColumns: number;
+};
+
+function renderOverviewAtWidth(width: number): string {
+  const props: ResponsiveOverviewProps = {
+    loadData: () => createOverviewKpiTuiData(),
+    initialViewKey: 'overview',
+    onExportView: () => 'tokenwatch-current-view.json',
+    overviewWidthColumns: width
+  };
+  return render(React.createElement(App, props)).lastFrame() ?? '';
+}
+
+function expectOverviewResponsiveContent(frame: string): void {
+  const normalized = normalizedFrame(frame);
+  for (const expected of [
+    'Overview',
+    'Today',
+    'This Week',
+    'This Month',
+    'Total',
+    'Budget',
+    'Top source',
+    'Top sourceName',
+    'Top model',
+    'Unknown pricing',
+    '1000',
+    '3000',
+    '6000',
+    '10000',
+    '$0.100000',
+    '$0.300000',
+    '$0.700000',
+    'tokens',
+    'not configured',
+    'opencode',
+    'lab-server',
+    'claude-sonnet-4',
+    'unknown'
+  ] as const) {
+    expect(normalized).toContain(expected);
+  }
+  expect(normalized).not.toContain('$0.00');
+  expect(normalized.toLowerCase()).not.toContain('free');
+  expect(normalized.toLowerCase()).not.toContain('zero');
+  expect(normalized.toLowerCase()).not.toContain('no cost');
+}
+
+function expectNoHorizontalOverflow(frame: string, width: number): void {
+  for (const line of stripAnsi(frame).split('\n')) {
+    expect(line.length).toBeLessThanOrEqual(width);
+  }
+}
+
+function stripAnsi(value: string): string {
+  return value.replace(new RegExp(`${String.fromCharCode(27)}\\[[0-9;?]*[ -/]*[@-~]`, 'g'), '');
 }
 
 function normalizedFrame(frame: string | undefined): string {

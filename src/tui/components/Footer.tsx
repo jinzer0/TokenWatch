@@ -18,7 +18,7 @@ export function Footer({
 }) {
   const theme = tuiThemeTokens(settings.theme);
   const reportCommands =
-    'reports graph --json graph --out wrapped --year doctor --sources usage --provider headless codex --input';
+    'reports graph --json graph --out heatmap --json wrapped --year\nchecks doctor --sources usage --provider headless codex --input';
   return (
     <Text dimColor color={theme.footerColor}>
       {message ? `${message} ${theme.statusDivider} ` : ''}

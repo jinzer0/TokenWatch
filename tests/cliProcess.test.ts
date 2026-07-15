@@ -1,5 +1,6 @@
+// allow: SIZE_OK - process regressions intentionally share one spawned CLI harness.
 import Database from 'better-sqlite3';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -9,6 +10,7 @@ import { ConfigRepository } from '../src/db/repositories/config.js';
 import { UsageEventsRepository } from '../src/db/repositories/usageEvents.js';
 import { ConfigService } from '../src/services/configService.js';
 import { PricingModelsRepository } from '../src/db/repositories/pricingModels.js';
+import { heatmapReportSchema, watchTickReportSchema } from '../src/services/reportContracts.js';
 import { containsPrivacySentinel, createTempDb, createTestEvent } from './helpers.js';
 import { assertCliOutputPrivacy, assertJsonOutputPrivacy } from './privacyOutput.js';
 
@@ -35,6 +37,26 @@ function runCliWithInput(args: string[], dbPath: string, input: string) {
     input,
     encoding: 'utf8'
   });
+}
+
+type CliOutput = {
+  readonly status: number;
+  readonly stdout: string;
+  readonly stderr: string;
+};
+
+class WatchProcessError extends Error {
+  readonly name = 'WatchProcessError';
+
+  constructor(
+    readonly code:
+      | 'process_timeout'
+      | 'sigint_timeout'
+      | 'unexpected_extra_line'
+      | 'assertion_failure'
+  ) {
+    super(code);
+  }
 }
 
 describe('CLI process error boundary', () => {
@@ -129,6 +151,328 @@ describe('CLI process error boundary', () => {
       temp.cleanup();
     }
   });
+
+  it('runs budget status JSON through the process boundary', () => {
+    const temp = createTempDb();
+    try {
+      const result = runCli(['budget', 'status', '--json'], temp.dbPath);
+      const payload = JSON.parse(result.stdout) as {
+        kind: string;
+        rows: unknown[];
+        summary: { total: number };
+        privacy: { sanitized: boolean };
+      };
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe('');
+      expect(payload).toMatchObject({
+        kind: 'budget_status',
+        rows: [],
+        summary: { total: 0 },
+        privacy: { sanitized: true }
+      });
+      expect(containsPrivacySentinel([result.stdout, result.stderr, payload])).toBe(false);
+      assertJsonOutputPrivacy(payload);
+      assertCliOutputPrivacy(result);
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('runs heatmap JSON through the process boundary', () => {
+    const temp = createTempDb();
+    const db = openDatabase(temp.dbPath);
+    try {
+      new UsageEventsRepository(db).insert(
+        createTestEvent({
+          timestamp: '2026-05-30T00:00:00.000Z',
+          rawIdHash: 'heatmap-process-row',
+          totalTokens: 321,
+          metadata: { rawPath: 'RAW_PATH_SENTINEL_DO_NOT_LEAK' }
+        })
+      );
+      db.close();
+
+      const result = runCli(['heatmap', '--year', '2026', '--json'], temp.dbPath);
+      const payload = heatmapReportSchema.parse(JSON.parse(result.stdout));
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe('');
+      expect(payload).toMatchObject({
+        kind: 'heatmap',
+        totals: { events: 1, totalTokens: 321 },
+        privacy: { sanitized: true }
+      });
+      expect(payload.days).toHaveLength(365);
+      expect(containsPrivacySentinel([result.stdout, result.stderr, payload])).toBe(false);
+      assertJsonOutputPrivacy(payload);
+      assertCliOutputPrivacy(result);
+    } finally {
+      if (db.open) db.close();
+      temp.cleanup();
+    }
+  });
+
+  it('sanitizes rejected heatmap output paths across the process boundary', () => {
+    const temp = createTempDb();
+    try {
+      const outputPath = join(temp.dir, 'RAW_PATH_SENTINEL_DO_NOT_LEAK.png');
+      const result = runCli(['heatmap', '--out', outputPath], temp.dbPath);
+
+      expect(result.status).toBe(1);
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toBe('error: invalid_output_path\n');
+      expect(result.stderr).not.toContain(outputPath);
+      expect(containsPrivacySentinel([result.stdout, result.stderr])).toBe(false);
+      assertCliOutputPrivacy(result);
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('returns bounded sanitized heatmap validation errors across the process boundary', () => {
+    const temp = createTempDb();
+    try {
+      const cases = [
+        {
+          args: ['heatmap', '--year', '9999'],
+          stderr: 'error: invalid_report_option\n'
+        },
+        {
+          args: ['heatmap', '--source', 'RAW_PATH_SENTINEL_DO_NOT_LEAK'],
+          stderr: 'error: unsupported_source\n'
+        },
+        {
+          args: ['heatmap', '--metric', 'PROMPT_SENTINEL_DO_NOT_LEAK'],
+          stderr: 'error: invalid_report_option\n'
+        }
+      ] as const;
+
+      for (const testCase of cases) {
+        const result = runCli([...testCase.args], temp.dbPath);
+
+        expect(result.status).toBe(1);
+        expect(result.stdout).toBe('');
+        expect(result.stderr).toBe(testCase.stderr);
+        expect(containsPrivacySentinel([result.stdout, result.stderr])).toBe(false);
+        assertCliOutputPrivacy(result);
+      }
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('writes heatmap files while exposing only safe basenames across the process boundary', () => {
+    const temp = createTempDb();
+    try {
+      const outputs = [
+        {
+          path: join(temp.dir, 'process-heatmap.json'),
+          message: 'Wrote heatmap JSON: process-heatmap.json\n',
+          marker: '"kind": "heatmap"'
+        },
+        {
+          path: join(temp.dir, 'process-heatmap.txt'),
+          message: 'Wrote heatmap text: process-heatmap.txt\n',
+          marker: 'TokenWatch Heatmap'
+        },
+        {
+          path: join(temp.dir, 'process-heatmap.svg'),
+          message: 'Wrote heatmap SVG: process-heatmap.svg\n',
+          marker: '<svg'
+        }
+      ] as const;
+
+      for (const output of outputs) {
+        const result = runCli(['heatmap', '--year', '2026', '--out', output.path], temp.dbPath);
+        const contents = readFileSync(output.path, 'utf8');
+
+        expect(result.status).toBe(0);
+        expect(result.stderr).toBe('');
+        expect(result.stdout).toBe(output.message);
+        expect(result.stdout).not.toContain(temp.dir);
+        expect(contents).toContain(output.marker);
+        expect(containsPrivacySentinel([result.stdout, result.stderr, contents])).toBe(false);
+        assertCliOutputPrivacy(result);
+      }
+
+      const jsonPayload = heatmapReportSchema.parse(
+        JSON.parse(readFileSync(join(temp.dir, 'process-heatmap.json'), 'utf8'))
+      );
+      expect(jsonPayload).toMatchObject({
+        kind: 'heatmap',
+        year: 2026,
+        totals: {
+          events: 0,
+          totalTokens: 0,
+          estimatedCostUsd: null,
+          unknownCostEvents: 0
+        },
+        privacy: { sanitized: true }
+      });
+      assertJsonOutputPrivacy(jsonPayload);
+    } finally {
+      temp.cleanup();
+    }
+  });
+
+  it('streams stateful continuous watch ticks as compact NDJSON and exits cleanly on SIGINT', async () => {
+    const temp = createTempDb();
+    const db = openDatabase(temp.dbPath);
+    try {
+      new UsageEventsRepository(db).insert(
+        createTestEvent({
+          timestamp: new Date(Date.now() - 1_000).toISOString(),
+          rawIdHash: 'watch-process-baseline',
+          metadata: { rawPath: 'RAW_PATH_SENTINEL_DO_NOT_LEAK' }
+        })
+      );
+      db.close();
+
+      const startedAtMs = Date.now();
+      const result = await new Promise<
+        CliOutput & {
+          readonly signal: NodeJS.Signals | null;
+          readonly lines: readonly string[];
+        }
+      >((resolve, reject) => {
+        const child = spawn(
+          process.execPath,
+          [
+            '--import',
+            'tsx',
+            'src/cli.ts',
+            'watch',
+            '--interval',
+            '5s',
+            '--window',
+            '10m',
+            '--json'
+          ],
+          {
+            cwd: process.cwd(),
+            env: { ...process.env, TOKENWATCH_DB_PATH: temp.dbPath }
+          }
+        );
+        const lines: string[] = [];
+        let stdout = '';
+        let stderr = '';
+        let lineBuffer = '';
+        let failure: unknown;
+        let sigintFallback: ReturnType<typeof setTimeout> | undefined;
+        const timeout = setTimeout(() => {
+          failure = new WatchProcessError('process_timeout');
+          child.kill('SIGKILL');
+        }, 15_000);
+
+        child.stdout.setEncoding('utf8');
+        child.stderr.setEncoding('utf8');
+        child.stdout.on('data', (chunk: string) => {
+          stdout += chunk;
+          lineBuffer += chunk;
+          let newlineIndex = lineBuffer.indexOf('\n');
+          while (newlineIndex >= 0) {
+            const line = lineBuffer.slice(0, newlineIndex);
+            lineBuffer = lineBuffer.slice(newlineIndex + 1);
+            lines.push(line);
+            try {
+              expect(line).toBe(JSON.stringify(JSON.parse(line)));
+              const tick = watchTickReportSchema.parse(JSON.parse(line));
+              if (lines.length === 1) {
+                expect(Date.now() - startedAtMs).toBeLessThan(5_000);
+                expect(tick.delta).toEqual(tick.window);
+                const firstTickAtMs = Date.parse(tick.timestamp);
+                const writerDb = openDatabase(temp.dbPath);
+                try {
+                  new UsageEventsRepository(writerDb).insertMany([
+                    createTestEvent({
+                      timestamp: new Date(firstTickAtMs + 1).toISOString(),
+                      rawIdHash: 'watch-process-valid-delta',
+                      inputTokens: 200,
+                      outputTokens: 11,
+                      cachedTokens: 0,
+                      totalTokens: 211
+                    }),
+                    createTestEvent({
+                      timestamp: new Date(firstTickAtMs - 1_000).toISOString(),
+                      rawIdHash: 'watch-process-backfill',
+                      inputTokens: 300,
+                      outputTokens: 7,
+                      cachedTokens: 0,
+                      totalTokens: 307
+                    })
+                  ]);
+                } finally {
+                  writerDb.close();
+                }
+              } else if (lines.length === 2) {
+                expect(tick.delta).toMatchObject({ events: 1, totalTokens: 211 });
+                expect(tick.window).toMatchObject({ events: 3, totalTokens: 658 });
+                child.kill('SIGINT');
+                sigintFallback = setTimeout(() => {
+                  failure = new WatchProcessError('sigint_timeout');
+                  child.kill('SIGKILL');
+                }, 2_000);
+              } else {
+                failure = new WatchProcessError('unexpected_extra_line');
+                child.kill('SIGKILL');
+              }
+            } catch (error) {
+              failure = error instanceof Error ? error : new WatchProcessError('assertion_failure');
+              child.kill('SIGKILL');
+            }
+            newlineIndex = lineBuffer.indexOf('\n');
+          }
+        });
+        child.stderr.on('data', (chunk: string) => {
+          stderr += chunk;
+        });
+        child.on('error', (error) => {
+          clearTimeout(timeout);
+          if (sigintFallback !== undefined) clearTimeout(sigintFallback);
+          reject(error);
+        });
+        child.on('close', (code, signal) => {
+          clearTimeout(timeout);
+          if (sigintFallback !== undefined) clearTimeout(sigintFallback);
+          if (failure !== undefined) {
+            reject(failure);
+            return;
+          }
+          resolve({ status: code ?? -1, signal, stdout, stderr, lines });
+        });
+      });
+      const [firstLine, secondLine] = result.lines;
+      const firstTick = watchTickReportSchema.parse(JSON.parse(firstLine ?? ''));
+      const secondTick = watchTickReportSchema.parse(JSON.parse(secondLine ?? ''));
+
+      expect(result.status).toBe(0);
+      expect(result.signal).toBeNull();
+      expect(result.stderr).toBe('');
+      expect(result.lines).toHaveLength(2);
+      expect(result.stdout).toBe(`${firstLine}\n${secondLine}\n`);
+      expect(firstTick).toMatchObject({
+        kind: 'watch_tick',
+        intervalMs: 5_000,
+        windowMs: 600_000,
+        delta: { events: 1, totalTokens: 140 },
+        window: { events: 1, totalTokens: 140 },
+        privacy: { sanitized: true }
+      });
+      expect(secondTick.delta).toMatchObject({ events: 1, totalTokens: 211 });
+      expect(secondTick.window).toMatchObject({ events: 3, totalTokens: 658 });
+      expect(Date.parse(secondTick.timestamp)).toBeGreaterThan(Date.parse(firstTick.timestamp));
+      expect(containsPrivacySentinel([result.stdout, result.stderr, firstTick, secondTick])).toBe(
+        false
+      );
+      assertJsonOutputPrivacy(firstTick);
+      assertJsonOutputPrivacy(secondTick);
+      assertCliOutputPrivacy(result);
+    } finally {
+      if (db.open) db.close();
+      temp.cleanup();
+    }
+  }, 20_000);
 
   it('exports and imports pricing lookup cache through the CLI process boundary', () => {
     const source = createTempDb();
