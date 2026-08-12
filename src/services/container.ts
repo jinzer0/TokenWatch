@@ -5,6 +5,7 @@ import { ScanRunsRepository } from '../db/repositories/scanRuns.js';
 import { UsageEventsRepository } from '../db/repositories/usageEvents.js';
 import { PricingModelsRepository } from '../db/repositories/pricingModels.js';
 import { AggregatorService } from './aggregator.js';
+import { AuditService } from './auditService.js';
 import { BudgetService } from './budgetService.js';
 import { ConfigService } from './configService.js';
 import { DoctorService } from './doctor.js';
@@ -38,6 +39,7 @@ export function createServices(db: TokenWatchDb) {
     budgetThresholds,
     config,
     aggregator,
+    audit: new AuditService(),
     exporter: new ExporterService(),
     headlessCodex: new HeadlessCodexIngestService(usageEvents),
     importer: new ImporterService(usageEvents, pricingModels),

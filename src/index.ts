@@ -2,6 +2,8 @@ export { createServices } from './services/container.js';
 export { openDatabase } from './db/client.js';
 export type { TokenWatchDb } from './db/client.js';
 export { InsightsService } from './services/insightsService.js';
+export { AuditService } from './services/auditService.js';
+export { listParserMetadata } from './parsers/registry.js';
 export { ShareReportService, renderShareReportMarkdown } from './services/shareReport.js';
 export {
   StatuslineService,
@@ -12,12 +14,14 @@ export { statuslinePresetSchema, statuslineSchema } from './services/statuslineC
 export { TrendService } from './services/trendService.js';
 export type { UsageEvent } from './models/usageEvent.js';
 export {
+  auditReportSchema,
   insightsReportOptionsSchema,
   insightsReportSchema,
   trendReportOptionsSchema,
   trendReportSchema
 } from './services/reportContracts.js';
 export type {
+  AuditReport,
   InsightsReport,
   InsightsReportOptions,
   TrendReport,
@@ -38,3 +42,10 @@ export type {
   StatuslineWindow
 } from './services/statusline.js';
 export type { BuildTrendReportOptions } from './services/trendService.js';
+export type { BuildAuditReportInput, BuildAuditReportOptions } from './services/auditService.js';
+export type {
+  ParserName,
+  ParserSupportStatus,
+  RegisteredParser,
+  TokenAccountingMode
+} from './parsers/base.js';
