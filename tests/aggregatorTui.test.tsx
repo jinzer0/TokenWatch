@@ -486,6 +486,25 @@ describe('aggregation and TUI', () => {
     expect(containsPrivacySentinel([app.lastFrame(), exported])).toBe(false);
   });
 
+  it('exports Help when navigation and export arrive before the next render', () => {
+    const data = new AggregatorService().buildTuiData([createTestEvent()], []);
+    const exported: Array<{ viewKey: string; rows: unknown[] }> = [];
+    const app = render(
+      <App
+        loadData={() => data}
+        onExportView={(viewKey, rows) => {
+          exported.push({ viewKey, rows });
+          return 'tokenwatch-current-view.json';
+        }}
+      />
+    );
+
+    app.stdin.write('?');
+    app.stdin.write('e');
+
+    expect(exported).toEqual([{ viewKey: 'help', rows: [] }]);
+  });
+
   it('renders selected TUI theme and refresh labels', () => {
     const aggregator = new AggregatorService();
     const data = aggregator.buildTuiData([], []);

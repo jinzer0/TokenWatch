@@ -133,7 +133,13 @@ export function App({
       return;
     }
     if (input === '?') {
-      setViewIndex(views.findIndex((candidate) => candidate.key === 'help'));
+      const helpViewIndex = views.findIndex((candidate) => candidate.key === 'help');
+      const helpView = views[helpViewIndex];
+      if (helpView) {
+        viewRef.current = helpView;
+        rowsRef.current = [];
+      }
+      setViewIndex(helpViewIndex);
       setDetails(false);
       setRowIndex(0);
       return;
