@@ -343,10 +343,16 @@ describe('desktop renderer shell', () => {
     render(<App />);
 
     const filters = await screen.findByLabelText('UTC date filters');
-    fireEvent.change(within(filters).getByLabelText('From date UTC'), {
+    const fromDate = within(filters).getByLabelText<HTMLInputElement>('From date UTC');
+    const toDate = within(filters).getByLabelText<HTMLInputElement>('To date UTC');
+    await waitFor(() => {
+      expect(fromDate.value).toBe('');
+      expect(toDate.value).toBe('');
+    });
+    fireEvent.change(fromDate, {
       target: { value: '2026-05-01' }
     });
-    fireEvent.change(within(filters).getByLabelText('To date UTC'), {
+    fireEvent.change(toDate, {
       target: { value: '2026-05-01' }
     });
     fireEvent.click(within(filters).getByRole('button', { name: 'Apply UTC date filter' }));
