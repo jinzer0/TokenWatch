@@ -28,32 +28,33 @@ import {
   type ParserMetadata,
   type ParserName,
   type RegisteredParser,
+  type TokenAccountingMode,
   type UsageParser
 } from './base.js';
 
 const parserMetadata = {
-  opencode: real('OpenCode'),
-  claude: real('Claude Code'),
-  codex: real('Codex CLI'),
+  opencode: real('OpenCode', 'direct'),
+  claude: real('Claude Code', 'direct'),
+  codex: real('Codex CLI', 'direct'),
   cursor: unsupported('Cursor'),
-  gemini: real('Gemini CLI'),
-  amp: real('Amp'),
-  droid: real('Droid'),
-  openclaw: real('OpenClaw'),
-  pi: real('Pi'),
-  kimi: real('Kimi'),
-  qwen: real('Qwen'),
-  roocode: real('RooCode'),
-  kilocode: real('KiloCode'),
-  mux: real('Mux'),
-  kilo: real('Kilo'),
+  gemini: real('Gemini CLI', 'direct'),
+  amp: real('Amp', 'mixed'),
+  droid: real('Droid', 'aggregate'),
+  openclaw: real('OpenClaw', 'direct'),
+  pi: real('Pi', 'direct'),
+  kimi: real('Kimi', 'direct'),
+  qwen: real('Qwen', 'direct'),
+  roocode: real('RooCode', 'direct'),
+  kilocode: real('KiloCode', 'direct'),
+  mux: real('Mux', 'aggregate'),
+  kilo: real('Kilo', 'direct'),
   crush: unsupported('Crush'),
-  hermes: real('Hermes'),
-  copilot: real('GitHub Copilot'),
-  goose: real('Goose'),
-  codebuff: real('Codebuff'),
+  hermes: real('Hermes', 'aggregate'),
+  copilot: real('GitHub Copilot', 'telemetry'),
+  goose: real('Goose', 'aggregate'),
+  codebuff: real('Codebuff', 'direct'),
   antigravity: unsupported('Antigravity'),
-  zed: real('Zed'),
+  zed: real('Zed', 'direct'),
   kiro: unsupported('Kiro'),
   trae: unsupported('Trae')
 } as const satisfies Record<ParserName, ParserMetadata>;
@@ -109,11 +110,12 @@ export function isParserName(value: string): value is ParserName {
   return parserNames.includes(value as ParserName);
 }
 
-function real(displayName: string): ParserMetadata {
+function real(displayName: string, accountingMode: TokenAccountingMode): ParserMetadata {
   return {
     displayName,
     defaultEnabled: true,
     supportStatus: 'real_parser',
+    accountingMode,
     contractEvidence: 'task-1-client-contract-matrix'
   };
 }
@@ -123,6 +125,7 @@ function unsupported(displayName: string): ParserMetadata {
     displayName,
     defaultEnabled: false,
     supportStatus: 'unsupported_status_parser',
+    accountingMode: 'unsupported',
     contractEvidence: 'task-1-client-contract-matrix'
   };
 }

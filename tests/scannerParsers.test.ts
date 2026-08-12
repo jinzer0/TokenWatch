@@ -6,7 +6,7 @@ import { PRICING_VERSION } from '../src/app/constants.js';
 import { main } from '../src/cli.js';
 import { openDatabase, type TokenWatchDb } from '../src/db/client.js';
 import { sourceSchema } from '../src/models/usageEvent.js';
-import { parserNames, type ParserName } from '../src/parsers/base.js';
+import { parserNames, type ParserName, type TokenAccountingMode } from '../src/parsers/base.js';
 import { isParserName, listParserMetadata, listParsers } from '../src/parsers/registry.js';
 import { createServices } from '../src/services/container.js';
 import { sha256 } from '../src/utils/hash.js';
@@ -60,6 +60,75 @@ describe('scanner and parser fixtures', () => {
     expect(listParserMetadata().every((parser) => parser.contractEvidence.length > 0)).toBe(true);
     expect(isParserName('unsupported')).toBe(false);
     expect(sourceSchema.safeParse('unsupported').success).toBe(false);
+  });
+
+  it('publishes the source-grounded accounting mode for every parser', () => {
+    const expectedAccountingModes = {
+      opencode: 'direct',
+      claude: 'direct',
+      codex: 'direct',
+      cursor: 'unsupported',
+      gemini: 'direct',
+      amp: 'mixed',
+      droid: 'aggregate',
+      openclaw: 'direct',
+      pi: 'direct',
+      kimi: 'direct',
+      qwen: 'direct',
+      roocode: 'direct',
+      kilocode: 'direct',
+      mux: 'aggregate',
+      kilo: 'direct',
+      crush: 'unsupported',
+      hermes: 'aggregate',
+      copilot: 'telemetry',
+      goose: 'aggregate',
+      codebuff: 'direct',
+      antigravity: 'unsupported',
+      zed: 'direct',
+      kiro: 'unsupported',
+      trae: 'unsupported'
+    } as const satisfies Record<ParserName, TokenAccountingMode>;
+
+    const parserMetadata = listParserMetadata();
+
+    expect(parserMetadata).toHaveLength(24);
+    expect(
+      Object.fromEntries(parserMetadata.map((parser) => [parser.name, parser.accountingMode]))
+    ).toEqual(expectedAccountingModes);
+  });
+
+  it('limits parser accounting modes to the declared vocabulary', () => {
+    const accountingModes = [
+      'direct',
+      'delta',
+      'aggregate',
+      'mixed',
+      'telemetry',
+      'unsupported'
+    ] as const satisfies readonly TokenAccountingMode[];
+
+    expect(
+      listParserMetadata().every((parser) => accountingModes.includes(parser.accountingMode))
+    ).toBe(true);
+  });
+
+  it('marks every status-only parser as unsupported accounting', () => {
+    const statusOnlyParsers = ['cursor', 'crush', 'antigravity', 'kiro', 'trae'] as const;
+
+    expect(
+      listParserMetadata()
+        .filter((parser) => parser.supportStatus === 'unsupported_status_parser')
+        .map((parser) => [parser.name, parser.accountingMode])
+    ).toEqual(statusOnlyParsers.map((parserName) => [parserName, 'unsupported']));
+  });
+
+  it('keeps real parsers out of unsupported accounting mode', () => {
+    expect(
+      listParserMetadata()
+        .filter((parser) => parser.supportStatus === 'real_parser')
+        .every((parser) => parser.accountingMode !== 'unsupported')
+    ).toBe(true);
   });
 
   it('limits default scans to real current parsers and excludes status-only parsers', () => {

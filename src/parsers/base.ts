@@ -31,6 +31,13 @@ export const parserNames = [
 
 export type ParserName = (typeof parserNames)[number];
 export type ParserSupportStatus = 'real_parser' | 'unsupported_status_parser';
+export type TokenAccountingMode =
+  | 'direct'
+  | 'delta'
+  | 'aggregate'
+  | 'mixed'
+  | 'telemetry'
+  | 'unsupported';
 export type DiscoveredKind = 'json' | 'jsonl' | 'sqlite' | 'directory' | 'unknown';
 
 export type DiscoveredFile = {
@@ -64,6 +71,7 @@ export type ParserMetadata = {
   displayName: string;
   defaultEnabled: boolean;
   supportStatus: ParserSupportStatus;
+  readonly accountingMode: TokenAccountingMode;
   contractEvidence: string;
 };
 
