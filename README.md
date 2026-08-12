@@ -18,6 +18,7 @@ TokenWatch는 프롬프트, 응답, API 키, OAuth 토큰, 자격 증명, 원본
 - custom/LiteLLM/OpenRouter 가격 메타데이터, 항상 켜진 가격 lookup, 지속 캐시, fallback warning
 - `budget status`, polling 기반 `watch`, JSON/text/SVG 파일 출력을 지원하는 `heatmap`
 - native SQLite, DB, 마이그레이션 상태를 점검하는 privacy-safe `doctor`
+- pricing, session, source contract, scan coverage를 점검하는 privacy-safe `audit`
 
 ## 요구 사항
 
@@ -128,6 +129,11 @@ tokenwatch graph --bucket month --metric cost --json
 tokenwatch graph --out usage-graph.png
 tokenwatch wrapped --year 2026
 tokenwatch wrapped --year 2026 --out wrapped.png
+tokenwatch audit
+tokenwatch audit --json
+tokenwatch audit --window 30d
+tokenwatch audit --source codex
+tokenwatch audit --source codex --source opencode --source-name local --source-name lab-server
 tokenwatch doctor --sources
 tokenwatch usage --provider openai --json
 tokenwatch usage --provider anthropic --json
@@ -156,36 +162,36 @@ tokenwatch reset --yes
 
 ## 소스와 라벨
 
-`source`는 parser/adapter 종류입니다. 현재 CLI는 Tokscale parity 기준 24개 source key를 받습니다.
+`source`는 parser/adapter 종류입니다. Registry와 audit source contract는 Tokscale parity 기준 24개 key를 다룹니다. Scan과 기본 source 동작은 아래 real/status 지원 상태에 따라 달라지며, 모든 source-taking command가 동일한 acceptance 또는 scan behavior를 갖는다는 뜻은 아닙니다.
 
-지원 상태는 source별로 다릅니다.
+지원 상태와 accounting mode는 source별로 다릅니다. Accounting mode는 token count를 어떤 provenance에서 읽는지 설명합니다. 실제 provider 청구 금액을 검증한다는 뜻은 아닙니다.
 
-| source        | status        | 설명                                                                                                                              |
-| ------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `opencode`    | real parser   | OpenCode JSON message file과 SQLite message artifact에서 assistant usage metadata를 변환합니다.                                   |
-| `claude`      | real parser   | Claude Code JSONL transcript에서 사용량이 있는 assistant record만 변환합니다.                                                     |
-| `codex`       | real parser   | Codex JSONL session event stream에서 누적 token usage delta를 변환합니다.                                                         |
-| `cursor`      | status parser | 안정적인 native local token usage artifact가 확인될 때까지 zero events와 `unsupported_usage_artifact` warning만 반환합니다.       |
-| `gemini`      | real parser   | Gemini CLI JSON/JSONL session artifact에서 token usage metadata를 변환합니다.                                                     |
-| `amp`         | real parser   | Amp thread JSON의 usage ledger와 assistant usage metadata를 변환합니다.                                                           |
-| `droid`       | real parser   | Droid/Factory settings sidecar의 aggregate token usage를 변환합니다.                                                              |
-| `openclaw`    | real parser   | OpenClaw transcript/index artifact에서 assistant usage metadata를 변환합니다.                                                     |
-| `pi`          | real parser   | Pi JSONL session header와 assistant usage entries를 변환합니다.                                                                   |
-| `kimi`        | real parser   | Kimi wire JSONL StatusUpdate token usage를 변환합니다.                                                                            |
-| `qwen`        | real parser   | Qwen CLI JSONL chat usage metadata를 변환합니다.                                                                                  |
-| `roocode`     | real parser   | Roo Code VS Code task log의 API usage payload를 변환합니다.                                                                       |
-| `kilocode`    | real parser   | KiloCode VS Code task log의 API usage payload를 변환합니다.                                                                       |
-| `mux`         | real parser   | Mux session usage aggregate by model을 변환합니다.                                                                                |
-| `kilo`        | real parser   | Kilo SQLite message artifact의 assistant token usage를 변환합니다.                                                                |
-| `crush`       | status parser | token accounting contract가 안정적이지 않아 zero events와 `unsupported_usage_artifact` warning만 반환합니다.                      |
-| `hermes`      | real parser   | Hermes SQLite session aggregate usage를 변환합니다.                                                                               |
-| `copilot`     | real parser   | GitHub Copilot OpenTelemetry usage attributes만 allowlist로 변환합니다.                                                           |
-| `goose`       | real parser   | Goose SQLite session aggregate usage를 변환합니다.                                                                                |
-| `codebuff`    | real parser   | Codebuff/Manicode chat message usage metadata를 변환합니다.                                                                       |
-| `antigravity` | status parser | native artifact가 아니라 외부 cache contract만 확인되어 zero events와 `unsupported_usage_artifact` warning만 반환합니다.          |
-| `zed`         | real parser   | Zed hosted thread usage metadata를 변환합니다.                                                                                    |
-| `kiro`        | status parser | 현재 확인된 artifact가 실제 nonzero token counts를 제공하지 않아 zero events와 `unsupported_usage_artifact` warning만 반환합니다. |
-| `trae`        | status parser | native artifact가 아니라 API cache contract만 확인되어 zero events와 `unsupported_usage_artifact` warning만 반환합니다.           |
+| source        | status        | accounting mode | 설명                                                                                                                              |
+| ------------- | ------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `opencode`    | real parser   | direct          | OpenCode JSON message file과 SQLite message artifact에서 assistant usage metadata를 변환합니다.                                   |
+| `claude`      | real parser   | direct          | Claude Code JSONL transcript에서 사용량이 있는 assistant record만 변환합니다.                                                     |
+| `codex`       | real parser   | direct          | Codex JSON/JSONL session event stream에서 token usage field를 직접 변환합니다.                                                    |
+| `cursor`      | status parser | unsupported     | 안정적인 native local token usage artifact가 확인될 때까지 zero events와 `unsupported_usage_artifact` warning만 반환합니다.       |
+| `gemini`      | real parser   | direct          | Gemini CLI JSON/JSONL session artifact에서 token usage metadata를 변환합니다.                                                     |
+| `amp`         | real parser   | mixed           | Amp thread JSON의 usage ledger와 assistant usage metadata를 변환합니다.                                                           |
+| `droid`       | real parser   | aggregate       | Droid/Factory settings sidecar의 aggregate token usage를 변환합니다.                                                              |
+| `openclaw`    | real parser   | direct          | OpenClaw transcript/index artifact에서 assistant usage metadata를 변환합니다.                                                     |
+| `pi`          | real parser   | direct          | Pi JSONL session header와 assistant usage entries를 변환합니다.                                                                   |
+| `kimi`        | real parser   | direct          | Kimi wire JSONL StatusUpdate token usage를 변환합니다.                                                                            |
+| `qwen`        | real parser   | direct          | Qwen CLI JSONL chat usage metadata를 변환합니다.                                                                                  |
+| `roocode`     | real parser   | direct          | Roo Code VS Code task log의 API usage payload를 변환합니다.                                                                       |
+| `kilocode`    | real parser   | direct          | KiloCode VS Code task log의 API usage payload를 변환합니다.                                                                       |
+| `mux`         | real parser   | aggregate       | Mux session usage aggregate by model을 변환합니다.                                                                                |
+| `kilo`        | real parser   | direct          | Kilo SQLite message artifact의 assistant token usage를 변환합니다.                                                                |
+| `crush`       | status parser | unsupported     | token accounting contract가 안정적이지 않아 zero events와 `unsupported_usage_artifact` warning만 반환합니다.                      |
+| `hermes`      | real parser   | aggregate       | Hermes SQLite session aggregate usage를 변환합니다.                                                                               |
+| `copilot`     | real parser   | telemetry       | GitHub Copilot OpenTelemetry usage attributes만 allowlist로 변환합니다.                                                           |
+| `goose`       | real parser   | aggregate       | Goose SQLite session aggregate usage를 변환합니다.                                                                                |
+| `codebuff`    | real parser   | direct          | Codebuff/Manicode chat message usage metadata를 변환합니다.                                                                       |
+| `antigravity` | status parser | unsupported     | native artifact가 아니라 외부 cache contract만 확인되어 zero events와 `unsupported_usage_artifact` warning만 반환합니다.          |
+| `zed`         | real parser   | direct          | Zed hosted thread usage metadata를 변환합니다.                                                                                    |
+| `kiro`        | status parser | unsupported     | 현재 확인된 artifact가 실제 nonzero token counts를 제공하지 않아 zero events와 `unsupported_usage_artifact` warning만 반환합니다. |
+| `trae`        | status parser | unsupported     | native artifact가 아니라 API cache contract만 확인되어 zero events와 `unsupported_usage_artifact` warning만 반환합니다.           |
 
 Real parser도 프롬프트, 응답, credentials, 원본 경로, 원본 session ID, 원본 레코드를 서비스나 DB 경계로 넘기지 않습니다. Status parser는 명시적 safe path를 받을 수 있지만 지원되지 않는 artifact임을 알리고 usage event를 만들지 않습니다.
 
@@ -249,6 +255,11 @@ tokenwatch heatmap --year 2026 --metric cost --source codex --source opencode --
 tokenwatch heatmap --source-name local --source-name lab-server --out heatmap.json
 tokenwatch wrapped --year 2026 --json
 tokenwatch wrapped --year 2026 --out wrapped.png
+tokenwatch audit
+tokenwatch audit --json
+tokenwatch audit --window 30d
+tokenwatch audit --source codex
+tokenwatch audit --source codex --source opencode --source-name local --source-name lab-server
 tokenwatch doctor --sources
 tokenwatch usage --provider openai --json
 tokenwatch usage --provider anthropic --json
@@ -271,6 +282,12 @@ Metric caveats도 리포트 해석에 포함하세요. Rework는 실패, prompt,
 `wrapped` JSON은 `kind: "wrapped"`, `year`, `totals`, `highlights`, `topModels`, `topAgents`, `topSources`, `topSourceNames`, `monthly`, `sessionMetrics`, `unknownCostEvents`, `privacy`를 포함합니다. 월별 배열과 top-level ranking 배열은 모두 sanitized aggregate row만 담고, session 지표는 hash 기반 session metadata로 계산합니다.
 
 `graph --out`과 `wrapped --out`의 PNG는 로컬에서 검증된 JSON report object를 렌더링한 결과입니다. PNG에는 원본 레코드, 원본 경로, raw provider response, 프롬프트, 응답, 자격 증명이 들어가지 않습니다.
+
+`audit`은 billing verification이 아니라 provenance와 coverage 진단입니다. 기본 window는 rolling UTC 7일이고 범위는 `(from,to]`입니다. `--window`는 `7d` 또는 `30d`만 받습니다. `--source`와 `--source-name`은 반복해서 지정할 수 있습니다. 같은 dimension 안에서는 OR, 다른 dimension끼리는 AND로 적용되며, JSON report는 선택된 값을 `filters.source`와 `filters.sourceName` 배열로 보여줍니다. `--json`은 strict `version: 1`, `kind: "audit"` aggregate JSON을 stdout에 출력합니다.
+
+Audit report는 parser registry, `usage_events`, `scan_runs`만 읽습니다. Source contract section은 24개 source의 support status와 accounting mode를 보여줍니다. Pricing coverage는 known/unknown price event와 token 비율, pricing source, confidence 분포를 보여줍니다. 비용은 local planning용 추정치이며 provider invoice, quota, rate-limit, 실제 청구 검증이 아닙니다. 가격을 알 수 없는 이벤트는 `unknown` 또는 `null`로 남고, `$0.00`, free, zero로 바꾸지 않습니다. Session coverage는 `sessionIdHash`가 있는 이벤트 수와 없는 이벤트 수만 집계합니다. Hash 목록이나 원본 session ID 목록은 출력하지 않습니다. Scan health는 `scan_runs`의 sanitized aggregate counters와 warning code distribution만 보여줍니다. Scan health window는 scan `startedAt`에 고정되며, `finishedAt`은 검증하지만 scope를 선택하지 않습니다.
+
+Audit 출력도 strict sanitized report boundary를 따릅니다. 프롬프트, 응답, credentials, 원본 경로, 원본 session ID, 원본 레코드, SQL payload, stack trace, 임의 메타데이터 덤프는 포함하지 않습니다.
 
 `insights`와 `trend` report는 이 릴리스에서 JSON과 Markdown export만 지원합니다. PNG export는 `graph`와 `wrapped` report에만 지원됩니다. Heatmap PNG는 지원하지 않으며, `heatmap`은 JSON, text, SVG만 지원합니다. CLI heatmap JSON, text, SVG 파일, stdout 출력, TUI Activity Heatmap current-view export에는 프롬프트, 응답, 자격 증명, 원본 경로, 원본 session ID, 원본 레코드, SQL payload, stack trace, 임의 메타데이터 덤프를 넣지 않습니다.
 
@@ -397,6 +414,7 @@ Session interval 지표는 `(source, sessionIdHash)` 기준으로 묶이며 acti
 - TUI Overview sparkline
 - Insights/trend PNG export
 - Heatmap PNG export support is not included
+- Audit billing verification 또는 provider invoice reconciliation
 
 ## 개발
 
