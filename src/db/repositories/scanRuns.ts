@@ -90,6 +90,13 @@ export class ScanRunsRepository {
     return rows.map(mapRow);
   }
 
+  listAll(): ScanRun[] {
+    const rows = this.db
+      .prepare('SELECT * FROM scan_runs ORDER BY started_at ASC, id ASC')
+      .all() as ScanRunRow[];
+    return rows.map(mapRow);
+  }
+
   count(): number {
     return (this.db.prepare('SELECT COUNT(*) AS count FROM scan_runs').get() as { count: number })
       .count;

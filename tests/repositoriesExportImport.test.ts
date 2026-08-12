@@ -5,9 +5,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { openDatabase, type TokenWatchDb } from '../src/db/client.js';
 import { ConfigRepository } from '../src/db/repositories/config.js';
 import { BudgetThresholdsRepository } from '../src/db/repositories/budgetThresholds.js';
+import { ScanRunsRepository } from '../src/db/repositories/scanRuns.js';
 import { UsageEventsRepository } from '../src/db/repositories/usageEvents.js';
 import { PricingModelsRepository } from '../src/db/repositories/pricingModels.js';
 import { SCHEMA_VERSION } from '../src/db/schema.js';
+import type { ScanRun } from '../src/models/scanRun.js';
 import { ExporterService } from '../src/services/exporter.js';
 import { ImporterService } from '../src/services/importer.js';
 import { containsPrivacySentinel, createTempDb, createTestEvent } from './helpers.js';
@@ -513,6 +515,81 @@ describe('repositories and import/export', () => {
     expect(row?.path_kind).toBe('default');
     expect(row?.parser_name).toBe('opencode');
     expect(new ConfigRepository(db).get('schemaVersion')).toBe(String(SCHEMA_VERSION));
+  });
+
+  it('lists persisted scan runs by started time then id with normalized safe fields', () => {
+    const temp = createTempDb();
+    cleanup = temp.cleanup;
+    db = openDatabase(temp.dbPath);
+    const scanRuns = new ScanRunsRepository(db);
+    const laterRun: ScanRun = {
+      id: 'run-c',
+      startedAt: '2026-06-03T02:00:00.000Z',
+      finishedAt: null,
+      sourceName: 'lab-b',
+      parserName: null,
+      pathKind: 'custom',
+      status: 'running',
+      discoveredFiles: 31,
+      parsedEvents: 29,
+      insertedEvents: 23,
+      duplicateEvents: 3,
+      conflictEvents: 2,
+      skippedRecords: 5,
+      rejectedRecords: 7,
+      errorRecords: 11,
+      warningCodes: ['malformed_json', 'sqlite_schema_unrecognized'],
+      errorCode: 'scan_failed'
+    };
+    const tiedLaterIdRun: ScanRun = {
+      id: 'run-b',
+      startedAt: '2026-06-02T01:00:00.000Z',
+      finishedAt: '2026-06-02T01:02:00.000Z',
+      sourceName: 'lab-a',
+      parserName: 'codex',
+      pathKind: 'default',
+      status: 'completed',
+      discoveredFiles: 13,
+      parsedEvents: 12,
+      insertedEvents: 10,
+      duplicateEvents: 1,
+      conflictEvents: 0,
+      skippedRecords: 2,
+      rejectedRecords: 3,
+      errorRecords: 4,
+      warningCodes: ['malformed_jsonl_records', 'sqlite_missing_columns'],
+      errorCode: null
+    };
+    const tiedEarlierIdRun: ScanRun = {
+      id: 'run-a',
+      startedAt: '2026-06-02T01:00:00.000Z',
+      finishedAt: '2026-06-02T01:01:00.000Z',
+      sourceName: 'lab-a',
+      parserName: 'claude',
+      pathKind: 'unknown',
+      status: 'failed',
+      discoveredFiles: 21,
+      parsedEvents: 20,
+      insertedEvents: 14,
+      duplicateEvents: 2,
+      conflictEvents: 1,
+      skippedRecords: 6,
+      rejectedRecords: 8,
+      errorRecords: 9,
+      warningCodes: ['unsupported_artifact', 'parser_warning'],
+      errorCode: 'parser_failed'
+    };
+
+    // Given: persisted scan runs are inserted out of chronological and tie-break order.
+    scanRuns.create(laterRun);
+    scanRuns.create(tiedLaterIdRun);
+    scanRuns.create(tiedEarlierIdRun);
+
+    // When: all scan runs are read through the repository boundary.
+    const runs = scanRuns.listAll();
+
+    // Then: ordered typed rows preserve counters and normalized safe warning codes.
+    expect(runs).toEqual([tiedEarlierIdRun, tiedLaterIdRun, laterRun]);
   });
 
   it('rejects future schema versions before migration', () => {
