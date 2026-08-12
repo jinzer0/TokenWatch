@@ -10,6 +10,7 @@ import { containsUnsafeOutputPathShape } from './privacy.js';
 import { HeatmapService, type HeatmapMetric } from './services/heatmapService.js';
 import { renderHeatmapSvg } from './services/heatmapSvgRenderer.js';
 import { renderHeatmapText } from './services/heatmapTextRenderer.js';
+import { renderAuditText } from './services/auditRenderer.js';
 import { probeProviderUsage } from './services/providerUsage.js';
 import { writeReportPng } from './services/pngRenderer.js';
 import {
@@ -51,7 +52,7 @@ import type {
   ExternalPricingSource
 } from './db/repositories/pricingModels.js';
 import type { ParserName } from './parsers/base.js';
-import { isParserName, parserSourceHelp } from './parsers/registry.js';
+import { isParserName, listParserMetadata, parserSourceHelp } from './parsers/registry.js';
 import { validateSourceName } from './privacy.js';
 import type { UsageEvent } from './models/usageEvent.js';
 import type { BudgetScopeKind, BudgetThreshold } from './db/repositories/budgetThresholds.js';
@@ -81,6 +82,12 @@ type HeatmapCliOptions = {
   readonly out?: string;
   readonly year?: string;
   readonly metric?: string;
+  readonly source?: readonly string[];
+  readonly sourceName?: readonly string[];
+};
+type AuditCliOptions = {
+  readonly json?: boolean;
+  readonly window?: string;
   readonly source?: readonly string[];
   readonly sourceName?: readonly string[];
 };
@@ -146,6 +153,22 @@ export async function main(argv = process.argv): Promise<void> {
     .option('--source-name <name>', 'filter by sourceName label', collectRepeatedOption, [])
     .action(async (options: HeatmapCliOptions) => {
       await runHeatmapCommand(options);
+    });
+
+  program
+    .command('audit')
+    .description('Audit local usage coverage and source contracts')
+    .option('--json', 'output JSON')
+    .option('--window <window>', 'audit window: 7d or 30d', '7d')
+    .option(
+      '--source <source>',
+      `filter by source adapter: ${parserSourceHelp}`,
+      collectRepeatedOption,
+      []
+    )
+    .option('--source-name <label>', 'filter by sourceName label', collectRepeatedOption, [])
+    .action(async (options: AuditCliOptions) => {
+      await runAuditCommand(options);
     });
 
   program
@@ -696,6 +719,49 @@ async function runHeatmapCommand(options: HeatmapCliOptions): Promise<void> {
   }
   writeHeatmapOutputFile(plan, report);
   console.log(`Wrote heatmap ${heatmapFormatLabel(plan.format)}: ${basename(plan.outputPath)}`);
+}
+
+async function runAuditCommand(options: AuditCliOptions): Promise<void> {
+  const window = parseAuditWindow(options.window);
+  const source = deduplicateAuditSources(options.source ?? []);
+  const sourceName = deduplicateAuditSourceNames(options.sourceName ?? []);
+  const [{ openDatabase }, { createServices }] = await Promise.all([
+    import('./db/client.js'),
+    import('./services/container.js')
+  ]);
+  const db = openDatabase();
+  try {
+    const services = createServices(db);
+    const report = services.audit.build({
+      events: services.usageEvents.listAll(),
+      scanRuns: services.scanRuns.listAll(),
+      parsers: listParserMetadata(),
+      options: { window, source, sourceName }
+    });
+    if (options.json) {
+      console.log(JSON.stringify(report, null, 2));
+      return;
+    }
+    console.log(renderAuditText(report));
+  } finally {
+    db.close();
+  }
+}
+
+function parseAuditWindow(value: string | undefined): '7d' | '30d' {
+  if (value === undefined || value === '7d') return '7d';
+  if (value === '30d') return '30d';
+  throw new TokenWatchError('invalid_report_option', 1, 'invalid_report_option');
+}
+
+function deduplicateAuditSources(values: readonly string[]): ParserName[] {
+  return [...new Set(parseWatchSources(values))];
+}
+
+function deduplicateAuditSourceNames(values: readonly string[]): string[] {
+  return [...new Set(parseWatchSourceNames(values))].sort((left, right) =>
+    left.localeCompare(right)
+  );
 }
 
 function planHeatmapOutput(options: HeatmapCliOptions): HeatmapOutputPlan {

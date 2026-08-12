@@ -7,10 +7,15 @@ import { describe, expect, it } from 'vitest';
 import { openDatabase } from '../src/db/client.js';
 import { schemaSql } from '../src/db/schema.js';
 import { ConfigRepository } from '../src/db/repositories/config.js';
+import { ScanRunsRepository } from '../src/db/repositories/scanRuns.js';
 import { UsageEventsRepository } from '../src/db/repositories/usageEvents.js';
 import { ConfigService } from '../src/services/configService.js';
 import { PricingModelsRepository } from '../src/db/repositories/pricingModels.js';
-import { heatmapReportSchema, watchTickReportSchema } from '../src/services/reportContracts.js';
+import {
+  auditReportSchema,
+  heatmapReportSchema,
+  watchTickReportSchema
+} from '../src/services/reportContracts.js';
 import { containsPrivacySentinel, createTempDb, createTestEvent } from './helpers.js';
 import { assertCliOutputPrivacy, assertJsonOutputPrivacy } from './privacyOutput.js';
 
@@ -209,6 +214,125 @@ describe('CLI process error boundary', () => {
       assertCliOutputPrivacy(result);
     } finally {
       if (db.open) db.close();
+      temp.cleanup();
+    }
+  });
+
+  it('runs audit text, windows, and filtered JSON through the process boundary', () => {
+    const temp = createTempDb();
+    const db = openDatabase(temp.dbPath);
+    const timestamp = new Date().toISOString();
+    try {
+      new UsageEventsRepository(db).insertMany([
+        createTestEvent({
+          id: 'audit-process-codex-row',
+          timestamp,
+          source: 'codex',
+          sourceName: 'local',
+          pricingSource: 'bundled',
+          pricingConfidence: 'exact',
+          metadata: { rawPath: 'RAW_PATH_SENTINEL_DO_NOT_LEAK' }
+        }),
+        {
+          ...createTestEvent({
+            id: 'audit-process-opencode-row',
+            timestamp,
+            source: 'opencode',
+            sourceName: 'lab-server',
+            pricingSource: 'unknown',
+            pricingConfidence: 'unknown',
+            sessionIdHash: null
+          }),
+          estimatedCostUsd: null
+        }
+      ]);
+      new ScanRunsRepository(db).create({
+        id: 'audit-process-run',
+        startedAt: timestamp,
+        finishedAt: timestamp,
+        sourceName: 'local',
+        parserName: 'codex',
+        pathKind: 'default',
+        status: 'completed',
+        discoveredFiles: 1,
+        parsedEvents: 1,
+        insertedEvents: 1,
+        duplicateEvents: 0,
+        conflictEvents: 0,
+        skippedRecords: 0,
+        rejectedRecords: 0,
+        errorRecords: 0,
+        warningCodes: [],
+        errorCode: null
+      });
+      db.close();
+
+      const text = runCli(['audit'], temp.dbPath);
+      const defaultJson = runCli(['audit', '--json'], temp.dbPath);
+      const sevenDays = runCli(['audit', '--window', '7d', '--json'], temp.dbPath);
+      const thirtyDays = runCli(['audit', '--window', '30d', '--json'], temp.dbPath);
+      const codex = runCli(['audit', '--source', 'codex', '--json'], temp.dbPath);
+      const reports = [defaultJson, sevenDays, thirtyDays, codex].map((result) =>
+        auditReportSchema.parse(JSON.parse(result.stdout))
+      );
+
+      expect(text).toMatchObject({ status: 0, stderr: '' });
+      expect(text.stdout).toContain('TokenWatch Audit');
+      expect(text.stdout).toContain('source bundled');
+      expect(text.stdout).toContain('source unknown');
+      expect(text.stdout).toContain('confidence exact');
+      expect(text.stdout).toContain('confidence unknown');
+      expect(text.stdout).toContain('Codex CLI | codex');
+      expect(text.stdout).toContain('discovered files 1');
+      expect(text.stdout).toContain('error records 0');
+      expect(reports.map((report) => report.window)).toEqual(['7d', '7d', '30d', '7d']);
+      expect(reports[3]).toMatchObject({
+        filters: { source: ['codex'], sourceName: [] },
+        totals: { events: 1 },
+        sourceContracts: [expect.objectContaining({ source: 'codex' })]
+      });
+      for (const [result, report] of [
+        [defaultJson, reports[0]],
+        [sevenDays, reports[1]],
+        [thirtyDays, reports[2]],
+        [codex, reports[3]]
+      ] as const) {
+        expect(result).toMatchObject({ status: 0, stderr: '' });
+        expect(result.stdout.trimStart()).toMatch(/^\{/);
+        expect(result.stdout.trimEnd()).toMatch(/\}$/);
+        assertJsonOutputPrivacy(report);
+        assertCliOutputPrivacy(result);
+      }
+      assertCliOutputPrivacy(text);
+    } finally {
+      if (db.open) db.close();
+      temp.cleanup();
+    }
+  });
+
+  it('sanitizes malformed audit options across the process boundary', () => {
+    const temp = createTempDb();
+    try {
+      const cases = [
+        { args: ['audit', '--window', '90d'], error: 'invalid_report_option' },
+        {
+          args: ['audit', '--source', 'RAW_PATH_SENTINEL_DO_NOT_LEAK'],
+          error: 'unsupported_source'
+        },
+        {
+          args: ['audit', '--source-name', 'RAW_PATH_SENTINEL_DO_NOT_LEAK'],
+          error: 'invalid_source_name'
+        }
+      ];
+
+      for (const testCase of cases) {
+        const result = runCli(testCase.args, temp.dbPath);
+        expect(result.status).toBe(1);
+        expect(result.stdout).toBe('');
+        expect(result.stderr).toBe(`error: ${testCase.error}\n`);
+        assertCliOutputPrivacy(result);
+      }
+    } finally {
       temp.cleanup();
     }
   });
