@@ -138,6 +138,7 @@ describe('desktop dashboard insights and trends DTO', () => {
   });
 
   it('uses strict unknown-cost semantics for dashboard and card aggregates', () => {
+    vi.setSystemTime(new Date('2026-07-10T00:00:00.000Z'));
     const { usageEvents, service } = createDashboardService();
     usageEvents.insertMany([
       createTestEvent({
