@@ -15,7 +15,7 @@ export type SourceType = z.infer<typeof sourceSchema>;
 
 const nonNegativeInteger = z.number().int().nonnegative();
 
-const pricingLabelSchema = z
+export const pricingLabelSchema = z
   .string()
   .transform((value, ctx) => {
     const trimmed = value.trim().toLowerCase();

@@ -7,6 +7,7 @@ import {
 } from '../privacy.js';
 import { parserNames } from '../parsers/base.js';
 import { validateExplicitProjectLabel } from '../projectLabel.js';
+export { auditReportSchema, type AuditReport } from './auditContracts.js';
 export {
   budgetStatusReportSchema,
   heatmapReportSchema,

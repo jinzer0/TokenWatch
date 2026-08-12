@@ -45,7 +45,7 @@ export function assertSafeOutputText(value: string): void {
   if (isUnsafeOutputLabel(value)) throw new Error('invalid_report_option');
 }
 
-function validateSafeReportJson(
+export function validateSafeReportJson(
   value: unknown,
   ctx: z.RefinementCtx,
   path: (string | number)[] = []
