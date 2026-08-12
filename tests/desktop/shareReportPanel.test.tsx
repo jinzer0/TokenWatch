@@ -219,8 +219,8 @@ describe('desktop share report panel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Export local Markdown' }));
 
-    const status = await screen.findByLabelText('Local export status');
-    expect(textOf(status)).toContain('Export failed');
+    const status = screen.getByLabelText('Local export status');
+    await waitFor(() => expect(textOf(status)).toContain('Export failed'));
     expect(textOf(status)).toContain('error: desktop_ipc_failed');
     expect(textOf(status)).not.toContain(unsafePath);
     expect(textOf(status)).not.toContain(unsafeSql);
