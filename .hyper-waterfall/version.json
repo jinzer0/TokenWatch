@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "0.1.0",
+  "frameworkVersion": "0.3.0",
+  "source": "github-release",
+  "releaseTag": "v0.3.0",
+  "releaseCommit": "83836828a4da24385d0410515d35ee43946b981f",
+  "sourceRepository": "postmelee/hyper-waterfall",
+  "sourceCommit": "349fa70ffe3033abe983cf8de45ab418229277d6",
+  "locale": "en",
+  "installedAt": "2026-08-20T07:00:44.000Z",
+  "updatedAt": "2026-08-20T07:00:44.000Z"
+}
