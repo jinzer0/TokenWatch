@@ -89,3 +89,105 @@ Co-authored-by: Sisyphus <clio-agent@sisyphuslabs.ai>
 - When behavior touches the CLI, TUI, import, export, scan, doctor, or database paths, perform a real smoke check with `TOKENWATCH_DB_PATH=/tmp/...`.
 - When behavior touches desktop app launch, IPC, DB lifecycle, renderer privacy, or packaging, perform a real desktop smoke check with `TOKENWATCH_DB_PATH=/tmp/...` and verify captured logs do not contain preload, native-module, or privacy leaks.
 - Treat Node version changes and native dependency rebuilds as untrusted until checks and a smoke test pass.
+
+## Hyper-Waterfall Workflow
+
+This repository applies the Hyper-Waterfall workflow to preserve task context, human decision gates, verification evidence, and resumable project memory.
+
+### Integration Precedence and Adoption Boundary
+
+- The TokenWatch root `AGENTS.md` and the nearest applicable child `AGENTS.md` override incompatible Hyper-Waterfall guidance, including privacy, generated-path, native-module, isolated-database, and verification rules.
+- Do not create commits unless the user explicitly asks. This initial workflow adoption is not retroactively required to create an Issue, branch, daily task board entry, task artifact, or PR.
+- TokenWatch currently uses `main` for both the base and release branches. Release-promotion branch steps are inapplicable while both branches are `main`; do not create a `main -> main` PR.
+
+### Project Overview
+
+TokenWatch is a Commander CLI, Ink TUI, and Electron/React desktop preview for AI coding-agent token usage metadata. It stores normalized usage events in SQLite and preserves strict privacy boundaries.
+
+### Core Hyper-Waterfall Rules
+
+This project uses the **Hyper-Waterfall** methodology. Read these rules carefully because they can conflict with an agent's default behavior, especially fast execution and autonomous edits. Details: [`agent_code_hyperfall_rule_conflict.md`](mydocs/manual/agent_code_hyperfall_rule_conflict.md).
+
+- Request task requester approval before modifying source files.
+- Track work by GitHub Issue.
+- Never skip the order for new features, bug fixes, or structural changes: `Issue -> branch -> daily task board -> plan -> implementation -> verification -> final report -> PR`.
+- Do not move to the next stage without approval after completing the current stage.
+- If the scope is unclear or could conflict with existing work, ask first.
+- Do not revert changes made by the user or another worker.
+- Close an Issue only after task requester approval or after confirming the PR was merged.
+- Before editing documentation, read the existing content first, change only the necessary parts, and add content only when needed.
+- When creating, moving, or editing product, user, contributor, external integration, API, architecture, or roadmap documentation, record a document location judgment in the task plan and get approval.
+- `mydocs/manual` is not the target project's product documentation location. The target project must explicitly choose its official documentation root, such as `docs/`, `specs/`, `site/`, `website/`, or `adr/`, in a separate task.
+- After work is complete, clean up local and remote artifacts that are not needed for the next task.
+- After PR merge and Issue close, return to `main` and remove unneeded `local/task{number}` branches and temporary worktrees.
+
+**Approval assumption rule**: Treat the stage as approved only when the task requester explicitly says to continue in the same thread, such as "continue" or "proceed to the next stage."
+
+### Naming Rules
+
+- Milestone: `M{version}` (for example, M100=v1.0.0, M05x=v0.5.x). Document filenames use lowercase `m{number}` (for example, `m100`).
+- Branches: `local/task{issue_number}` for work, `publish/task{issue_number}` for PR publication to `main`.
+- Commit authorization: an approved plan, Stage, report, or request to start work does not authorize a commit. Commit only when the current user instruction explicitly asks for it.
+- Commit subjects preserve Hyper-Waterfall traceability inside TokenWatch semantic English style:
+  - Basic: `{type}: Task #{number}: summary`
+  - Stage: `{type}: Task #{number} Stage {N}: summary`
+  - Substage: `{type}: Task #{number} [Stage {N.M}]: summary`
+  - Report bundle: `{type}: Task #{number} Stage {N} + final report: summary`
+- Use the fitting `{type}` from `feat`, `fix`, `docs`, `test`, `build`, or `chore`.
+- Every authorized commit retains the mandatory attribution body and `Co-authored-by` trailer in the TokenWatch `Git Workflow` section above.
+- Document filename: `task_{milestone}_{issue_number}{_impl|_stage{N}|_report}?.md`. New documents must include the milestone. Details: [`document_structure_guide.md`](mydocs/manual/document_structure_guide.md).
+- Write all documents in the selected Hyper-Waterfall locale for this repository.
+
+### Mandatory Rules Before Changes
+
+- Preserve TokenWatch privacy guarantees: never expose prompts, responses, API keys, OAuth tokens, credentials, raw paths, raw session IDs, raw records, SQL payloads, stack traces, or arbitrary metadata dumps.
+- Do not edit generated, vendor, orchestration, or reference paths: `dist/`, `out/`, `release/`, `node_modules/`, `.sisyphus/`, or `docs/tokscale/`; only task-requested `.sisyphus/evidence/` files are allowed.
+- Use Node.js 20.11+ and `corepack pnpm`; after Node or Electron native rebuilds, verify `better-sqlite3` loads before trusting checks.
+- Use isolated `TOKENWATCH_DB_PATH=/tmp/...` databases for tests and smoke checks that could access the application database.
+- Run the narrowest relevant verification first, then `corepack pnpm typecheck` for source changes; use the broader TokenWatch checks when required by the root guidance.
+- Do not create commits unless the user explicitly asks, and do not treat this initial adoption as a retroactive Issue, branch, task artifact, or PR requirement.
+- The current `main`/`main` base-release topology has no release-promotion PR. Do not create a `main -> main` PR.
+
+### Required References
+
+- [`README.md`](README.md) - project overview, setup, and build
+- [`mydocs/manual/document_structure_guide.md`](mydocs/manual/document_structure_guide.md) - `mydocs/` folder roles, document filenames, external PR folder policy, Skills location policy
+- [`mydocs/manual/task_workflow_guide.md`](mydocs/manual/task_workflow_guide.md) - 15 task workflow steps, commit message rules, work time rules
+- [`mydocs/manual/git_workflow_guide.md`](mydocs/manual/git_workflow_guide.md) - branch policy, Git diagrams, maintainer/contributor workflow
+- [`mydocs/manual/pr_process_guide.md`](mydocs/manual/pr_process_guide.md) - external contributor PR review
+- [`mydocs/manual/agent_code_hyperfall_rule_conflict.md`](mydocs/manual/agent_code_hyperfall_rule_conflict.md) - conflicts between Hyper-Waterfall and default agent behavior
+- [`AGENTS.md`](AGENTS.md) - authoritative TokenWatch privacy, generated-path, native-module, isolated-database, verification, and Git constraints
+
+### Agent Skills
+
+Fixed Hyper-Waterfall procedure points are separated into SKILL files. The source of truth is `mydocs/skills/`. Codex (`.agents/skills`) and Claude Code (`.claude/skills`) read the same content through symbolic links. Details: the "Agent Skills location policy" section in [`document_structure_guide.md`](mydocs/manual/document_structure_guide.md).
+
+### Work Rules
+
+- The task requester decides when work starts and ends. Agents do not propose ending work or impose time limits on their own.
+
+### Hyper-Waterfall Attribution and License
+
+This workflow integration incorporates rules from [`postmelee/hyper-waterfall`](https://github.com/postmelee/hyper-waterfall) at pinned commit `349fa70ffe3033abe983cf8de45ab418229277d6`.
+
+MIT License
+
+Copyright (c) 2026 postmelee
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
