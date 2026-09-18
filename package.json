@@ -1,6 +1,6 @@
 {
   "name": "tokenwatch",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Local-first CLI and Ink TUI for AI coding agent token usage metadata.",
   "type": "module",
   "main": "out/main/main.js",
@@ -33,7 +33,7 @@
     "test": "vitest run",
     "test:desktop": "vitest run --config vitest.desktop.config.ts --passWithNoTests",
     "test:watch": "vitest",
-    "package:mac": "corepack enable --install-directory ./node_modules/.bin pnpm && corepack pnpm build:desktop && electron-builder --mac dmg --publish never"
+    "package:mac": "corepack enable --install-directory ./node_modules/.bin pnpm && corepack pnpm build:desktop && electron-builder --mac dmg --arm64 --publish never"
   },
   "dependencies": {
     "@commander-js/extra-typings": "^14.0.0",

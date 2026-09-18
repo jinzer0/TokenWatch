@@ -14,5 +14,7 @@ extraMetadata:
 mac:
   target:
     - target: dmg
-  identity: null
-  notarize: false
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.inherit.plist
+  notarize: true
