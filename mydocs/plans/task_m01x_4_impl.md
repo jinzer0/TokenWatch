@@ -6,11 +6,11 @@ Milestone: M01x
 
 ## Stage Overview
 
-| Stage | Title                          | Tracked Output                                                                               | Verification                                                                                     |
-| ----- | ------------------------------ | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| 1     | Configure signed packaging     | Packaging test, builder configuration, version files, entitlement plists, and Stage 1 report | Policy test is proven red before implementation and green afterward; repository checks pass      |
-| 2     | Verify the signed app package  | `mydocs/working/task_m01x_4_stage2.md`                                                       | Credential and certificate preflight passes; builder produces a signed, notarized arm64 app      |
-| 3     | Verify the notarized final DMG | `mydocs/working/task_m01x_4_stage3.md`                                                       | DMG notarization, stapling, Gatekeeper, isolated launch, native module, and checksum checks pass |
+| Stage | Title                          | Tracked Output                                                                               | Verification                                                                                                                                                 |
+| ----- | ------------------------------ | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1     | Configure signed packaging     | Packaging test, builder configuration, version files, entitlement plists, and Stage 1 report | Policy test is proven red before implementation and green afterward; repository checks pass                                                                  |
+| 2     | Verify the signed app package  | `mydocs/working/task_m01x_4_stage2.md`                                                       | Credential and certificate preflight passes; builder produces a signed, notarized arm64 app                                                                  |
+| 3     | Verify the notarized final DMG | `mydocs/working/task_m01x_4_stage3.md`                                                       | Fresh DMG is Developer ID-signed with a secure timestamp before notarization; stapling, Gatekeeper, isolated launch, native module, and checksum checks pass |
 
 Generated files under `out/` and `release/` are verification outputs only and are never staged or committed.
 
@@ -161,8 +161,9 @@ The test, configuration, versions, plists, and Stage report form one atomic red/
 
 - Stage 1 verification and report are approved.
 - The worktree has no unrelated changes.
-- `APPLE_API_KEY`, `APPLE_API_KEY_ID`, and `APPLE_API_ISSUER` are available to the release shell; only presence may be reported.
-- The API key file is readable and a usable Developer ID Application certificate is available through the active Keychain.
+- `APPLE_KEYCHAIN_PROFILE` names a notarytool credential profile created interactively by the task requester; only presence may be reported.
+- `APPLE_KEYCHAIN` may optionally select a file-based Keychain when the stored profile requires it; its value must not be printed or recorded.
+- The profile authenticates successfully and a usable Developer ID Application certificate is available through the active Keychain.
 - Required Apple tools are available.
 
 Never print environment values, key paths, account data, certificate enumeration, identity details, or raw notarization response data. Never enable shell tracing.
@@ -177,17 +178,21 @@ Generated and never committed:
 
 - `out/`, `release/`, packaging logs, application bundles, DMGs, and notarization responses
 
-### Secure Preflight And Packaging
+### Secure Profile Setup, Preflight, And Packaging
 
-Check variable presence and key readability without printing values. Locate tools without displaying sensitive data, and reduce certificate discovery to a boolean result:
+The task requester creates and validates the notarytool profile outside the agent session using Apple's interactive credential-storage flow. Do not paste credential inputs into chat, shell history captured by the task, source files, or task artifacts. The agent must not create the profile on the requester's behalf.
+
+Check profile-name presence without printing its value. Build a transient argument array that supports the default Keychain or an optional file-based Keychain, validate the stored profile with a read-only history request, locate tools, and reduce certificate discovery to a boolean result:
 
 ```bash
-: "${APPLE_API_KEY:?APPLE_API_KEY is required}"
-: "${APPLE_API_KEY_ID:?APPLE_API_KEY_ID is required}"
-: "${APPLE_API_ISSUER:?APPLE_API_ISSUER is required}"
-test -r "$APPLE_API_KEY"
+: "${APPLE_KEYCHAIN_PROFILE:?APPLE_KEYCHAIN_PROFILE is required}"
 xcrun -f notarytool >/dev/null
 xcrun -f stapler >/dev/null
+NOTARY_AUTH=(--keychain-profile "$APPLE_KEYCHAIN_PROFILE")
+if [[ -n "${APPLE_KEYCHAIN:-}" ]]; then
+  NOTARY_AUTH+=(--keychain "$APPLE_KEYCHAIN")
+fi
+xcrun notarytool history "${NOTARY_AUTH[@]}" >/dev/null
 security find-identity -v -p codesigning 2>/dev/null | rg -q 'Developer ID Application'
 ```
 
@@ -243,9 +248,13 @@ Only the sanitized Stage report is tracked. Commit it only after a separate expl
 ### Preconditions
 
 - Stage 2 verification and report are approved.
-- The DMG was produced from the approved Stage 1 tracked revision and is not yet a publication artifact.
-- The three API-key variables remain available without being printed.
-- Stage 3 does not rebuild or alter tracked source.
+- The approved Stage 1 packaging configuration remains unchanged.
+- The approved Keychain profile remains available through `APPLE_KEYCHAIN_PROFILE` without its value being printed.
+- `APPLE_KEYCHAIN` remains optional and confidential when a file-based Keychain is required.
+- A valid Developer ID Application identity remains available through the active Keychain.
+- Stage 3 does not alter tracked source, configuration, dependencies, entitlements, or tests.
+- The previously submitted unsigned and stapled diagnostic DMG is not a final artifact and must not be reused.
+- Stage 3 regenerates clean Stage 2 outputs, preserves app notarization and stapling, signs the fresh outer DMG with a secure timestamp, and only then performs final DMG notarization.
 
 ### Artifacts
 
@@ -255,32 +264,160 @@ Tracked:
 
 Generated and never committed:
 
-- Stapled DMG, checksum, mounted app, smoke database, marker, logs, and notarization responses
+- Regenerated `out/` and `release/` outputs
+- Signed and stapled DMG
+- Checksum
+- Transient source snapshot and package output
+- Mounted app
+- Smoke database
+- Smoke marker
+- Smoke logs
+- Notarization responses
 
-### DMG Notarization And Stapling
+### Deterministic Regeneration And DMG Red/Green Gate
 
-Submit the completed DMG separately because electron-builder notarizes the app before the DMG exists. Parse and expose only the exact final status, never the raw submission identifier:
+The diagnostic DMG was notarized and stapled while unsigned. It demonstrated that Apple acceptance and stapling do not create a usable primary signature: Gatekeeper still rejected it with no usable primary signature.
+
+Do not sign that diagnostic artifact in place. Signing after its prior stapling would mutate an artifact with stale diagnostic ticket state and weaken reproducibility. Remove only generated outputs and rerun the approved Stage 2 packaging pipeline to produce a fresh app-notarized package and a fresh unsigned outer DMG.
+
+First snapshot the approved Stage 1 source without printing its contents or machine-local paths, and confirm that generated directories are ignored:
 
 ```bash
+SOURCE_SNAPSHOT="$(mktemp)"
+shasum -a 256 \
+  tests/desktop/packagingConfig.test.ts \
+  build/entitlements.mac.plist \
+  build/entitlements.mac.inherit.plist \
+  electron-builder.yml \
+  package.json \
+  src/app/constants.ts >"$SOURCE_SNAPSHOT"
+GIT_MASTER=1 git check-ignore -q out
+GIT_MASTER=1 git check-ignore -q release
+```
+
+Regenerate the Stage 2 package from the same approved source state:
+
+```bash
+rm -rf out release
+PACKAGE_LOG="$(mktemp)"
+corepack pnpm package:mac >"$PACKAGE_LOG" 2>&1
+APP_PATH="release/mac-arm64/TokenWatch.app"
 DMG_PATH="release/TokenWatch-0.1.1-arm64.dmg"
+test -d "$APP_PATH"
 test -f "$DMG_PATH"
+shasum -a 256 -c "$SOURCE_SNAPSHOT" >/dev/null
+```
+
+The transient package output must never be copied into tracked artifacts. Inspect it locally only if packaging fails.
+
+Verify that regeneration preserved the Stage 2 app result before modifying the outer DMG:
+
+```bash
+codesign --verify --deep --strict --verbose=2 "$APP_PATH" >/dev/null 2>&1
+codesign -dvv "$APP_PATH" 2>&1 | rg -q 'flags=.*runtime'
+codesign -dvv "$APP_PATH" 2>&1 | rg -q '^Timestamp='
+xcrun stapler validate -v "$APP_PATH" >/dev/null 2>&1
+spctl --assess --type execute --verbose=4 "$APP_PATH" >/dev/null 2>&1
+lipo -archs "$APP_PATH/Contents/MacOS/TokenWatch" | rg -qx 'arm64'
+```
+
+Use the observed unsigned-DMG limitation as the Stage 3 red acceptance condition. Do not repeat the diagnostic notarization submission:
+
+```bash
+hdiutil verify "$DMG_PATH" >/dev/null
+! codesign --verify --strict "$DMG_PATH" >/dev/null 2>&1
+! xcrun stapler validate -v "$DMG_PATH" >/dev/null 2>&1
+```
+
+If the regenerated DMG is already signed or stapled, stop because the reviewed packaging behavior has changed and this plan is no longer deterministic.
+
+### Developer ID DMG Signing
+
+Select exactly one valid Developer ID Application identity from the active Keychain. Keep the selected value only in memory and never print, log, export, or record it:
+
+```bash
+SIGNING_IDENTITY="$(
+  security find-identity -v -p codesigning 2>/dev/null |
+    awk -F'"' '
+      /Developer ID Application:/ {
+        count += 1
+        selected = $2
+      }
+      END {
+        if (count != 1) exit 1
+        printf "%s", selected
+      }
+    '
+)" || exit 1
+test -n "$SIGNING_IDENTITY"
+```
+
+Stop if there is not exactly one valid candidate. Do not choose by printing identities, account data, Team IDs, or certificate fingerprints.
+
+Sign only the outer DMG and request a secure timestamp. Do not use `--deep` when signing the DMG:
+
+```bash
+codesign --force --sign "$SIGNING_IDENTITY" --timestamp "$DMG_PATH" >/dev/null 2>&1
+unset SIGNING_IDENTITY
+```
+
+Require the Stage 3 green signature conditions before notarization:
+
+```bash
+codesign --verify --strict --verbose=2 "$DMG_PATH" >/dev/null 2>&1
+codesign -dvv "$DMG_PATH" 2>&1 | rg -q '^Authority=Developer ID Application:'
+codesign -dvv "$DMG_PATH" 2>&1 | rg -q '^Timestamp='
+hdiutil verify "$DMG_PATH" >/dev/null
+```
+
+Record only boolean Developer ID signature, secure timestamp, and disk-image integrity conclusions.
+
+### Final DMG Notarization And Stapling
+
+Construct the approved Keychain-profile arguments without printing values:
+
+```bash
+: "${APPLE_KEYCHAIN_PROFILE:?APPLE_KEYCHAIN_PROFILE is required}"
+NOTARY_AUTH=(--keychain-profile "$APPLE_KEYCHAIN_PROFILE")
+if [[ -n "${APPLE_KEYCHAIN:-}" ]]; then
+  NOTARY_AUTH+=(--keychain "$APPLE_KEYCHAIN")
+fi
+xcrun notarytool history "${NOTARY_AUTH[@]}" >/dev/null
+```
+
+Submit the signed DMG and expose only the final status:
+
+```bash
 set -o pipefail
 xcrun notarytool submit "$DMG_PATH" \
-  --key "$APPLE_API_KEY" \
-  --key-id "$APPLE_API_KEY_ID" \
-  --issuer "$APPLE_API_ISSUER" \
+  "${NOTARY_AUTH[@]}" \
   --wait \
   --output-format json |
   node -e "let input=''; process.stdin.setEncoding('utf8'); process.stdin.on('data', chunk => input += chunk); process.stdin.on('end', () => { const result = JSON.parse(input); if (result.status !== 'Accepted') process.exit(1); process.stdout.write('DMG notarization: Accepted\\n'); });"
-xcrun stapler staple "$DMG_PATH" >/dev/null
-xcrun stapler validate -v "$DMG_PATH" >/dev/null 2>&1
 ```
 
-Stop on any non-`Accepted` result. Inspect rejection details only in transient local output and report a sanitized reason.
+Stop unless the parsed status is exactly `Accepted`. Never record the raw response or submission identifier.
+
+Staple only the accepted, Developer ID-signed DMG, then require its signature, ticket, and Gatekeeper acceptance:
+
+```bash
+xcrun stapler staple "$DMG_PATH" >/dev/null
+xcrun stapler validate -v "$DMG_PATH" >/dev/null 2>&1
+codesign --verify --strict --verbose=2 "$DMG_PATH" >/dev/null 2>&1
+spctl --assess --type open --context context:primary-signature --verbose=4 "$DMG_PATH" >/dev/null 2>&1
+```
+
+Remove transient source and package output after extracting sanitized conclusions:
+
+```bash
+rm -f "$SOURCE_SNAPSHOT" "$PACKAGE_LOG"
+```
+
+Do not continue to mounting, smoke testing, or checksum generation unless every signing, timestamp, notarization, stapling, and Gatekeeper condition passes.
 
 ### Final Artifact And Manual QA
 
-Verify the DMG structure and Gatekeeper status, mount it read-only, and repeat contained-app signature, ticket, Gatekeeper, architecture, version, and entitlement checks from Stage 2:
+Only after the signed DMG is accepted, stapled, and Gatekeeper-assessed, mount it read-only and repeat the contained-app signature, ticket, Gatekeeper, architecture, version, entitlement, isolated-launch, privacy, and native-module checks from Stage 2. The app's existing notarization and stapled ticket must remain valid after outer-DMG signing.
 
 ```bash
 hdiutil verify "$DMG_PATH" >/dev/null
@@ -337,7 +474,7 @@ GIT_MASTER=1 git diff --check
 GIT_MASTER=1 git status --short
 ```
 
-Write `mydocs/working/task_m01x_4_stage3.md` with the sanitized notarization `Accepted`, DMG and app validation, isolated launch, privacy-log, native-module, and post-stapling digest results. Do not track generated or transient artifacts.
+Write `mydocs/working/task_m01x_4_stage3.md` with sanitized results for deterministic regeneration, preserved app notarization, the expected unsigned-DMG red condition, Developer ID outer-DMG signing, secure timestamp presence, exact `Accepted` status, stapling, primary-signature Gatekeeper acceptance, read-only mounted-app QA, isolated launch, privacy-log checks, native-module loading, and the final post-stapling digest. Record only boolean or sanitized conclusions. Do not record identities, account data, profile values, Team IDs, certificate fingerprints, submission identifiers, machine-local paths, raw command output, or logs. Do not track generated or transient artifacts.
 
 ### Authorized Commit
 
@@ -355,6 +492,13 @@ Only the sanitized Stage report is tracked. Commit it only after a separate expl
 - Successful packaging alone does not prove notarization acceptance.
 - Never copy raw packaging logs, notarization output, submission identifiers, certificate details, credentials, key paths, machine-local paths, or stack traces into tracked artifacts.
 - Never stage `out/`, `release/`, DMGs, checksums, logs, smoke files, or notarization responses.
+- The existing unsigned and stapled diagnostic DMG is red evidence only and must never become the final artifact.
+- Stage 3 must regenerate clean Stage 2 outputs before final DMG signing.
+- Preserve the regenerated app's Stage 2 notarization and stapled ticket; outer-DMG signing must not replace or modify the contained app.
+- Require the outer DMG to have a Developer ID Application primary signature and secure timestamp before final notarization submission.
+- Do not use `--deep` to sign the DMG.
+- Require exact `Accepted`, successful stapling, and `spctl --assess --type open --context context:primary-signature` success before mounting or checksumming.
+- Compute SHA-256 only after every DMG mutation, including signing and stapling, is complete.
 
 ## Atomic Commit Strategy
 
@@ -370,7 +514,7 @@ Only the sanitized Stage report is tracked. Commit it only after a separate expl
 
 - Stage 1 starts only after this plan is approved and separately authorized.
 - Stage 2 starts only after Stage 1 verification and report approval.
-- Stage 3 starts only after Stage 2 verification and report approval and uses its exact DMG.
+- Stage 3 starts only after Stage 2 verification and report approval. It discards the previously modified diagnostic DMG, regenerates clean Stage 2 outputs from the same approved source state, preserves the app's notarization, and signs the fresh outer DMG before final submission.
 - `task-final-report` starts only after Stage 3 report approval.
 - PR publication starts only after final-report approval and separately authorized commit, push, and PR actions.
 - Release publication is not a Stage and cannot start before the Task #4 PR is approved and merged into `main`.
@@ -388,7 +532,7 @@ Release work requires all of the following:
 - `v0.1.1` does not exist locally, remotely, or as a GitHub Release.
 - A clean detached worktree is created at the exact merged commit.
 - Dependencies are installed from the committed lockfile.
-- Stage 2 and Stage 3 credential preflight, build, app notarization, final-DMG notarization, stapling, Gatekeeper, architecture, version, entitlement, isolated-launch, privacy, native-module, and post-stapling checksum checks are repeated in that clean worktree.
+- Stage 2 and Stage 3 checks are repeated in the clean worktree in the same order: regenerate the signed, notarized, and stapled app package; confirm the fresh outer DMG is unsigned and unstapled; select one valid identity without disclosure; Developer ID-sign the DMG with a secure timestamp; verify its primary signature; submit it; require exact `Accepted`; staple it; Gatekeeper-assess it; mount it read-only; run contained-app and smoke QA; and compute SHA-256 last.
 
 After clean-rebuild QA, local annotated tag creation, tag push, and GitHub Release publication are three separate external actions. Each requires explicit current authorization. Publish only the rebuilt `TokenWatch-0.1.1-arm64.dmg` and matching post-stapling checksum as a new release, then verify the tag target, release state, asset names, and uploaded digests. Never modify v0.1.0.
 
@@ -399,6 +543,8 @@ After clean-rebuild QA, local annotated tag creation, tag push, and GitHub Relea
 - **False notarization confidence**: Require exact `Accepted`, stapling, and Gatekeeper results.
 - **Native-module damage**: Verify packaged launch and Node-side `better-sqlite3` after packaging.
 - **Artifact mutation**: Compute SHA-256 only after final stapling and QA.
+- **Diagnostic artifact reuse**: The previously unsigned and stapled diagnostic DMG has non-final provenance. Discard generated outputs and regenerate before signing rather than mutating that artifact into a release candidate.
+- **Outer-DMG signature omission**: Apple acceptance and stapling do not compensate for a missing primary signature. Require Developer ID signing with a secure timestamp before final submission and retain the full Gatekeeper assessment.
 - **Unreviewed release contents**: Rebuild from the exact merged commit instead of publishing Stage output.
 - **Generated-output commits**: Keep packages, logs, responses, smoke state, and checksums outside Git history.
 - **Lockfile drift**: Stop if `pnpm-lock.yaml` changes.
@@ -407,6 +553,6 @@ After clean-rebuild QA, local annotated tag creation, tag push, and GitHub Relea
 
 ## Approval Request
 
-Approve the exact Stage split, tracked artifacts, atomic TDD red/green Stage 1, omitted signing identity, direct electron-builder v26 `mac` configuration, `allow-jit`-only plists, explicit arm64 packaging, synchronized `0.1.1` versions, secure API-key environment flow, verification commands, sanitized evidence rules, commit subjects, PR-before-release order, clean post-merge rebuild, and separate external-action approvals.
+Approve the exact Stage split, tracked artifacts, atomic TDD red/green Stage 1, omitted signing identity, direct electron-builder v26 `mac` configuration, `allow-jit`-only plists, explicit arm64 packaging, synchronized `0.1.1` versions, requester-created notarytool Keychain profile flow, verification commands, sanitized evidence rules, commit subjects, PR-before-release order, clean post-merge rebuild, and separate external-action approvals.
 
 Approval authorizes preparation for Stage 1 only. It does not authorize Stage 1 implementation, any commit, signing, notarization, stapling, push, PR, tag, release publication, or modification of v0.1.0.
