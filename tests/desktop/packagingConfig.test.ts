@@ -69,6 +69,91 @@ describe('macOS packaging policy', () => {
     expect(packageMacScript).toContain('electron-builder --mac dmg --arm64 --publish never');
   });
 
+  it('requires builder-managed app and DMG signing', () => {
+    // Given
+    const builderConfig = readProjectFile('electron-builder.yml');
+
+    // When
+    const forceCodeSigning = builderConfig.match(/^forceCodeSigning: (.+)$/m)?.[1] ?? '';
+    const dmgConfig = builderConfig.match(/^dmg:\n(?:(?!^\S).*\n?)*/m)?.[0] ?? '';
+
+    // Then
+    expect(forceCodeSigning).toBe('true');
+    expect(dmgConfig).toMatch(/^ {2}sign: true$/m);
+  });
+
+  it('runs signer verification around the builder and exposes direct verification', () => {
+    // Given
+    const packageJson = readProjectFile('package.json');
+
+    // When
+    const packageMacScript = packageJson.match(/"package:mac": "([^"]+)"/)?.[1] ?? '';
+    const verifyMacSigningScript = packageJson.match(/"verify:mac-signing": "([^"]+)"/)?.[1] ?? '';
+    const preflightIndex = packageMacScript.indexOf('verify:mac-signing -- --preflight');
+    const builderIndex = packageMacScript.indexOf(
+      'electron-builder --mac dmg --arm64 --publish never'
+    );
+    const verificationIndex = packageMacScript.indexOf('verify:mac-signing -- --finalize');
+
+    // Then
+    expect(verifyMacSigningScript).toContain('src/desktop/packaging/verifyMacosSigning.ts');
+    expect(preflightIndex).toBeGreaterThanOrEqual(0);
+    expect(preflightIndex).toBeLessThan(builderIndex);
+    expect(verificationIndex).toBeGreaterThan(builderIndex);
+  });
+
+  it('keeps signing and team inputs external to the builder-managed package script', () => {
+    // Given
+    const builderConfig = readProjectFile('electron-builder.yml');
+    const packageJson = readProjectFile('package.json');
+    const verifier = readProjectFile('src/desktop/packaging/verifyMacosSigning.ts');
+
+    // When
+    const packageMacScript = packageJson.match(/"package:mac": "([^"]+)"/)?.[1] ?? '';
+    const signingSurface = `${builderConfig}\n${packageMacScript}`;
+
+    // Then
+    expect(signingSurface).not.toMatch(/^\s*identity:\s*.+$/m);
+    expect(signingSurface).not.toMatch(/\b(?=[A-Z0-9]{10}\b)(?=[A-Z0-9]*\d)[A-Z0-9]+\b/);
+    expect(signingSurface).not.toContain('TOKENWATCH_EXPECTED_TEAM_ID=');
+    expect(signingSurface).not.toContain('codesign');
+    expect(signingSurface).not.toContain('--sign');
+    expect(verifier).not.toContain('Authority=');
+    expect(verifier).not.toContain('--sign');
+  });
+
+  it('suppresses builder output with a generic failure and no temporary package log', () => {
+    // Given
+    const packageJson = readProjectFile('package.json');
+
+    // When
+    const packageMacScript = packageJson.match(/"package:mac": "([^"]+)"/)?.[1] ?? '';
+
+    // Then
+    expect(packageMacScript).toContain(
+      'electron-builder --mac dmg --arm64 --publish never >/dev/null 2>&1'
+    );
+    expect(packageMacScript).toContain('TW_SIGNING_FAILED');
+    expect(packageMacScript).not.toMatch(/\b(?:mktemp|PACKAGE_LOG)\b/);
+    expect(packageMacScript).not.toMatch(/>[^&\s]*\.log/);
+  });
+
+  it('retains the tracked packaged-app smoke contract without adding it to the package script', () => {
+    // Given
+    const packageJson = readProjectFile('package.json');
+    const implementationPlan = readProjectFile('mydocs/plans/task_m01x_4_impl.md');
+
+    // When
+    const packageMacScript = packageJson.match(/"package:mac": "([^"]+)"/)?.[1] ?? '';
+
+    // Then
+    expect(implementationPlan).toContain('TOKENWATCH_DB_PATH="$SMOKE_DB"');
+    expect(implementationPlan).toContain('tokenwatch_desktop_renderer_loaded');
+    expect(implementationPlan).toContain('hdiutil attach "$DMG_PATH" -nobrowse -readonly');
+    expect(implementationPlan).toContain("require('better-sqlite3')");
+    expect(packageMacScript).not.toContain('TOKENWATCH_DESKTOP_SMOKE_LOG');
+  });
+
   it('sets the package release version to 0.1.1', () => {
     // Given
     const packageJson = readProjectFile('package.json');

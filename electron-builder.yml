@@ -1,5 +1,6 @@
 appId: dev.tokenwatch.desktop
 productName: TokenWatch
+forceCodeSigning: true
 asar: true
 asarUnpack:
   - '**/*.node'
@@ -9,6 +10,8 @@ files:
 directories:
   output: release
 artifactName: '${productName}-${version}-${arch}.${ext}'
+dmg:
+  sign: true
 extraMetadata:
   main: out/main/main.js
 mac:
