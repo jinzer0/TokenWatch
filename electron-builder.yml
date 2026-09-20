@@ -21,3 +21,7 @@ mac:
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.inherit.plist
   notarize: true
+linux:
+  target:
+    - target: AppImage
+  category: Utility

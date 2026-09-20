@@ -1,0 +1,109 @@
+name: Release candidate
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  macos:
+    name: macOS ${{ matrix.arch }} candidate
+    runs-on: ${{ matrix.runner }}
+    environment: tokenwatch-release-signing
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-14
+            script: package:mac:arm64
+            artifact: release/TokenWatch-0.1.1-arm64.dmg
+          - arch: x64
+            runner: macos-13
+            script: package:mac:x64
+            artifact: release/TokenWatch-0.1.1-x64.dmg
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.11'
+          cache: pnpm
+      - run: corepack enable
+      - run: corepack pnpm install --frozen-lockfile
+      - name: Build and verify signed macOS artifact
+        env:
+          TOKENWATCH_EXPECTED_TEAM_ID: ${{ secrets.TOKENWATCH_EXPECTED_TEAM_ID }}
+          APPLE_KEYCHAIN_PROFILE: ${{ secrets.APPLE_KEYCHAIN_PROFILE }}
+          APPLE_KEYCHAIN: ${{ secrets.APPLE_KEYCHAIN }}
+          TOKENWATCH_DB_PATH: /tmp/tokenwatch-release-candidate.db
+        run: corepack pnpm ${{ matrix.script }}
+      - name: Upload macOS workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tokenwatch-macos-${{ matrix.arch }}
+          path: |
+            ${{ matrix.artifact }}
+            ${{ matrix.artifact }}.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  linux:
+    name: Linux ${{ matrix.arch }} candidate
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-latest
+            script: package:linux:x64
+            artifact: release/TokenWatch-0.1.1-x86_64.AppImage
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            script: package:linux:arm64
+            artifact: release/TokenWatch-0.1.1-arm64.AppImage
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.11'
+          cache: pnpm
+      - run: corepack enable
+      - run: corepack pnpm install --frozen-lockfile
+      - name: Build and verify Linux AppImage artifact
+        env:
+          TOKENWATCH_DB_PATH: /tmp/tokenwatch-release-candidate.db
+          TOKENWATCH_DESKTOP_SMOKE_MARKER_PATH: /tmp/tokenwatch-linux-smoke-marker.log
+        run: xvfb-run --auto-servernum corepack pnpm ${{ matrix.script }}
+      - name: Upload Linux workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tokenwatch-linux-${{ matrix.arch }}
+          path: |
+            ${{ matrix.artifact }}
+            ${{ matrix.artifact }}.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  release-candidate-complete:
+    name: Full release-candidate matrix complete
+    runs-on: ubuntu-latest
+    needs:
+      - macos
+      - linux
+    if: ${{ always() }}
+    steps:
+      - name: Require full matrix success before manual release promotion
+        run: |
+          if [[ "${{ needs.macos.result }}" != "success" || "${{ needs.linux.result }}" != "success" ]]; then
+            printf '%s\n' 'TW_RELEASE_CANDIDATE_FAILED' >&2
+            exit 1
+          fi
+          printf '%s\n' 'TW_RELEASE_CANDIDATE_READY'

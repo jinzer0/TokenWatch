@@ -34,7 +34,14 @@
     "test:desktop": "vitest run --config vitest.desktop.config.ts --passWithNoTests",
     "test:watch": "vitest",
     "verify:mac-signing": "tsx src/desktop/packaging/verifyMacosSigning.ts",
-    "package:mac": "(corepack pnpm build:desktop >/dev/null 2>&1 && corepack pnpm verify:mac-signing -- --preflight >/dev/null 2>&1 && electron-builder --mac dmg --arm64 --publish never >/dev/null 2>&1 && corepack pnpm verify:mac-signing -- --finalize --app release/mac-arm64/TokenWatch.app --dmg release/TokenWatch-0.1.1-arm64.dmg >/dev/null 2>&1) || { printf '%s\\n' TW_SIGNING_FAILED >&2; exit 1; }"
+    "package:mac": "corepack pnpm package:mac:arm64",
+    "verify:linux-appimage": "tsx src/desktop/packaging/verifyLinuxAppImage.ts",
+    "checksum:sha256": "tsx src/desktop/packaging/writeSha256.ts",
+    "package:mac:arm64": "(corepack pnpm build:desktop >/dev/null 2>&1 && corepack pnpm verify:mac-signing -- --preflight >/dev/null 2>&1 && electron-builder --mac dmg --arm64 --publish never >/dev/null 2>&1 && corepack pnpm verify:mac-signing -- --finalize --app release/mac-arm64/TokenWatch.app --dmg release/TokenWatch-0.1.1-arm64.dmg >/dev/null 2>&1 && corepack pnpm verify:mac-dmg-smoke -- --dmg release/TokenWatch-0.1.1-arm64.dmg --app-name TokenWatch >/dev/null 2>&1 && corepack pnpm checksum:sha256 -- release/TokenWatch-0.1.1-arm64.dmg >/dev/null 2>&1) || { printf '%s\\n' TW_SIGNING_FAILED >&2; exit 1; }",
+    "package:mac:x64": "(corepack pnpm build:desktop >/dev/null 2>&1 && corepack pnpm verify:mac-signing -- --preflight >/dev/null 2>&1 && electron-builder --mac dmg --x64 --publish never >/dev/null 2>&1 && corepack pnpm verify:mac-signing -- --finalize --app release/mac/TokenWatch.app --dmg release/TokenWatch-0.1.1-x64.dmg >/dev/null 2>&1 && corepack pnpm verify:mac-dmg-smoke -- --dmg release/TokenWatch-0.1.1-x64.dmg --app-name TokenWatch >/dev/null 2>&1 && corepack pnpm checksum:sha256 -- release/TokenWatch-0.1.1-x64.dmg >/dev/null 2>&1) || { printf '%s\\n' TW_SIGNING_FAILED >&2; exit 1; }",
+    "package:linux:x64": "(corepack pnpm build:desktop >/dev/null 2>&1 && electron-builder --linux AppImage --x64 --publish never >/dev/null 2>&1 && corepack pnpm checksum:sha256 -- release/TokenWatch-0.1.1-x86_64.AppImage >/dev/null 2>&1 && corepack pnpm verify:linux-appimage -- --artifact release/TokenWatch-0.1.1-x86_64.AppImage --checksum release/TokenWatch-0.1.1-x86_64.AppImage.sha256 >/dev/null 2>&1) || { printf '%s\\n' TW_LINUX_PACKAGE_FAILED >&2; exit 1; }",
+    "package:linux:arm64": "(corepack pnpm build:desktop >/dev/null 2>&1 && electron-builder --linux AppImage --arm64 --publish never >/dev/null 2>&1 && corepack pnpm checksum:sha256 -- release/TokenWatch-0.1.1-arm64.AppImage >/dev/null 2>&1 && corepack pnpm verify:linux-appimage -- --artifact release/TokenWatch-0.1.1-arm64.AppImage --checksum release/TokenWatch-0.1.1-arm64.AppImage.sha256 >/dev/null 2>&1) || { printf '%s\\n' TW_LINUX_PACKAGE_FAILED >&2; exit 1; }",
+    "verify:mac-dmg-smoke": "tsx src/desktop/packaging/verifyMacosDmgSmoke.ts"
   },
   "dependencies": {
     "@commander-js/extra-typings": "^14.0.0",
