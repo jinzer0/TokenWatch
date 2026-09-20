@@ -15,8 +15,12 @@ const expectedEntitlements = `<?xml version="1.0" encoding="UTF-8"?>
 `;
 
 const readProjectFile = (path: string): string => readFileSync(join(projectRoot, path), 'utf8');
+const readPackageJson = (): { scripts: Record<string, string> } =>
+  JSON.parse(readProjectFile('package.json')) as { scripts: Record<string, string> };
 const macConfigSection = (builderConfig: string): string =>
   builderConfig.match(/^mac:\n(?:(?!^\S).*\n?)*/m)?.[0] ?? '';
+const linuxConfigSection = (builderConfig: string): string =>
+  builderConfig.match(/^linux:\n(?:(?!^\S).*\n?)*/m)?.[0] ?? '';
 
 describe('macOS packaging policy', () => {
   it('omits a hardcoded signing identity when mac configuration is read', () => {
@@ -60,13 +64,45 @@ describe('macOS packaging policy', () => {
 
   it('explicitly builds an arm64 DMG without publishing', () => {
     // Given
-    const packageJson = readProjectFile('package.json');
+    const packageJson = readPackageJson();
 
     // When
-    const packageMacScript = packageJson.match(/"package:mac": "([^"]+)"/)?.[1] ?? '';
+    const packageMacArm64Script = packageJson.scripts['package:mac:arm64'] ?? '';
+    const packageMacX64Script = packageJson.scripts['package:mac:x64'] ?? '';
 
     // Then
-    expect(packageMacScript).toContain('electron-builder --mac dmg --arm64 --publish never');
+    expect(packageMacArm64Script).toContain('electron-builder --mac dmg --arm64 --publish never');
+    expect(packageMacX64Script).toContain('electron-builder --mac dmg --x64 --publish never');
+  });
+
+  it('configures Linux AppImage release candidates for both desktop architectures', () => {
+    // Given
+    const builderConfig = readProjectFile('electron-builder.yml');
+    const packageJson = readPackageJson();
+
+    // When
+    const linuxConfig = linuxConfigSection(builderConfig);
+
+    // Then
+    expect(linuxConfig).toContain('    - target: AppImage');
+    expect(packageJson.scripts['verify:linux-appimage']).toContain(
+      'src/desktop/packaging/verifyLinuxAppImage.ts'
+    );
+    expect(packageJson.scripts['package:linux:x64']).toContain(
+      'electron-builder --linux AppImage --x64 --publish never'
+    );
+    expect(packageJson.scripts['package:linux:x64']).toContain(
+      'checksum:sha256 -- release/TokenWatch-0.1.1-x86_64.AppImage'
+    );
+    expect(packageJson.scripts['package:linux:x64']).toContain(
+      'verify:linux-appimage -- --artifact release/TokenWatch-0.1.1-x86_64.AppImage --checksum release/TokenWatch-0.1.1-x86_64.AppImage.sha256'
+    );
+    expect(packageJson.scripts['package:linux:arm64']).toContain(
+      'electron-builder --linux AppImage --arm64 --publish never'
+    );
+    expect(packageJson.scripts['package:linux:arm64']).toContain(
+      'verify:linux-appimage -- --artifact release/TokenWatch-0.1.1-arm64.AppImage --checksum release/TokenWatch-0.1.1-arm64.AppImage.sha256'
+    );
   });
 
   it('requires builder-managed app and DMG signing', () => {
@@ -84,33 +120,43 @@ describe('macOS packaging policy', () => {
 
   it('runs signer verification around the builder and exposes direct verification', () => {
     // Given
-    const packageJson = readProjectFile('package.json');
+    const packageJson = readPackageJson();
 
     // When
-    const packageMacScript = packageJson.match(/"package:mac": "([^"]+)"/)?.[1] ?? '';
-    const verifyMacSigningScript = packageJson.match(/"verify:mac-signing": "([^"]+)"/)?.[1] ?? '';
-    const preflightIndex = packageMacScript.indexOf('verify:mac-signing -- --preflight');
-    const builderIndex = packageMacScript.indexOf(
+    const packageMacArm64Script = packageJson.scripts['package:mac:arm64'] ?? '';
+    const packageMacX64Script = packageJson.scripts['package:mac:x64'] ?? '';
+    const verifyMacSigningScript = packageJson.scripts['verify:mac-signing'] ?? '';
+    const verifyMacDmgSmokeScript = packageJson.scripts['verify:mac-dmg-smoke'] ?? '';
+    const preflightIndex = packageMacArm64Script.indexOf('verify:mac-signing -- --preflight');
+    const builderIndex = packageMacArm64Script.indexOf(
       'electron-builder --mac dmg --arm64 --publish never'
     );
-    const verificationIndex = packageMacScript.indexOf('verify:mac-signing -- --finalize');
+    const verificationIndex = packageMacArm64Script.indexOf('verify:mac-signing -- --finalize');
+    const smokeIndex = packageMacArm64Script.indexOf('verify:mac-dmg-smoke -- --dmg');
 
     // Then
     expect(verifyMacSigningScript).toContain('src/desktop/packaging/verifyMacosSigning.ts');
+    expect(verifyMacDmgSmokeScript).toContain('src/desktop/packaging/verifyMacosDmgSmoke.ts');
     expect(preflightIndex).toBeGreaterThanOrEqual(0);
     expect(preflightIndex).toBeLessThan(builderIndex);
     expect(verificationIndex).toBeGreaterThan(builderIndex);
+    expect(smokeIndex).toBeGreaterThan(verificationIndex);
+    expect(packageMacX64Script).toContain('--finalize --app release/mac/TokenWatch.app');
+    expect(packageMacX64Script).toContain(
+      'verify:mac-dmg-smoke -- --dmg release/TokenWatch-0.1.1-x64.dmg --app-name TokenWatch'
+    );
   });
 
   it('keeps signing and team inputs external to the builder-managed package script', () => {
     // Given
     const builderConfig = readProjectFile('electron-builder.yml');
-    const packageJson = readProjectFile('package.json');
+    const packageJson = readPackageJson();
     const verifier = readProjectFile('src/desktop/packaging/verifyMacosSigning.ts');
 
     // When
-    const packageMacScript = packageJson.match(/"package:mac": "([^"]+)"/)?.[1] ?? '';
-    const signingSurface = `${builderConfig}\n${packageMacScript}`;
+    const signingSurface = `${builderConfig}\n${packageJson.scripts['package:mac:arm64'] ?? ''}\n${
+      packageJson.scripts['package:mac:x64'] ?? ''
+    }`;
 
     // Then
     expect(signingSurface).not.toMatch(/^\s*identity:\s*.+$/m);
@@ -124,27 +170,31 @@ describe('macOS packaging policy', () => {
 
   it('suppresses builder output with a generic failure and no temporary package log', () => {
     // Given
-    const packageJson = readProjectFile('package.json');
+    const packageJson = readPackageJson();
 
     // When
-    const packageMacScript = packageJson.match(/"package:mac": "([^"]+)"/)?.[1] ?? '';
+    const packageMacArm64Script = packageJson.scripts['package:mac:arm64'] ?? '';
+    const packageLinuxX64Script = packageJson.scripts['package:linux:x64'] ?? '';
 
     // Then
-    expect(packageMacScript).toContain(
+    expect(packageMacArm64Script).toContain(
       'electron-builder --mac dmg --arm64 --publish never >/dev/null 2>&1'
     );
-    expect(packageMacScript).toContain('TW_SIGNING_FAILED');
-    expect(packageMacScript).not.toMatch(/\b(?:mktemp|PACKAGE_LOG)\b/);
-    expect(packageMacScript).not.toMatch(/>[^&\s]*\.log/);
+    expect(packageMacArm64Script).toContain('TW_SIGNING_FAILED');
+    expect(packageLinuxX64Script).toContain('TW_LINUX_PACKAGE_FAILED');
+    expect(`${packageMacArm64Script}\n${packageLinuxX64Script}`).not.toMatch(
+      /\b(?:mktemp|PACKAGE_LOG)\b/
+    );
+    expect(`${packageMacArm64Script}\n${packageLinuxX64Script}`).not.toMatch(/>[^&\s]*\.log/);
   });
 
   it('retains the tracked packaged-app smoke contract without adding it to the package script', () => {
     // Given
-    const packageJson = readProjectFile('package.json');
+    const packageJson = readPackageJson();
     const implementationPlan = readProjectFile('mydocs/plans/task_m01x_4_impl.md');
 
     // When
-    const packageMacScript = packageJson.match(/"package:mac": "([^"]+)"/)?.[1] ?? '';
+    const packageMacScript = packageJson.scripts['package:mac'] ?? '';
 
     // Then
     expect(implementationPlan).toContain('TOKENWATCH_DB_PATH="$SMOKE_DB"');
@@ -154,12 +204,29 @@ describe('macOS packaging policy', () => {
     expect(packageMacScript).not.toContain('TOKENWATCH_DESKTOP_SMOKE_LOG');
   });
 
-  it('sets the package release version to 0.1.1', () => {
+  it('adds a tag-triggered release-candidate workflow without automatic GitHub Release publication', () => {
     // Given
-    const packageJson = readProjectFile('package.json');
+    const workflow = readProjectFile('.github/workflows/release-candidate.yml');
 
+    // Then
+    expect(workflow).toContain("tags:\n      - 'v*'");
+    expect(workflow).toContain('environment: tokenwatch-release-signing');
+    expect(workflow).toContain('runner: macos-14');
+    expect(workflow).toContain('runner: macos-13');
+    expect(workflow).toContain('runner: ubuntu-24.04-arm');
+    expect(workflow).toContain('package:mac:arm64');
+    expect(workflow).toContain('package:mac:x64');
+    expect(workflow).toContain('package:linux:x64');
+    expect(workflow).toContain('package:linux:arm64');
+    expect(workflow).toContain('TW_RELEASE_CANDIDATE_FAILED');
+    expect(workflow).not.toContain('gh release upload');
+    expect(workflow).not.toContain('softprops/action-gh-release');
+    expect(workflow).not.toContain('contents: write');
+  });
+
+  it('sets the package release version to 0.1.1', () => {
     // When
-    const packageVersion = packageJson.match(/"version": "([^"]+)"/)?.[1] ?? '';
+    const packageVersion = readProjectFile('package.json').match(/"version": "([^"]+)"/)?.[1] ?? '';
 
     // Then
     expect(packageVersion).toBe('0.1.1');

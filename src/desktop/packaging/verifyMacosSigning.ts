@@ -10,16 +10,14 @@ const expectedTeamIdPattern = /^[A-Z0-9]{10}$/;
 const developerIdRequirement =
   'anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists and certificate leaf[field.1.2.840.113635.100.6.1.13] exists';
 
-const applicationArtifact = {
-  path: 'release/mac-arm64/TokenWatch.app',
-  signatureArguments: ['--verify', '--deep', '--strict', '--verbose=2']
-} as const;
-const dmgArtifact = {
-  path: 'release/TokenWatch-0.1.1-arm64.dmg',
-  signatureArguments: ['--verify', '--strict', '--verbose=2']
-} as const;
-
-type SigningArtifact = typeof applicationArtifact | typeof dmgArtifact;
+type SigningArtifact = {
+  readonly path: string;
+  readonly signatureArguments: readonly string[];
+};
+type SigningArtifacts = {
+  readonly application: SigningArtifact;
+  readonly dmg: SigningArtifact;
+};
 type SigningStatusCode = 'TW_SIGNING_OK' | 'TW_SIGNING_FAILED';
 type SigningInputs = {
   readonly expectedTeamId: string;
@@ -54,7 +52,7 @@ export function runMacosSigningVerifier(
   const completed =
     mode === 'preflight'
       ? inputs !== null && commandsSucceed(preflightCommands, dependencies.execute)
-      : mode === 'finalize' && inputs !== null && finalizeArtifacts(inputs, dependencies.execute);
+      : mode !== null && inputs !== null && finalizeArtifacts(mode, inputs, dependencies.execute);
   return report(completed, dependencies);
 }
 
@@ -66,17 +64,28 @@ const preflightCommands: readonly MacosSigningCommand[] = [
   { path: xcrunPath, arguments: ['--find', 'hdiutil'], stdin: undefined }
 ];
 
-function verificationMode(commandArguments: readonly string[]): 'preflight' | 'finalize' | null {
+function verificationMode(
+  commandArguments: readonly string[]
+): 'preflight' | SigningArtifacts | null {
   if (commandArguments.length === 1 && commandArguments[0] === '--preflight') return 'preflight';
   if (
     commandArguments.length === 5 &&
     commandArguments[0] === '--finalize' &&
     commandArguments[1] === '--app' &&
-    commandArguments[2] === applicationArtifact.path &&
     commandArguments[3] === '--dmg' &&
-    commandArguments[4] === dmgArtifact.path
+    commandArguments[2] !== undefined &&
+    commandArguments[4] !== undefined
   ) {
-    return 'finalize';
+    return {
+      application: {
+        path: commandArguments[2],
+        signatureArguments: ['--verify', '--deep', '--strict', '--verbose=2']
+      },
+      dmg: {
+        path: commandArguments[4],
+        signatureArguments: ['--verify', '--strict', '--verbose=2']
+      }
+    };
   }
   return null;
 }
@@ -101,50 +110,61 @@ function signingInputs(environment: NodeJS.ProcessEnv): SigningInputs | null {
 }
 
 function finalizeArtifacts(
+  artifacts: SigningArtifacts,
   inputs: SigningInputs,
   execute: MacosSigningVerifierDependencies['execute']
 ): boolean {
-  if (!verifyArtifact(applicationArtifact, inputs.expectedTeamId, execute)) return false;
-  if (!commandsSucceed(applicationValidationCommands, execute)) return false;
-  if (!verifyArtifact(dmgArtifact, inputs.expectedTeamId, execute)) return false;
-  if (!notarizeDmg(inputs, execute)) return false;
-  if (!commandsSucceed(dmgStaplingCommands, execute)) return false;
-  if (!verifyArtifact(dmgArtifact, inputs.expectedTeamId, execute)) return false;
-  return commandsSucceed(dmgValidationCommands, execute);
+  if (!verifyArtifact(artifacts.application, inputs.expectedTeamId, execute)) return false;
+  if (!commandsSucceed(applicationValidationCommands(artifacts.application), execute)) return false;
+  if (!verifyArtifact(artifacts.dmg, inputs.expectedTeamId, execute)) return false;
+  if (!notarizeDmg(artifacts.dmg, inputs, execute)) return false;
+  if (!commandsSucceed(dmgStaplingCommands(artifacts.dmg), execute)) return false;
+  if (!verifyArtifact(artifacts.dmg, inputs.expectedTeamId, execute)) return false;
+  return commandsSucceed(dmgValidationCommands(artifacts.dmg), execute);
 }
 
-const applicationValidationCommands: readonly MacosSigningCommand[] = [
-  {
-    path: xcrunPath,
-    arguments: ['stapler', 'validate', applicationArtifact.path],
-    stdin: undefined
-  },
-  {
-    path: spctlPath,
-    arguments: ['--assess', '--type', 'execute', '--verbose=4', applicationArtifact.path],
-    stdin: undefined
-  }
-];
-const dmgStaplingCommands: readonly MacosSigningCommand[] = [
-  { path: xcrunPath, arguments: ['stapler', 'staple', dmgArtifact.path], stdin: undefined },
-  { path: xcrunPath, arguments: ['stapler', 'validate', dmgArtifact.path], stdin: undefined }
-];
-const dmgValidationCommands: readonly MacosSigningCommand[] = [
-  {
-    path: spctlPath,
-    arguments: [
-      '--assess',
-      '--type',
-      'open',
-      '--context',
-      'context:primary-signature',
-      '--verbose=4',
-      dmgArtifact.path
-    ],
-    stdin: undefined
-  },
-  { path: hdiutilPath, arguments: ['verify', dmgArtifact.path], stdin: undefined }
-];
+function applicationValidationCommands(
+  applicationArtifact: SigningArtifact
+): readonly MacosSigningCommand[] {
+  return [
+    {
+      path: xcrunPath,
+      arguments: ['stapler', 'validate', applicationArtifact.path],
+      stdin: undefined
+    },
+    {
+      path: spctlPath,
+      arguments: ['--assess', '--type', 'execute', '--verbose=4', applicationArtifact.path],
+      stdin: undefined
+    }
+  ];
+}
+
+function dmgStaplingCommands(dmgArtifact: SigningArtifact): readonly MacosSigningCommand[] {
+  return [
+    { path: xcrunPath, arguments: ['stapler', 'staple', dmgArtifact.path], stdin: undefined },
+    { path: xcrunPath, arguments: ['stapler', 'validate', dmgArtifact.path], stdin: undefined }
+  ];
+}
+
+function dmgValidationCommands(dmgArtifact: SigningArtifact): readonly MacosSigningCommand[] {
+  return [
+    {
+      path: spctlPath,
+      arguments: [
+        '--assess',
+        '--type',
+        'open',
+        '--context',
+        'context:primary-signature',
+        '--verbose=4',
+        dmgArtifact.path
+      ],
+      stdin: undefined
+    },
+    { path: hdiutilPath, arguments: ['verify', dmgArtifact.path], stdin: undefined }
+  ];
+}
 
 function verifyArtifact(
   artifact: SigningArtifact,
@@ -190,6 +210,7 @@ function metadataContainsExpectedTeam(
 }
 
 function notarizeDmg(
+  dmgArtifact: SigningArtifact,
   inputs: SigningInputs,
   execute: MacosSigningVerifierDependencies['execute']
 ): boolean {

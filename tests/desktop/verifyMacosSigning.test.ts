@@ -11,6 +11,8 @@ import {
 const expectedTeamId = 'A1B2C3D4E5';
 const applicationPath = 'release/mac-arm64/TokenWatch.app';
 const dmgPath = 'release/TokenWatch-0.1.1-arm64.dmg';
+const x64ApplicationPath = 'release/mac/TokenWatch.app';
+const x64DmgPath = 'release/TokenWatch-0.1.1-x64.dmg';
 const keychainProfile = 'synthetic-keychain-profile';
 const keychain = 'synthetic-keychain';
 const requirement =
@@ -203,6 +205,36 @@ describe('macOS signing verifier', () => {
       expect.objectContaining({ stdin: requirement }),
       expect.objectContaining({ stdin: requirement }),
       expect.objectContaining({ stdin: requirement })
+    ]);
+    expect(runner.calls.flatMap((command) => command.arguments)).not.toContain(expectedTeamId);
+  });
+
+  it('accepts explicit x64 app and DMG artifact paths without weakening fixed tool usage', () => {
+    // Given
+    const runner = createRunner();
+
+    // When
+    const result = runVerifier(
+      ['--finalize', '--app', x64ApplicationPath, '--dmg', x64DmgPath],
+      runner
+    );
+
+    // Then
+    expect(result).toEqual({ code: 'TW_SIGNING_OK', output: ['TW_SIGNING_OK'] });
+    expect(runner.calls.map((command) => [command.path, ...command.arguments])).toContainEqual([
+      '/usr/bin/codesign',
+      '--verify',
+      '--deep',
+      '--strict',
+      '--verbose=2',
+      x64ApplicationPath
+    ]);
+    expect(runner.calls.map((command) => [command.path, ...command.arguments])).toContainEqual([
+      '/usr/bin/codesign',
+      '--verify',
+      '--strict',
+      '--verbose=2',
+      x64DmgPath
     ]);
     expect(runner.calls.flatMap((command) => command.arguments)).not.toContain(expectedTeamId);
   });
