@@ -17,6 +17,7 @@ import {
   toDonutSegments
 } from '../utils/charts.js';
 import { formatCount } from '../utils/formatters.js';
+import { Panel, PanelHeader } from './Panel.js';
 
 type DistributionChartProps = {
   readonly emptyLabel: string;
@@ -34,16 +35,12 @@ export const DistributionChart = ({
   const maxValue = Math.max(0, ...items.map((item) => item.value));
   const chartHeight = Math.max(220, BAR_TOP_OFFSET + items.length * BAR_ROW_HEIGHT + CHART_PADDING);
   const donutSegments = toDonutSegments(items);
+  const chartDescription =
+    items.length > 0 ? `${title} compares ${items.length} sanitized groups by tokens.` : emptyLabel;
 
   return (
-    <article className="analytics-card chart-card" aria-label={`${title} region`}>
-      <div className="chart-heading">
-        <div>
-          <p className="eyebrow">{eyebrow}</p>
-          <h2>{title.replace(' chart', '')}</h2>
-        </div>
-        <span>tokens</span>
-      </div>
+    <Panel ariaLabel={`${title} region`} className="chart-card">
+      <PanelHeader eyebrow={eyebrow} title={title.replace(' chart', '')} badge="tokens" />
       <svg
         aria-label={title}
         className="bar-chart"
@@ -51,6 +48,7 @@ export const DistributionChart = ({
         viewBox={`0 0 ${CHART_WIDTH} ${chartHeight}`}
       >
         <title>{title}</title>
+        <desc>{chartDescription}</desc>
         <rect className="chart-plot" x="0" y="0" width={CHART_WIDTH} height={chartHeight} rx="18" />
         {donutSegments.length > 0 ? (
           <g className="donut-chart" aria-hidden="true">
@@ -125,6 +123,6 @@ export const DistributionChart = ({
           </span>
         ))}
       </div>
-    </article>
+    </Panel>
   );
 };

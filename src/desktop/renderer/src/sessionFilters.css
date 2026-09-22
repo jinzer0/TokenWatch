@@ -83,3 +83,9 @@
 .session-table {
   min-width: 88rem;
 }
+
+@media (max-width: 42rem) {
+  .session-table {
+    min-width: 58rem;
+  }
+}

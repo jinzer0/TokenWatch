@@ -71,6 +71,14 @@ button:focus-visible {
   outline-offset: var(--space-1);
 }
 
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+  outline: var(--space-1) solid var(--color-amber-300);
+  outline-offset: var(--space-1);
+}
+
 .app-shell {
   background:
     radial-gradient(circle at 12% 10%, rgba(56, 202, 220, 0.22), transparent 20rem),
@@ -110,7 +118,6 @@ button:focus-visible {
 .app-header,
 .brand-lockup,
 .header-actions,
-.dashboard-nav,
 .status-banner,
 .overview-panel,
 .signal-panel,
@@ -250,26 +257,6 @@ p {
 .refresh-button:disabled {
   cursor: wait;
   opacity: 0.66;
-}
-
-.dashboard-nav {
-  border-bottom: 1px solid var(--border-soft);
-  gap: var(--space-2);
-  margin-top: var(--space-8);
-  padding-bottom: var(--space-4);
-}
-
-.nav-item {
-  border: 1px solid transparent;
-  border-radius: var(--radius-pill);
-  color: var(--color-paper-300);
-  padding: var(--space-2) var(--space-4);
-}
-
-.nav-item.active {
-  background: rgba(142, 231, 245, 0.12);
-  border-color: var(--border-cyan);
-  color: var(--color-cyan-300);
 }
 
 .status-banner,
@@ -944,9 +931,17 @@ p {
   white-space: nowrap;
 }
 
+.breakdown-table thead th {
+  background: rgba(16, 25, 35, 0.94);
+}
+
 .breakdown-table th:first-child,
 .breakdown-table td:first-child {
   text-align: left;
+}
+
+.breakdown-table tbody tr:nth-child(even) {
+  background: rgba(183, 197, 181, 0.035);
 }
 
 .breakdown-table tbody tr:last-child th,
@@ -1171,8 +1166,11 @@ p {
 }
 
 .chart-labels span {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-xs);
   color: var(--color-paper-300);
   font-size: 0.85rem;
+  padding: var(--space-2) var(--space-3);
 }
 
 @keyframes orbit {
@@ -1214,6 +1212,47 @@ p {
 
   .analytics-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 42rem) {
+  .app-shell {
+    padding: var(--space-3);
+  }
+
+  .dashboard-frame,
+  .overview-panel,
+  .analytics-card,
+  .state-card {
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+  }
+
+  .brand-lockup {
+    align-items: flex-start;
+  }
+
+  .brand-mark {
+    height: var(--space-10);
+    width: var(--space-10);
+  }
+
+  .status-meta {
+    gap: var(--space-2);
+  }
+
+  .status-meta div {
+    border-radius: var(--radius-sm);
+    flex: 1 1 100%;
+    justify-content: space-between;
+  }
+
+  .chart-heading {
+    gap: var(--space-3);
+  }
+
+  .breakdown-table {
+    min-width: 48rem;
   }
 }
 
