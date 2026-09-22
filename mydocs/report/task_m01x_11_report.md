@@ -7,7 +7,7 @@ Milestone: M01x
 
 - Target Issue: #11
 - Milestone: M01x
-- Stage count: 1
+- Stage count: 2
 - Work purpose: Chart accessible description과 table/label styling을 보강해 sanitized analytics presentation 가독성을 개선합니다.
 
 ## Changed Files and Impact Area
@@ -48,6 +48,8 @@ Milestone: M01x
 ### Stage Verification Results
 
 - Stage 1: `mydocs/working/task_m01x_11_stage1.md` — corepack pnpm test:desktop tests/desktop/shellRender.test.tsx — 1 file, 23 tests passed, corepack pnpm typecheck — passed
+
+- Stage 2: `mydocs/working/task_m01x_11_stage2.md` — PR #16 Codex 자동 리뷰 대응: Codex 리뷰에 따라 table header styling을 `thead th`로 제한하고, 실제 vertical scroller가 없는 sticky 동작은 제거했습니다.
 
 ## Residual Risks and Follow-up Work
 

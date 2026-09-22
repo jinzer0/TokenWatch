@@ -942,11 +942,8 @@ p {
   white-space: nowrap;
 }
 
-.breakdown-table th {
+.breakdown-table thead th {
   background: rgba(16, 25, 35, 0.94);
-  position: sticky;
-  top: 0;
-  z-index: 1;
 }
 
 .breakdown-table th:first-child,
