@@ -43,6 +43,12 @@ export const LineChart = ({
     })
     .join(' ');
   const unknownPoints = points.filter((point) => point.unknown).length;
+  const chartDescription =
+    knownPoints.length > 0
+      ? `${title} includes ${knownPoints.length} known data points${
+          unknownPoints > 0 ? ` and ${unknownPoints} unknown-cost points` : ''
+        }.`
+      : emptyLabel;
 
   return (
     <Panel ariaLabel={`${title} region`} className="chart-card">
@@ -54,6 +60,7 @@ export const LineChart = ({
         viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
       >
         <title>{title}</title>
+        <desc>{chartDescription}</desc>
         <rect
           className="chart-plot"
           x="0"

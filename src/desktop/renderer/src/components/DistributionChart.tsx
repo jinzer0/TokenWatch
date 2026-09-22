@@ -35,6 +35,8 @@ export const DistributionChart = ({
   const maxValue = Math.max(0, ...items.map((item) => item.value));
   const chartHeight = Math.max(220, BAR_TOP_OFFSET + items.length * BAR_ROW_HEIGHT + CHART_PADDING);
   const donutSegments = toDonutSegments(items);
+  const chartDescription =
+    items.length > 0 ? `${title} compares ${items.length} sanitized groups by tokens.` : emptyLabel;
 
   return (
     <Panel ariaLabel={`${title} region`} className="chart-card">
@@ -46,6 +48,7 @@ export const DistributionChart = ({
         viewBox={`0 0 ${CHART_WIDTH} ${chartHeight}`}
       >
         <title>{title}</title>
+        <desc>{chartDescription}</desc>
         <rect className="chart-plot" x="0" y="0" width={CHART_WIDTH} height={chartHeight} rx="18" />
         {donutSegments.length > 0 ? (
           <g className="donut-chart" aria-hidden="true">
