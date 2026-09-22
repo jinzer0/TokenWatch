@@ -8,6 +8,7 @@ import {
   formatUsd
 } from '../utils/formatters.js';
 import { formatSafeLabel } from '../utils/privacyLabels.js';
+import { Panel } from './Panel.js';
 
 const SummaryCard = ({ detail, label, tone = 'normal', value }: SummaryCardData): ReactElement => (
   <article className={tone === 'warning' ? 'summary-card warning' : 'summary-card'}>
@@ -77,7 +78,7 @@ export const SummaryCards = ({ dashboard }: { readonly dashboard: Dashboard }): 
           <span>{formatUnknownPricing(unknownCostCount)} are shown as unknown, not zero cost.</span>
         </article>
       ) : null}
-      <article className="analytics-card summary-card-panel" aria-label="Dashboard summary cards">
+      <Panel ariaLabel="Dashboard summary cards" className="summary-card-panel">
         <p className="eyebrow">Summary cards</p>
         <h2>Privacy-safe rollup</h2>
         <div className="summary-grid">
@@ -91,7 +92,7 @@ export const SummaryCards = ({ dashboard }: { readonly dashboard: Dashboard }): 
             />
           ))}
         </div>
-      </article>
+      </Panel>
     </>
   );
 };

@@ -10,6 +10,7 @@ import {
   toPointY
 } from '../utils/charts.js';
 import { formatSafeLabel } from '../utils/privacyLabels.js';
+import { Panel, PanelHeader } from './Panel.js';
 
 type LineChartProps = {
   readonly emptyLabel: string;
@@ -44,14 +45,8 @@ export const LineChart = ({
   const unknownPoints = points.filter((point) => point.unknown).length;
 
   return (
-    <article className="analytics-card chart-card" aria-label={`${title} region`}>
-      <div className="chart-heading">
-        <div>
-          <p className="eyebrow">{eyebrow}</p>
-          <h2>{title.replace(' chart', '')}</h2>
-        </div>
-        <span>{valueLabel}</span>
-      </div>
+    <Panel ariaLabel={`${title} region`} className="chart-card">
+      <PanelHeader eyebrow={eyebrow} title={title.replace(' chart', '')} badge={valueLabel} />
       <svg
         aria-label={title}
         className="line-chart"
@@ -99,6 +94,6 @@ export const LineChart = ({
         ))}
         {unknownPoints > 0 ? <span className="unknown">unknown cost present</span> : null}
       </div>
-    </article>
+    </Panel>
   );
 };
