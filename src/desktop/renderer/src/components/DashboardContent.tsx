@@ -99,8 +99,6 @@ export const DashboardContent = ({
         filters={dashboard.filters}
         onApply={(filters) => void onApplyFilters(filters)}
       />
-      <ShareReportPanel disabled={refreshing} filters={dashboard.filters} />
-      <DiagnosticsHub dashboard={dashboard} />
       <InsightsTrendPanel dashboard={dashboard} />
       {isFilteredEmpty ? (
         <article
@@ -140,7 +138,9 @@ export const DashboardContent = ({
       />
       <RecentScanRunsPanel runs={dashboard.recentScanRuns} />
       <SessionMetricsPanel dashboard={dashboard} />
+      <DiagnosticsHub dashboard={dashboard} />
       <BudgetPricingDiagnosticsPanel dashboard={dashboard} />
+      <ShareReportPanel disabled={refreshing} filters={dashboard.filters} />
       <article className="analytics-card breakdown-card" aria-label="Dashboard breakdown tables">
         <div className="chart-heading">
           <div>
