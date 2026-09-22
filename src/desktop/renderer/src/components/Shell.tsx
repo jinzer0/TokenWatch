@@ -68,13 +68,13 @@ export const Shell = ({
         </div>
       </header>
 
-      <nav className="dashboard-nav" aria-label="Dashboard sections">
+      <div className="dashboard-nav" aria-label="Dashboard section summary">
         {navigationItems.map((item, index) => (
           <span className={index === 0 ? 'nav-item active' : 'nav-item'} key={item}>
             {item}
           </span>
         ))}
-      </nav>
+      </div>
 
       <section className="status-banner" aria-label="Dashboard status">
         <span className="status-dot" aria-hidden="true" />
