@@ -7,7 +7,7 @@ Milestone: M01x
 
 - Target Issue: #13
 - Milestone: M01x
-- Stage count: 1
+- Stage count: 2
 - Work purpose: BrowserWindow에 hiddenInset title bar를 적용하고 security test 및 launch smoke로 확인합니다.
 
 ## Changed Files and Impact Area
@@ -47,6 +47,8 @@ Milestone: M01x
 ### Stage Verification Results
 
 - Stage 1: `mydocs/working/task_m01x_13_stage1.md` — corepack pnpm test:desktop tests/desktop/security.test.ts — 1 file, 7 tests passed, corepack pnpm typecheck — passed, TOKENWATCH_DB_PATH=/tmp/tokenwatch-task13-smoke.db TOKENWATCH_DESKTOP_SMOKE_LOG=1 corepack pnpm dev:desktop — smoke marker tokenwatch_desktop_renderer_loaded observed
+
+- Stage 2: `mydocs/working/task_m01x_13_stage2.md` — PR #18 Codex 자동 리뷰 대응: Codex 리뷰에 따라 hiddenInset title bar에서 창을 드래그할 수 있도록 app header drag region과 header actions no-drag region을 추가했습니다.
 
 ## Residual Risks and Follow-up Work
 
