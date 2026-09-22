@@ -131,6 +131,7 @@ a:focus-visible {
   align-items: center;
   gap: var(--space-6);
   justify-content: space-between;
+  -webkit-app-region: drag;
 }
 
 .brand-lockup {
@@ -224,6 +225,7 @@ p {
 .header-actions {
   align-items: center;
   gap: var(--space-3);
+  -webkit-app-region: no-drag;
 }
 
 .version-label {

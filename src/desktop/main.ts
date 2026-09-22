@@ -31,6 +31,7 @@ const createMainWindow = (): void => {
     minHeight: 600,
     show: false,
     title: 'TokenWatch',
+    titleBarStyle: 'hiddenInset',
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
