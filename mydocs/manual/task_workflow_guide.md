@@ -16,6 +16,8 @@ Plans, stage reports, final reports, daily task boards, and external PR review d
 
 GitHub Issues and Pull Requests are GitHub platform artifacts. New task Issues use `.github/ISSUE_TEMPLATE/task.yml` as the input prompt format, and PR bodies use `.github/pull_request_template.md` as the output format.
 
+Write all Hyper-Waterfall documents and GitHub platform artifacts in Korean, including Issues, Pull Request titles/bodies, daily task boards, task plans, implementation plans, stage reports, final reports, PR review records, and workflow-facing approval requests. Preserve fixed technical tokens, command names, labels, branch names, file paths, and commit subject prefixes where the workflow format requires them.
+
 The PR body `Verification` section follows `.github/pull_request_template.md`: `Automated Verification`, `Manual/Scenario Verification`, `CI/Remote Verification`, and `Verification Limitations`. Do not merely list commands. Include results and evidence. Do not leave unperformed verification in tables; move it to `Verification Limitations` or `Remaining Risks`.
 
 ## Framework Lifecycle Work

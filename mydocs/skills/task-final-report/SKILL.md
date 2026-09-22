@@ -72,6 +72,7 @@ description: |
      --body-file "$PR_BODY"
    ```
 
+   - The PR title and body must be written in Korean while preserving fixed technical tokens such as labels, file paths, branch names, command names, and code identifiers where needed.
    - The PR body uses `.github/pull_request_template.md`.
    - Include at most 4 summary bullets: target task, why, what, review focus.
    - Include one line per Stage, verification summary, and remaining risks.

@@ -75,6 +75,7 @@ description: |
    - If no label fits or the fit is ambiguous, create without labels or ask the task requester.
    - Do not create new labels.
 6. Draft the Issue.
+   - Write the Issue title and body in Korean. Keep fixed technical tokens such as labels, file paths, branch names, command names, and code identifiers unchanged where needed.
    - Title: one sentence that reveals the work unit.
    - Body: prefer GitHub Issue Form `.github/ISSUE_TEMPLATE/task.yml`.
      - When checking the upstream source template for an applied repository, use `<hyper-waterfall-release-dir>/templates/locales/en/.github/ISSUE_TEMPLATE/task.yml`.

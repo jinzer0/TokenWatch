@@ -136,7 +136,7 @@ This project uses the **Hyper-Waterfall** methodology. Read these rules carefull
 - Use the fitting `{type}` from `feat`, `fix`, `docs`, `test`, `build`, or `chore`.
 - Every authorized commit retains the mandatory attribution body and `Co-authored-by` trailer in the TokenWatch `Git Workflow` section above.
 - Document filename: `task_{milestone}_{issue_number}{_impl|_stage{N}|_report}?.md`. New documents must include the milestone. Details: [`document_structure_guide.md`](mydocs/manual/document_structure_guide.md).
-- Write all documents in the selected Hyper-Waterfall locale for this repository.
+- Write all Hyper-Waterfall documents and GitHub platform artifacts in Korean, including Issues, Pull Request titles/bodies, daily task boards, task plans, implementation plans, stage reports, final reports, PR review records, and workflow-facing approval requests. Keep fixed technical tokens such as branch names, command names, labels, file paths, and commit subject prefixes as required by their formats.
 
 ### Mandatory Rules Before Changes
 
