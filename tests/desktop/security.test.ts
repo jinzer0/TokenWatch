@@ -24,6 +24,7 @@ describe('desktop shell security defaults', () => {
     expect(mainSource).toContain('nodeIntegration: false');
     expect(mainSource).toContain('sandbox: true');
     expect(mainSource).toContain('show: false');
+    expect(mainSource).toContain("titleBarStyle: 'hiddenInset'");
     expect(mainSource).toContain("preload: join(__dirname, '../preload/preload.cjs')");
     expect(mainSource).not.toContain('../preload/index.js');
   });
