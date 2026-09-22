@@ -3,8 +3,6 @@ import type { ReactElement, ReactNode } from 'react';
 import type { Dashboard, DashboardDatabaseStatus } from '../types.js';
 import { formatCount, formatDatabaseStatus, formatDateTime } from '../utils/formatters.js';
 
-const navigationItems = ['Overview', 'Sources', 'Runs'] as const;
-
 type ShellProps = {
   readonly children: ReactNode;
   readonly dashboard: Dashboard | null;
@@ -67,14 +65,6 @@ export const Shell = ({
           </button>
         </div>
       </header>
-
-      <div className="dashboard-nav" aria-label="Dashboard section summary">
-        {navigationItems.map((item, index) => (
-          <span className={index === 0 ? 'nav-item active' : 'nav-item'} key={item}>
-            {item}
-          </span>
-        ))}
-      </div>
 
       <section className="status-banner" aria-label="Dashboard status">
         <span className="status-dot" aria-hidden="true" />
