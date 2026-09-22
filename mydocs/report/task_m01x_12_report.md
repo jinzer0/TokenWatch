@@ -7,7 +7,7 @@ Milestone: M01x
 
 - Target Issue: #12
 - Milestone: M01x
-- Stage count: 1
+- Stage count: 2
 - Work purpose: 비상호작용 navigation의 landmark 오해를 줄이고 focus/responsive style을 보강합니다.
 
 ## Changed Files and Impact Area
@@ -47,6 +47,8 @@ Milestone: M01x
 ### Stage Verification Results
 
 - Stage 1: `mydocs/working/task_m01x_12_stage1.md` — corepack pnpm test:desktop tests/desktop/shellRender.test.tsx — 1 file, 23 tests passed, corepack pnpm typecheck — passed, Manual responsive/accessibility review — CSS breakpoint와 landmark 변경 점검 완료
+
+- Stage 2: `mydocs/working/task_m01x_12_stage2.md` — PR #17 Codex 자동 리뷰 대응: Codex 리뷰에 따라 `.session-table` responsive override를 더 늦게 로드되는 `sessionFilters.css`로 이동했습니다.
 
 ## Residual Risks and Follow-up Work
 

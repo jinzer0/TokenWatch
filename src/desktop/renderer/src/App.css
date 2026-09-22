@@ -1262,10 +1262,6 @@ p {
   .breakdown-table {
     min-width: 48rem;
   }
-
-  .session-table {
-    min-width: 58rem;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
