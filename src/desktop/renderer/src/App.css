@@ -942,9 +942,20 @@ p {
   white-space: nowrap;
 }
 
+.breakdown-table th {
+  background: rgba(16, 25, 35, 0.94);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
 .breakdown-table th:first-child,
 .breakdown-table td:first-child {
   text-align: left;
+}
+
+.breakdown-table tbody tr:nth-child(even) {
+  background: rgba(183, 197, 181, 0.035);
 }
 
 .breakdown-table tbody tr:last-child th,
@@ -1169,8 +1180,11 @@ p {
 }
 
 .chart-labels span {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-xs);
   color: var(--color-paper-300);
   font-size: 0.85rem;
+  padding: var(--space-2) var(--space-3);
 }
 
 @keyframes orbit {
