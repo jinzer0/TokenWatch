@@ -71,6 +71,14 @@ button:focus-visible {
   outline-offset: var(--space-1);
 }
 
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+  outline: var(--space-1) solid var(--color-amber-300);
+  outline-offset: var(--space-1);
+}
+
 .app-shell {
   background:
     radial-gradient(circle at 12% 10%, rgba(56, 202, 220, 0.22), transparent 20rem),
@@ -1202,6 +1210,47 @@ p {
 
   .analytics-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 42rem) {
+  .app-shell {
+    padding: var(--space-3);
+  }
+
+  .dashboard-frame,
+  .overview-panel,
+  .analytics-card,
+  .state-card {
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+  }
+
+  .brand-lockup {
+    align-items: flex-start;
+  }
+
+  .brand-mark {
+    height: var(--space-10);
+    width: var(--space-10);
+  }
+
+  .status-meta {
+    gap: var(--space-2);
+  }
+
+  .status-meta div {
+    border-radius: var(--radius-sm);
+    flex: 1 1 100%;
+    justify-content: space-between;
+  }
+
+  .chart-heading {
+    gap: var(--space-3);
+  }
+
+  .breakdown-table {
+    min-width: 48rem;
   }
 }
 
