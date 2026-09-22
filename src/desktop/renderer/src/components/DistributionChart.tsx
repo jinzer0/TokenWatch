@@ -17,6 +17,7 @@ import {
   toDonutSegments
 } from '../utils/charts.js';
 import { formatCount } from '../utils/formatters.js';
+import { Panel, PanelHeader } from './Panel.js';
 
 type DistributionChartProps = {
   readonly emptyLabel: string;
@@ -38,14 +39,8 @@ export const DistributionChart = ({
     items.length > 0 ? `${title} compares ${items.length} sanitized groups by tokens.` : emptyLabel;
 
   return (
-    <article className="analytics-card chart-card" aria-label={`${title} region`}>
-      <div className="chart-heading">
-        <div>
-          <p className="eyebrow">{eyebrow}</p>
-          <h2>{title.replace(' chart', '')}</h2>
-        </div>
-        <span>tokens</span>
-      </div>
+    <Panel ariaLabel={`${title} region`} className="chart-card">
+      <PanelHeader eyebrow={eyebrow} title={title.replace(' chart', '')} badge="tokens" />
       <svg
         aria-label={title}
         className="bar-chart"
@@ -128,6 +123,6 @@ export const DistributionChart = ({
           </span>
         ))}
       </div>
-    </article>
+    </Panel>
   );
 };
