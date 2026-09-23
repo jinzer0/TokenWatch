@@ -6,9 +6,10 @@ Milestone: M01x
 
 ## Stage Overview
 
-| Stage | Title          | Main Output                             | Verification                          |
-| ----- | -------------- | --------------------------------------- | ------------------------------------- |
-| 1     | main 통합 검증 | `mydocs/working/task_m01x_19_stage1.md` | desktop test, typecheck, build, smoke |
+| Stage | Title           | Main Output                             | Verification                          |
+| ----- | --------------- | --------------------------------------- | ------------------------------------- |
+| 1     | main 통합 검증  | `mydocs/working/task_m01x_19_stage1.md` | desktop test, typecheck, build, smoke |
+| 2     | Codex 리뷰 대응 | `mydocs/working/task_m01x_19_stage2.md` | captured smoke log, format check      |
 
 ## Commit Authorization and Subject
 

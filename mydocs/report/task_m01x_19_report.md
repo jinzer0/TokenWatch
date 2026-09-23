@@ -7,7 +7,7 @@ Milestone: M01x
 
 - Target Issue: #19
 - Milestone: M01x
-- Stage count: 1
+- Stage count: 2
 - Work purpose: #9-#13 병합 후 main 기준 desktop renderer/main 통합 검증을 수행했습니다.
 
 ## Changed Files and Impact Area
@@ -18,6 +18,7 @@ Milestone: M01x
 | `mydocs/plans/task_m01x_19.md`          | Task plan 작성              | workflow    |
 | `mydocs/plans/task_m01x_19_impl.md`     | Implementation plan 작성    | workflow    |
 | `mydocs/working/task_m01x_19_stage1.md` | Stage 1 검증 결과 기록      | workflow    |
+| `mydocs/working/task_m01x_19_stage2.md` | Codex 리뷰 대응 결과 기록   | workflow    |
 | `mydocs/report/task_m01x_19_report.md`  | 최종 검증 결과 기록         | workflow    |
 
 ## Document Location Verification
@@ -28,6 +29,7 @@ Milestone: M01x
 | ------------------------ | ----------------- | --------------------------------------- | ------ | -------------- |
 | `task_m01x_19_impl.md`   | `mydocs/plans/`   | `mydocs/plans/task_m01x_19_impl.md`     | OK     | 파일 작성 완료 |
 | `task_m01x_19_stage1.md` | `mydocs/working/` | `mydocs/working/task_m01x_19_stage1.md` | OK     | 파일 작성 완료 |
+| `task_m01x_19_stage2.md` | `mydocs/working/` | `mydocs/working/task_m01x_19_stage2.md` | OK     | 파일 작성 완료 |
 | `task_m01x_19_report.md` | `mydocs/report/`  | `mydocs/report/task_m01x_19_report.md`  | OK     | 파일 작성 완료 |
 
 ## Quantitative Before/After Comparison
@@ -35,22 +37,24 @@ Milestone: M01x
 | Metric                    | Before | After                       |
 | ------------------------- | ------ | --------------------------- |
 | 통합 desktop test 통과 수 | 미실행 | 13 files / 130 tests passed |
-| Stage report count        | 0      | 1                           |
+| Stage report count        | 0      | 2                           |
 | Final report count        | 0      | 1                           |
 
 ## Verification Results
 
-| Acceptance Criterion             | Result                                                                                                           |
-| -------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| main 기준 desktop 통합 검증 수행 | OK — `corepack pnpm test:desktop` 13 files / 130 tests passed                                                    |
-| TypeScript 검증 수행             | OK — `corepack pnpm typecheck` passed                                                                            |
-| Desktop build 검증 수행          | OK — `corepack pnpm build:desktop` completed, existing Vite dynamic import warnings only                         |
-| isolated desktop smoke 수행      | OK — `TOKENWATCH_DB_PATH=/tmp/tokenwatch-task19-smoke.db` 사용, `tokenwatch_desktop_renderer_loaded` marker 확인 |
-| Product source 변경 없음         | OK — 변경 파일은 workflow 문서와 task artifact뿐                                                                 |
+| Acceptance Criterion             | Result                                                                                                                                    |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| main 기준 desktop 통합 검증 수행 | OK — `corepack pnpm test:desktop` 13 files / 130 tests passed                                                                             |
+| TypeScript 검증 수행             | OK — `corepack pnpm typecheck` passed                                                                                                     |
+| Desktop build 검증 수행          | OK — `corepack pnpm build:desktop` completed, existing Vite dynamic import warnings only                                                  |
+| isolated desktop smoke 수행      | OK — `TOKENWATCH_DB_PATH=/tmp/tokenwatch-task19-smoke.db` 사용, `tokenwatch_desktop_renderer_loaded` marker 확인                          |
+| smoke log inspection 수행        | OK — `/tmp/tokenwatch-task19-smoke-captured.log`에 stdout/stderr를 캡처해 preload error, native-module error, privacy leak term 부재 확인 |
+| Product source 변경 없음         | OK — 변경 파일은 workflow 문서와 task artifact뿐                                                                                          |
 
 ### Stage Verification Results
 
-- Stage 1: `mydocs/working/task_m01x_19_stage1.md` — desktop test, typecheck, build, isolated smoke 통과.
+- Stage 1: `mydocs/working/task_m01x_19_stage1.md` — desktop test, typecheck, build, isolated smoke, captured smoke log inspection 통과.
+- Stage 2: `mydocs/working/task_m01x_19_stage2.md` — Codex 리뷰 대응으로 `Done` fixed token 복구와 captured smoke log inspection 기록 보강 완료.
 
 ## Residual Risks and Follow-up Work
 

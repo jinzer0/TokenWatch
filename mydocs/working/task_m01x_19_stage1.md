@@ -30,6 +30,7 @@ corepack pnpm test:desktop
 corepack pnpm typecheck
 corepack pnpm build:desktop
 TOKENWATCH_DB_PATH=/tmp/tokenwatch-task19-smoke.db TOKENWATCH_DESKTOP_SMOKE_LOG=1 corepack pnpm dev:desktop
+TOKENWATCH_DB_PATH=/tmp/tokenwatch-task19-smoke-rerun.db TOKENWATCH_DESKTOP_SMOKE_LOG=1 corepack pnpm dev:desktop  # stdout/stderr captured to /tmp/tokenwatch-task19-smoke-captured.log and inspected
 ```
 
 Result:
@@ -38,6 +39,7 @@ Result:
 - OK — `corepack pnpm typecheck`: `tsc --noEmit` passed.
 - OK — `corepack pnpm build:desktop`: Electron main/preload/renderer build completed. Vite reported existing `INEFFECTIVE_DYNAMIC_IMPORT` warnings, but build completed successfully.
 - OK — isolated desktop smoke: `tokenwatch_desktop_renderer_loaded` marker observed with `TOKENWATCH_DB_PATH=/tmp/tokenwatch-task19-smoke.db`.
+- OK — captured smoke log inspection: rerun output was captured in `/tmp/tokenwatch-task19-smoke-captured.log` and checked for preload errors, native-module errors, and privacy leak terms. Result: marker seen, preload error absent, native-module error absent, privacy leak terms absent; 42 output lines inspected.
 
 ## Residual Risks
 
