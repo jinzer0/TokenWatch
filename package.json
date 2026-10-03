@@ -60,7 +60,7 @@
     "@types/react-dom": "^19.2.3",
     "@testing-library/react": "^16.3.0",
     "@vitejs/plugin-react": "^5.1.1",
-    "electron": "^39.2.7",
+    "electron": "^41.10.6",
     "electron-builder": "^26.0.12",
     "electron-vite": "^4.0.0",
     "eslint": "^9.39.1",
