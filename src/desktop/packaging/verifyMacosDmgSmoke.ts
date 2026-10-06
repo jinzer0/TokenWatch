@@ -65,6 +65,7 @@ function parseInputs(commandArguments: readonly string[]): SmokeInputs | null {
 
 function verifySmoke(inputs: SmokeInputs, dependencies: MacosDmgSmokeDependencies): boolean {
   const mountPoint = dependencies.createMountPoint();
+  const userDataDirectory = dependencies.createMountPoint();
   try {
     const attach = dependencies.execute({
       path: hdiutilPath,
@@ -83,7 +84,7 @@ function verifySmoke(inputs: SmokeInputs, dependencies: MacosDmgSmokeDependencie
     );
     const result = dependencies.execute({
       path: executablePath,
-      arguments: [],
+      arguments: [`--user-data-dir=${userDataDirectory}`],
       environment: {
         ...dependencies.environment,
         TOKENWATCH_DB_PATH:
@@ -111,6 +112,7 @@ function verifySmoke(inputs: SmokeInputs, dependencies: MacosDmgSmokeDependencie
       timeoutMs: 30000
     });
     dependencies.cleanupMountPoint(mountPoint);
+    dependencies.cleanupMountPoint(userDataDirectory);
   }
 }
 
