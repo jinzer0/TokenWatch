@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TokenWatch — Slate 스타일 시안</title>
+    <style>
+      /* Slate tokens: canvas #1d2835; workspace #2a394a; panel #324559;
+       panel header #3b5066; sidebar #243343; rule #52677e; text #f0f4f8;
+       muted #c0cedc; accent #afd5f5; shortage #f3c7a6; second share #8fa9c2;
+       third share #657f99; track #223344. */
+      :root {
+        color-scheme: dark;
+        --canvas: #1d2835;
+        --surface: #2a394a;
+        --panel: #324559;
+        --header: #3b5066;
+        --line: #52677e;
+        --text: #f0f4f8;
+        --muted: #c0cedc;
+        --accent: #afd5f5;
+        --warn: #f3c7a6;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--canvas);
+        color: var(--text);
+        font:
+          14px/1.5 -apple-system,
+          BlinkMacSystemFont,
+          'Apple SD Gothic Neo',
+          'Malgun Gothic',
+          sans-serif;
+        font-variant-numeric: tabular-nums;
+      }
+      .review {
+        width: calc(100% - 64px);
+        max-width: 1376px;
+        margin: 24px auto;
+      }
+      .caption {
+        margin: 0 0 12px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .viewport {
+        overflow-x: auto;
+      }
+      .app {
+        min-width: 1120px;
+        min-height: 798px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+      h1 {
+        font-size: 14px;
+        font-weight: 550;
+      }
+      h2 {
+        font-size: 14px;
+        font-weight: 650;
+      }
+      h3 {
+        font-size: 17px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      .titlebar {
+        min-height: 62px;
+        padding: 0 22px;
+        display: flex;
+        gap: 24px;
+        align-items: center;
+        border-bottom: 1px solid var(--line);
+      }
+      .wordmark {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+        font-size: 16px;
+        letter-spacing: -0.03em;
+      }
+      .wordmark svg {
+        width: 20px;
+        height: 20px;
+      }
+      .tools {
+        margin-left: auto;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .tool {
+        background: var(--header);
+        border: 1px solid var(--line);
+        border-radius: 3px;
+        padding: 4px 10px;
+        color: var(--text);
+      }
+      .body {
+        display: grid;
+        grid-template-columns: 254px minmax(0, 1fr);
+        min-height: 734px;
+      }
+      .sidebar {
+        background: #243343;
+        border-right: 1px solid var(--line);
+        padding: 22px 20px;
+      }
+      .section-title {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .label,
+      .muted {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .metric {
+        border-bottom: 1px solid var(--line);
+        padding: 22px 0;
+      }
+      .metric-value {
+        display: flex;
+        gap: 9px;
+        align-items: baseline;
+        margin: 8px 0 11px;
+      }
+      .metric-value strong {
+        font-size: 30px;
+        font-weight: 600;
+        letter-spacing: -0.045em;
+      }
+      .metric-value span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .delta {
+        font-size: 12px;
+        display: flex;
+        justify-content: space-between;
+        gap: 5px;
+        color: var(--muted);
+      }
+      .delta strong {
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .trend {
+        margin-top: 24px;
+      }
+      .trend svg {
+        display: block;
+        width: 100%;
+        height: auto;
+        margin-top: 22px;
+      }
+      .axis {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 9px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .main {
+        padding: 20px;
+      }
+      .panel {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        border-radius: 3px;
+      }
+      .panel-heading {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 16px;
+        background: var(--header);
+        border-bottom: 1px solid var(--line);
+      }
+      .providers {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .provider {
+        padding: 18px 17px 20px;
+        border-right: 1px solid var(--line);
+      }
+      .provider:last-child {
+        border-right: 0;
+      }
+      .provider.selected {
+        background: var(--surface);
+        box-shadow: inset 0 3px var(--accent);
+      }
+      .provider-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 23px;
+      }
+      .selected-tag {
+        color: var(--accent);
+        border: 1px solid var(--line);
+        border-radius: 3px;
+        padding: 1px 5px;
+        font-size: 10px;
+      }
+      .remaining {
+        font-size: 14px;
+        white-space: nowrap;
+      }
+      .remaining strong {
+        font-size: 32px;
+        font-weight: 600;
+        letter-spacing: -0.04em;
+        margin: 0 3px;
+      }
+      .meter {
+        background: #223344;
+        height: 9px;
+        margin: 12px 0;
+      }
+      .meter span {
+        display: block;
+        background: var(--accent);
+        height: 100%;
+      }
+      .provider:not(.selected) .meter span {
+        background: #8fa9c2;
+      }
+      .reset {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .state {
+        border-top: 1px solid var(--line);
+        padding-top: 15px;
+        margin-top: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+      .state strong {
+        color: var(--accent);
+        font-size: 22px;
+        font-weight: 600;
+      }
+      .state.short strong {
+        color: var(--warn);
+      }
+      .state.unknown strong {
+        color: var(--muted);
+        font-size: 18px;
+      }
+      .bottom {
+        display: grid;
+        grid-template-columns: minmax(255px, 0.9fr) minmax(350px, 1.4fr);
+        gap: 16px;
+        margin-top: 16px;
+      }
+      .panel-content {
+        padding: 16px;
+      }
+      .subheading {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .share {
+        margin-top: 20px;
+      }
+      .share-title {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        font-size: 13px;
+      }
+      .share-title strong {
+        font-weight: 600;
+      }
+      .share .meter {
+        height: 7px;
+        margin: 9px 0 0;
+      }
+      .share:nth-of-type(2) .meter span {
+        background: #8fa9c2;
+      }
+      .share:nth-of-type(3) .meter span {
+        background: #657f99;
+      }
+      .detail-name {
+        color: var(--accent);
+        font-size: 14px;
+        font-weight: 600;
+      }
+      dl {
+        margin: 0;
+      }
+      dl div {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 11px 0;
+        border-bottom: 1px solid var(--line);
+        font-size: 13px;
+      }
+      dl div:first-child {
+        padding-top: 0;
+      }
+      dt {
+        color: var(--muted);
+      }
+      dd {
+        margin: 0;
+      }
+      .positive {
+        color: var(--accent);
+      }
+      .detail-foot {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-top: 16px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .detail-foot strong {
+        font-size: 21px;
+        color: var(--text);
+        font-weight: 600;
+        letter-spacing: -0.03em;
+      }
+      .rationale {
+        margin: 17px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.8;
+      }
+      .rationale strong {
+        color: var(--text);
+      }
+      @media (max-width: 700px) {
+        .review {
+          width: calc(100% - 32px);
+          margin: 16px auto;
+        }
+        .rationale {
+          max-width: 55ch;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="review">
+      <p class="caption">스타일 시안 · 예시 데이터</p>
+      <div class="viewport">
+        <section class="app" aria-label="TokenWatch Slate 대시보드">
+          <header class="titlebar">
+            <span class="wordmark"
+              ><svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M2 5H18V15H2Z" fill="none" stroke="#afd5f5" stroke-width="2" />
+                <path d="M6 5V15M10 8V12M14 5V15" stroke="#afd5f5" stroke-width="2" /></svg
+              >TokenWatch</span
+            >
+            <h1>대시보드</h1>
+            <div class="tools"><span>09:00</span><span class="tool">새로고침</span></div>
+          </header>
+          <div class="body">
+            <aside class="sidebar" aria-labelledby="local-heading">
+              <div class="section-title">
+                <h2 id="local-heading">로컬 토큰</h2>
+                <span class="label">사용 요약</span>
+              </div>
+              <section class="metric">
+                <p class="label">일간 · 오늘</p>
+                <p class="metric-value"><strong>12,000</strong><span>토큰</span></p>
+                <p class="delta"><span>어제보다 +2,000</span><strong>+20%</strong></p>
+              </section>
+              <section class="metric">
+                <p class="label">주간 · 최근 7일</p>
+                <p class="metric-value"><strong>84,000</strong><span>토큰</span></p>
+                <p class="delta"><span>지난주보다 +14,000</span><strong>+20%</strong></p>
+              </section>
+              <section class="trend">
+                <div class="section-title">
+                  <h2>사용 추이</h2>
+                  <span class="label">7일</span>
+                </div>
+                <p class="muted">일별 토큰</p>
+                <svg
+                  viewBox="0 0 214 176"
+                  role="img"
+                  aria-label="7일 토큰 추이: 8천, 1만, 9천, 1만 4천, 1만 5천, 1만 6천, 1만 2천"
+                >
+                  <path
+                    d="M8 30H204 M8 85H204 M8 140H204"
+                    fill="none"
+                    stroke="#52677e"
+                    stroke-width="1"
+                  />
+                  <path
+                    d="M8 140V85H39V71.25H70V78.125H101V43.75H132V36.875H163V30H194V57.5H204V140Z"
+                    fill="#3b5066"
+                  />
+                  <path
+                    d="M8 85H39V71.25H70V78.125H101V43.75H132V36.875H163V30H194V57.5H204"
+                    fill="none"
+                    stroke="#afd5f5"
+                    stroke-width="2"
+                  />
+                  <g
+                    fill="#c0cedc"
+                    font-size="10"
+                    text-anchor="middle"
+                    font-family="system-ui,sans-serif"
+                  >
+                    <text x="12" y="163">8천</text>
+                    <text x="43" y="163">10천</text>
+                    <text x="74" y="163">9천</text>
+                    <text x="105" y="163">14천</text>
+                    <text x="136" y="163">15천</text>
+                    <text x="167" y="163">16천</text>
+                    <text x="198" y="163">12천</text>
+                  </g>
+                </svg>
+                <div class="axis"><span>6일 전</span><span>오늘</span></div>
+              </section>
+            </aside>
+            <div class="main">
+              <section class="panel" aria-labelledby="providers-heading">
+                <div class="panel-heading">
+                  <h2 id="providers-heading">구독 서비스</h2>
+                  <span class="label">남은 사용량</span>
+                </div>
+                <div class="providers">
+                  <article class="provider selected">
+                    <div class="provider-top">
+                      <h3>Claude</h3>
+                      <span class="selected-tag">선택됨</span>
+                    </div>
+                    <p class="remaining">주간 <strong>60%</strong> 남음</p>
+                    <div class="meter" role="img" aria-label="Claude 주간 60% 남음">
+                      <span style="width: 60%"></span>
+                    </div>
+                    <p class="reset">리셋 · 내일 09:00</p>
+                    <div class="state">
+                      <span class="label">사용 여유</span><strong>20% 여유</strong
+                      ><span class="muted">리셋까지 여유</span>
+                    </div>
+                  </article>
+                  <article class="provider">
+                    <div class="provider-top"><h3>ChatGPT Codex</h3></div>
+                    <p class="remaining">주간 <strong>45%</strong> 남음</p>
+                    <div class="meter" role="img" aria-label="ChatGPT Codex 주간 45% 남음">
+                      <span style="width: 45%"></span>
+                    </div>
+                    <p class="reset">리셋 · 내일 09:00</p>
+                    <div class="state short">
+                      <span class="label">사용 여유</span><strong>10% 부족</strong
+                      ><span class="muted">소진 전망 · 내일 06:36</span>
+                    </div>
+                  </article>
+                  <article class="provider">
+                    <div class="provider-top"><h3>Cursor</h3></div>
+                    <p class="remaining">이번 달 <strong>70%</strong> 남음</p>
+                    <div class="meter" role="img" aria-label="Cursor 이번 달 70% 남음">
+                      <span style="width: 70%"></span>
+                    </div>
+                    <p class="reset">리셋 · 다음 달 1일 09:00</p>
+                    <div class="state unknown">
+                      <span class="label">사용 여유</span><strong>사용 이력 부족</strong>
+                    </div>
+                  </article>
+                </div>
+              </section>
+              <div class="bottom">
+                <section class="panel shares">
+                  <div class="panel-heading"><h2>서비스 사용 비중</h2></div>
+                  <div class="panel-content">
+                    <p class="subheading">최근 7일 · 로컬 토큰</p>
+                    <div class="share">
+                      <p class="share-title"><span>Claude</span><strong>50%</strong></p>
+                      <div class="meter" role="img" aria-label="Claude 사용 비중 50%">
+                        <span style="width: 50%"></span>
+                      </div>
+                    </div>
+                    <div class="share">
+                      <p class="share-title"><span>ChatGPT Codex</span><strong>30%</strong></p>
+                      <div class="meter" role="img" aria-label="ChatGPT Codex 사용 비중 30%">
+                        <span style="width: 30%"></span>
+                      </div>
+                    </div>
+                    <div class="share">
+                      <p class="share-title"><span>Cursor</span><strong>20%</strong></p>
+                      <div class="meter" role="img" aria-label="Cursor 사용 비중 20%">
+                        <span style="width: 20%"></span>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+                <section class="panel detail">
+                  <div class="panel-heading">
+                    <h2>선택 서비스 상세</h2>
+                    <span class="detail-name">Claude</span>
+                  </div>
+                  <div class="panel-content">
+                    <dl>
+                      <div>
+                        <dt>남은 사용량</dt>
+                        <dd>주간 60% 남음</dd>
+                      </div>
+                      <div>
+                        <dt>다음 리셋</dt>
+                        <dd>내일 09:00</dd>
+                      </div>
+                      <div>
+                        <dt>사용 여유</dt>
+                        <dd class="positive">20% 여유</dd>
+                      </div>
+                      <div>
+                        <dt>소진 전망</dt>
+                        <dd>리셋까지 여유</dd>
+                      </div>
+                    </dl>
+                    <p class="detail-foot">
+                      <span>최근 7일 · 로컬 토큰</span><strong>42,000</strong>
+                    </p>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+      <p class="rationale">
+        <strong>Slate.</strong> 청회색 작업 공간에 명확한 패널 머리글을 두어 구독 상태와 상세 정보의
+        묶음을 또렷하게 만듭니다.<br />중간 밀도의 간격과 굵은 상태 숫자로 핵심을 강조하면서 타이틀
+        영역부터 본문까지 하나의 앱 표면으로 이어집니다.
+      </p>
+    </main>
+  </body>
+</html>
