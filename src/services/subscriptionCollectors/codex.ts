@@ -1,7 +1,8 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { accessSync, constants, statSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { homedir, platform, tmpdir } from 'node:os';
+import { delimiter, dirname, isAbsolute, join } from 'node:path';
 import { APP_VERSION } from '../../app/constants.js';
 import {
   subscriptionReadResultSchema,
@@ -47,10 +48,10 @@ function projectCodexQuota(input: unknown, receivedAt: string): SubscriptionRead
   if (!object(input) || !object(input.rateLimitsByLimitId))
     return failed('unsupported', receivedAt);
   const pools = input.rateLimitsByLimitId;
-  if (Object.keys(pools).some((key) => key !== 'codex')) return failed('unsupported', receivedAt);
+  if (!Object.hasOwn(pools, 'codex')) return failed('unsupported', receivedAt);
   if (!object(pools.codex)) return failed('invalid-data', receivedAt);
   const pool = pools.codex;
-  if (pool.limitId !== 'codex') return failed('unsupported', receivedAt);
+  if (pool.limitId !== null && pool.limitId !== 'codex') return failed('unsupported', receivedAt);
   const windows: SubscriptionQuotaWindow[] = [];
   for (const key of ['primary', 'secondary']) {
     const source = pool[key];
@@ -133,6 +134,38 @@ function responseFailure(error: unknown): Failure {
   return 'client-failed';
 }
 
+function codexCommand(): { executable: string; environment: NodeJS.ProcessEnv } | null {
+  const directories = [
+    ...(process.env.PATH ?? '').split(delimiter).filter(isAbsolute),
+    ...(platform() === 'darwin' ? ['/opt/homebrew/bin', '/usr/local/bin'] : []),
+    join(homedir(), '.local', 'bin'),
+    join(homedir(), '.npm-global', 'bin')
+  ];
+  const configured = process.env.TOKENWATCH_CODEX_EXECUTABLE;
+  const candidates =
+    configured === undefined
+      ? directories.map((directory) => join(directory, 'codex'))
+      : [configured];
+  const executable = candidates.find((candidate) => {
+    if (!isAbsolute(candidate)) return false;
+    try {
+      if (!statSync(candidate).isFile()) return false;
+      accessSync(candidate, constants.X_OK);
+      return true;
+    } catch {
+      return false;
+    }
+  });
+  if (!executable) return null;
+  return {
+    executable,
+    environment: {
+      ...process.env,
+      PATH: [...new Set([dirname(executable), ...directories])].join(delimiter)
+    }
+  };
+}
+
 export async function collectCodexQuota(
   options: { signal?: AbortSignal; timeoutMs?: number } = {}
 ): Promise<SubscriptionReadResult> {
@@ -140,6 +173,8 @@ export async function collectCodexQuota(
   const requested = options.timeoutMs ?? 15_000;
   if (!Number.isFinite(requested) || requested <= 0) return failed('invalid-data');
   const timeoutMs = Math.min(requested, 30_000);
+  const command = codexCommand();
+  if (!command) return failed('client-unavailable');
   let cwd: string;
   try {
     cwd = await mkdtemp(join(tmpdir(), 'tokenwatch-codex-'));
@@ -194,7 +229,7 @@ export async function collectCodexQuota(
       };
       try {
         child = spawn(
-          'codex',
+          command.executable,
           [
             '-c',
             'mcp_servers={}',
@@ -208,7 +243,7 @@ export async function collectCodexQuota(
             '--listen',
             'stdio://'
           ],
-          { cwd, stdio: ['pipe', 'pipe', 'pipe'], shell: false }
+          { cwd, env: command.environment, stdio: ['pipe', 'pipe', 'pipe'], shell: false }
         );
       } catch {
         resolve(failed('client-unavailable'));

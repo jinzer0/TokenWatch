@@ -142,3 +142,11 @@ host Node24 native 복구 후 관련 **3 files / 40 tests**, typecheck, 전체 *
 - 새 격리 usage DB/metadata 경로에서 host native 로딩, 전체 **72 files/840 tests**, desktop **17 files/190 tests**, typecheck·lint·CLI build·desktop build·변경 source/README/config scoped Prettier가 통과했다. 이번 게시 검증에는 공증을 다시 수행하지 않았으며 직전 새 DMG의 공증/Gatekeeper/smoke/checksum 증거와 구별한다. desktop build의 기존 dynamic/static import 혼재 경고는 유지했다.
 - read-only 독립 검토는 Codex collector·metadata repository·IPC 세 파일에서 구체적인 출시 차단 privacy/security 결함을 찾지 못했다. 전체 코드 검토나 미수행 실계정/접근성 검증을 대체하지 않는다.
 - 구독 수집/저장 `7e60f5b`, desktop 테마/구독 연결 `deecb00`, smoke userData 격리 `4b3611e`를 관심사별로 커밋했다. #22 문서와 승인된 draft UX 산출물은 별도 묶음이며 전체 BMad runtime/스킬·락파일·생성물은 제외한다. 무관한 미추적 파일은 삭제·stage하지 않는다.
+
+### PR #23 Codex P1 리뷰 로컬 수정
+
+- PR #23의 두 P1 의견을 공식 pinned v2 schema와 대조했다. map은 임의 bucket을 허용하고 `limitId`는 nullable이므로 `codex`만 선택하고 다른 bucket은 읽거나 검증하지 않으며 null ID를 허용한다. codex 누락·충돌 ID·유효하지 않은 window는 계속 거부한다. 무관한 bucket의 private sentinel/throwing getter가 결과에 영향을 주거나 노출되지 않는 회귀를 추가했다.
+- 실행 client는 PATH의 절대 prefix → macOS 표준 Homebrew prefix → 사용자 홈 `.local/bin`/`.npm-global/bin` 순서로 실행 가능한 파일만 선택한다. `TOKENWATCH_CODEX_EXECUTABLE`은 절대 경로 override이며 지정이 유효하지 않으면 다른 client로 대체하지 않는다. 선택 prefix를 child PATH에만 추가해 동일 prefix의 Node shebang 실행을 지원한다. 상대 PATH·directory·non-executable을 거부하고 전역 PATH/로그인 shell/패키지 manager/인증 파일을 사용하지 않는다. raw 경로는 DTO·저장소·출력에 넣지 않는다.
+- focused collector **1 file/69 tests**, 전체 **72 files/854 tests**, desktop **17 files/190 tests**, typecheck·lint·CLI/desktop build 통과. 기존 mixed import 경고는 유지했다.
+- built CLI의 실제 subprocess smoke 두 경우가 통과했다: 최소 GUI형 PATH의 user-local client 탐색, 공백을 포함한 절대 prefix override. 실제 프로세스와 `env node` shebang을 사용했지만 client/quota는 합성이다. 추가 bucket/null ID를 함께 검증했고 계정/raw path sentinel 미노출·DB 미생성·임시 자료 정리를 확인했다. 실제 Codex 계정 조회 또는 Finder로 실행한 새 packaged app 인수는 아니다.
+- README의 기존 설치/조회 안내에 표준 prefix와 GUI override 설정/해제 방법을 반영했다. 이후 `로컬 커밋 및 푸시해`로 리뷰 수정 커밋과 기존 `publish/task22` 푸시를 명시 승인받았다. 게시 직전 focused69·typecheck·diff를 다시 확인했다. 원격 리뷰 댓글/해결 표시·병합·Issue 종료는 승인 범위가 아니다. 기존 공증 DMG는 리뷰 수정 전 소스이므로 이 수정이 반영된 바이너리로 주장하지 않는다. 의존성/락파일/서명 설정은 변경하지 않았다.

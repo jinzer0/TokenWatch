@@ -95,3 +95,11 @@ Stage5 quota 화면 숫자는 전부 합성이다. Stage4 실제 Codex85%와 혼
 게시 직전 격리 DB에서 전체 **72 files/840 tests**, desktop **17 files/190 tests**, typecheck·lint·CLI/desktop build·변경 source/README/config scoped Prettier를 다시 통과했다. 기존 mixed dynamic/static import 경고는 유지했다. 별도 read-only 검토는 Codex collector·metadata repository·IPC 세 파일에서 구체적인 release-blocking privacy/security 결함을 찾지 못했다. 이 제한된 검토를 모든 파일의 전체 검토로 확대하지 않는다.
 
 소스 커밋은 구독 수집·저장 `7e60f5b`, 테마/desktop 연결 `deecb00`, packaged smoke userData 격리 `4b3611e`로 나눴다. 보고·계획·보드·README·승인된 draft UX 산출물은 별도 문서 커밋으로 묶는다. 무관한 `_bmad/` runtime, 전체 스킬, `skills-lock.json` 및 generated outputs는 게시 범위에서 제외한다. PR 링크와 원격 상태는 게시 후 응답과 GitHub에서 확인하며 이 문서를 미래 게시 성공의 증거로 사용하지 않는다.
+
+## PR #23 Codex 리뷰 대응
+
+PR #23은 `publish/task22 → main`으로 게시됐다. 이후 요청자의 `codex 리뷰 대응 수정 진행해`로 두 P1을 로컬 수정했다. 공식 v2 schema에 맞춰 multi-bucket map에서 `codex`만 선택하고 nullable `limitId`를 허용한다. GUI PATH 문제는 실행 가능한 PATH/표준 Homebrew/user-local prefix 탐색과 `TOKENWATCH_CODEX_EXECUTABLE` 절대 경로 override로 처리했다. invalid override는 fail-closed이며 child PATH만 보강하고 경로는 저장/출력하지 않는다.
+
+수정 후 focused collector **69 tests**, 전체 **72 files/854 tests**, desktop **17 files/190 tests**, typecheck·lint·CLI/desktop build를 통과했다. 최소 GUI형 PATH의 실제 built CLI subprocess와 공백 포함 override smoke 두 경우도 통과했고 client/quota는 합성·DB 미생성·sentinel 미노출을 확인했다. Finder에서 새 packaged binary를 실행하거나 실제 계정을 조회한 증거로 확대하지 않는다.
+
+이후 요청자의 `로컬 커밋 및 푸시해`로 리뷰 대응 변경의 커밋·`publish/task22` 푸시를 명시 승인받았다. 게시 직전 focused collector **69 tests**와 typecheck·diff 검사를 다시 통과했다. 원격 리뷰 댓글·해결 표시·병합·Issue 종료는 포함하지 않는다. 기존 공증 DMG는 리뷰 수정 전 소스이므로 새 수정의 공증/설치 증거가 아니다. 기존 생략·보류 승인과 지원·privacy·전망 제한은 유지한다.

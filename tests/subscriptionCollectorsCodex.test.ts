@@ -8,13 +8,31 @@ import {
   parseCodexQuota
 } from '../src/services/subscriptionCollectors/codex.js';
 
-const mocks = vi.hoisted(() => ({ spawn: vi.fn(), mkdtemp: vi.fn(), rm: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  spawn: vi.fn(),
+  mkdtemp: vi.fn(),
+  rm: vi.fn(),
+  statSync: vi.fn(),
+  accessSync: vi.fn(),
+  platform: vi.fn()
+}));
 vi.mock('node:child_process', () => ({ spawn: mocks.spawn }));
 vi.mock('node:fs/promises', () => ({ mkdtemp: mocks.mkdtemp, rm: mocks.rm }));
+vi.mock('node:fs', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('node:fs')>()),
+  statSync: mocks.statSync,
+  accessSync: mocks.accessSync
+}));
+vi.mock('node:os', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('node:os')>()),
+  homedir: () => '/synthetic/home',
+  platform: mocks.platform
+}));
 
 const receipt = '2026-10-05T16:16:00.000Z';
 const sentinel = 'AUTH_TOKEN_PROMPT_RAW_PATH_SENTINEL_DO_NOT_LEAK';
 const ownedCwd = '/synthetic/tokenwatch-codex-owned';
+const installedExecutable = '/synthetic/bin/codex';
 const window = { usedPercent: 13, windowDurationMins: 10080, resetsAt: 1791303360 };
 function quota(primary: unknown = window, secondary: unknown = null) {
   return { rateLimitsByLimitId: { codex: { limitId: 'codex', primary, secondary } } };
@@ -72,12 +90,20 @@ beforeEach(() => {
   mocks.spawn.mockReturnValue(child);
   mocks.mkdtemp.mockResolvedValue(ownedCwd);
   mocks.rm.mockResolvedValue(undefined);
+  mocks.platform.mockReturnValue('darwin');
+  vi.stubEnv('PATH', '/synthetic/bin');
+  vi.stubEnv('TOKENWATCH_CODEX_EXECUTABLE', undefined);
+  mocks.statSync.mockImplementation((path) => {
+    if (path === installedExecutable) return { isFile: () => true };
+    throw new Error(sentinel);
+  });
 });
 afterEach(() => {
   child.stdout.destroy();
   child.stderr.destroy();
   child.stdin.destroy();
   vi.useRealTimers();
+  vi.unstubAllEnvs();
 });
 
 function expectSafe(result: unknown) {
@@ -202,11 +228,30 @@ describe('Codex official quota projection', () => {
     expect(result.failure).toBe('invalid-data');
   });
 
-  it('fails closed for unknown/multiple pools, mismatched limitId and legacy-only responses', () => {
+  it.each(['codex', null])('selects Codex from multiple buckets with limitId %s', (limitId) => {
+    const result = parseCodexQuota(
+      {
+        rateLimitsByLimitId: {
+          codex: { limitId, primary: window, secondary: null },
+          other: { limitId: sentinel, primary: { usedPercent: -1, raw: sentinel } },
+          get unrelated() {
+            throw new Error(sentinel);
+          }
+        }
+      },
+      receipt
+    );
+    expectSafe(result);
+    expect(result).toMatchObject({ failure: 'none', windows: [{ remainingPercent: 87 }] });
+    expect(result.windows).toHaveLength(1);
+  });
+
+  it('fails closed for unknown pools, mismatched limitId and legacy-only responses', () => {
     for (const input of [
       { rateLimits: { limitId: 'codex', primary: window } },
       { rateLimitsByLimitId: null },
-      { rateLimitsByLimitId: { ...quota().rateLimitsByLimitId, other: { limitId: sentinel } } },
+      { rateLimitsByLimitId: { other: { limitId: sentinel, primary: window } } },
+      { rateLimitsByLimitId: { codex: { primary: window } } },
       { rateLimitsByLimitId: { codex: { limitId: 'other', primary: window } } }
     ]) {
       const result = parseCodexQuota(input, receipt);
@@ -230,7 +275,7 @@ describe('Codex bounded official stdio collector', () => {
     expect(Date.parse(result.receivedAt)).toBeGreaterThanOrEqual(before);
     expect(Date.parse(result.receivedAt)).toBeLessThanOrEqual(Date.now());
     expect(mocks.spawn).toHaveBeenCalledWith(
-      'codex',
+      installedExecutable,
       [
         '-c',
         'mcp_servers={}',
@@ -244,7 +289,14 @@ describe('Codex bounded official stdio collector', () => {
         '--listen',
         'stdio://'
       ],
-      { cwd: ownedCwd, stdio: ['pipe', 'pipe', 'pipe'], shell: false }
+      {
+        cwd: ownedCwd,
+        env: expect.objectContaining({
+          PATH: '/synthetic/bin:/opt/homebrew/bin:/usr/local/bin:/synthetic/home/.local/bin:/synthetic/home/.npm-global/bin'
+        }),
+        stdio: ['pipe', 'pipe', 'pipe'],
+        shell: false
+      }
     );
     expect(child.requests).toEqual([
       {
@@ -260,6 +312,92 @@ describe('Codex bounded official stdio collector', () => {
     ]);
     expect(child.kill).toHaveBeenCalledWith('SIGTERM');
     expect(mocks.rm).toHaveBeenCalledWith(ownedCwd, { recursive: true, force: true });
+  });
+
+  it.each([
+    '/opt/homebrew/bin/codex',
+    '/usr/local/bin/codex',
+    '/synthetic/home/.local/bin/codex',
+    '/synthetic/home/.npm-global/bin/codex'
+  ])('resolves installed client %s with a GUI-only PATH', async (executable) => {
+    vi.stubEnv('PATH', '/usr/bin:/bin');
+    mocks.statSync.mockImplementation((path) => {
+      if (path === executable) return { isFile: () => true };
+      throw new Error(sentinel);
+    });
+    child.respond();
+    const result = await collectCodexQuota();
+    expectSafe(result);
+    expect(result.failure).toBe('none');
+    expect(mocks.spawn.mock.calls[0][0]).toBe(executable);
+    expect(mocks.spawn.mock.calls[0][2].env.PATH.split(':')[0]).toBe(
+      executable.slice(0, executable.lastIndexOf('/'))
+    );
+    expect(process.env.PATH).toBe('/usr/bin:/bin');
+    expect(JSON.stringify(result)).not.toContain(executable);
+  });
+
+  it('resolves an installed user-local client with no PATH and without a login shell', async () => {
+    vi.stubEnv('PATH', undefined);
+    mocks.platform.mockReturnValue('linux');
+    mocks.statSync.mockImplementation((path) => {
+      if (path === '/synthetic/home/.local/bin/codex') return { isFile: () => true };
+      throw new Error(sentinel);
+    });
+    child.respond();
+    expect((await collectCodexQuota()).failure).toBe('none');
+    expect(mocks.spawn.mock.calls[0][0]).toBe('/synthetic/home/.local/bin/codex');
+    expect(mocks.spawn.mock.calls[0][2].shell).toBe(false);
+    expect(mocks.spawn).toHaveBeenCalledOnce();
+  });
+
+  it('honors an absolute override including spaces without exposing its path', async () => {
+    const executable = '/synthetic/custom prefix/codex';
+    vi.stubEnv('TOKENWATCH_CODEX_EXECUTABLE', executable);
+    mocks.statSync.mockImplementation((path) => {
+      if (path === executable) return { isFile: () => true };
+      throw new Error(sentinel);
+    });
+    child.respond();
+    const result = await collectCodexQuota();
+    expectSafe(result);
+    expect(result.failure).toBe('none');
+    expect(mocks.spawn.mock.calls[0][0]).toBe(executable);
+    expect(mocks.spawn.mock.calls[0][2].env.PATH).toMatch(/^\/synthetic\/custom prefix:/);
+    expect(JSON.stringify(result)).not.toContain(executable);
+  });
+
+  it.each(['', 'codex', '/synthetic/missing/codex', '/synthetic/directory'])(
+    'does not fall back from invalid override %s',
+    async (executable) => {
+      vi.stubEnv('TOKENWATCH_CODEX_EXECUTABLE', executable);
+      if (executable.endsWith('directory')) mocks.statSync.mockReturnValue({ isFile: () => false });
+      const result = await collectCodexQuota();
+      expectSafe(result);
+      expect(result.failure).toBe('client-unavailable');
+      expect(mocks.spawn).not.toHaveBeenCalled();
+      expect(mocks.mkdtemp).not.toHaveBeenCalled();
+    }
+  );
+
+  it('rejects non-executable files and ignores relative PATH entries', async () => {
+    mocks.accessSync.mockImplementation(() => {
+      throw new Error(sentinel);
+    });
+    expect((await collectCodexQuota()).failure).toBe('client-unavailable');
+    expect(mocks.spawn).not.toHaveBeenCalled();
+    mocks.statSync.mockClear();
+    vi.stubEnv('PATH', '.:relative');
+    expect((await collectCodexQuota()).failure).toBe('client-unavailable');
+    expect(mocks.statSync.mock.calls.every(([path]) => String(path).startsWith('/'))).toBe(true);
+  });
+
+  it('checks macOS standard prefixes only on macOS', async () => {
+    vi.stubEnv('PATH', '/usr/bin:/bin');
+    mocks.platform.mockReturnValue('linux');
+    expect((await collectCodexQuota()).failure).toBe('client-unavailable');
+    expect(mocks.statSync).not.toHaveBeenCalledWith('/opt/homebrew/bin/codex');
+    expect(mocks.statSync).not.toHaveBeenCalledWith('/usr/local/bin/codex');
   });
 
   it('discards fragmented notifications, account banners and stderr without logging', async () => {
