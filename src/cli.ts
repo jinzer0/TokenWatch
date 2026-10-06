@@ -4,6 +4,8 @@ import { basename, extname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Command } from 'commander';
 import { APP_VERSION } from './app/constants.js';
+import { resolveSubscriptionMetadataPath } from './app/paths.js';
+import { SubscriptionMetadataRepository } from './db/subscriptionMetadata.js';
 import { sanitizeCliError } from './app/cliErrors.js';
 import { TokenWatchError } from './app/errors.js';
 import { containsUnsafeOutputPathShape } from './privacy.js';
@@ -12,6 +14,10 @@ import { renderHeatmapSvg } from './services/heatmapSvgRenderer.js';
 import { renderHeatmapText } from './services/heatmapTextRenderer.js';
 import { renderAuditText } from './services/auditRenderer.js';
 import { probeProviderUsage } from './services/providerUsage.js';
+import { collectCodexQuota } from './services/subscriptionCollectors/codex.js';
+import { readSubscriptionUsage } from './services/subscriptionUsage.js';
+import { parseClaudeQuota } from './parsers/claudeQuota.js';
+import type { SubscriptionReadResult } from './desktop/shared/subscriptionContracts.js';
 import { writeReportPng } from './services/pngRenderer.js';
 import {
   buildInsightsCommandReport,
@@ -118,6 +124,52 @@ export async function main(argv = process.argv): Promise<void> {
     .version(APP_VERSION);
   program.exitOverride();
   program.configureOutput({ writeErr: () => undefined });
+
+  program
+    .command('subscription')
+    .description('Read sanitized subscription quota metadata')
+    .allowExcessArguments(false)
+    .option('--provider <provider>', 'provider: codex or claude', 'codex')
+    .option('--stdin', 'receive official Claude Code statusline JSON from stdin')
+    .option('--record', 'record sanitized observations in the separate metadata database')
+    .action(async (options: { provider: string; stdin?: boolean; record?: boolean }) => {
+      if (options.provider !== 'codex' && options.provider !== 'claude') {
+        throw new TokenWatchError('invalid_provider', 1, 'invalid_provider');
+      }
+      if ((options.provider === 'claude') !== (options.stdin === true)) {
+        throw new TokenWatchError('validation_failed', 1, 'validation_failed');
+      }
+      const result =
+        options.provider === 'codex'
+          ? await readSubscriptionUsage('codex', () => collectCodexQuota())
+          : await readSubscriptionUsage('claude', async () => {
+              try {
+                const input = await readSubscriptionStdin();
+                return parseClaudeQuota(JSON.parse(input) as unknown, new Date().toISOString());
+              } catch (error) {
+                return {
+                  provider: 'claude',
+                  availability: 'error',
+                  failure: error === 'timeout' ? 'timeout' : 'invalid-data',
+                  receivedAt: new Date().toISOString(),
+                  windows: []
+                } satisfies SubscriptionReadResult;
+              }
+            });
+      if (options.record) {
+        let repository: SubscriptionMetadataRepository | undefined;
+        try {
+          repository = new SubscriptionMetadataRepository(resolveSubscriptionMetadataPath());
+          repository.append(result);
+        } catch {
+          throw new TokenWatchError('validation_failed', 1, 'validation_failed');
+        } finally {
+          repository?.close();
+        }
+      }
+      console.log(JSON.stringify(result, null, 2));
+      if (result.availability === 'error') process.exitCode = 1;
+    });
 
   program
     .command('watch')
@@ -688,6 +740,50 @@ export async function main(argv = process.argv): Promise<void> {
 
 function collectRepeatedOption(value: string, previous: string[]): string[] {
   return [...previous, value];
+}
+
+function readSubscriptionStdin(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const stdin = process.stdin;
+    const chunks: Buffer[] = [];
+    let bytes = 0;
+    const cleanup = () => {
+      clearTimeout(timer);
+      stdin.off('data', onData);
+      stdin.off('end', onEnd);
+      stdin.off('error', onError);
+      stdin.off('close', onClose);
+      stdin.pause();
+    };
+    const fail = (reason: 'timeout' | 'invalid-data') => {
+      cleanup();
+      chunks.length = 0;
+      reject(reason);
+    };
+    const onData = (chunk: Buffer | string) => {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      bytes += buffer.length;
+      if (bytes > 256 * 1024) {
+        fail('invalid-data');
+        return;
+      }
+      chunks.push(buffer);
+    };
+    const onEnd = () => {
+      const text = Buffer.concat(chunks).toString('utf8');
+      cleanup();
+      chunks.length = 0;
+      resolve(text);
+    };
+    const onError = () => fail('invalid-data');
+    const onClose = () => fail('invalid-data');
+    const timer = setTimeout(() => fail('timeout'), 10_000);
+    stdin.on('data', onData);
+    stdin.once('end', onEnd);
+    stdin.once('error', onError);
+    stdin.once('close', onClose);
+    stdin.resume();
+  });
 }
 
 async function runHeatmapCommand(options: HeatmapCliOptions): Promise<void> {

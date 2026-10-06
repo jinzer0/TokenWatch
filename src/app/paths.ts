@@ -1,5 +1,5 @@
 import { homedir } from 'node:os';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { DEFAULT_DB_RELATIVE_PATH } from './constants.js';
 import { ensureParentDirectory, expandHome } from '../utils/fs.js';
 
@@ -13,4 +13,8 @@ export function resolveDbPath(env: NodeJS.ProcessEnv = process.env): string {
 
 export function ensureDbParent(dbPath: string): void {
   ensureParentDirectory(dbPath);
+}
+
+export function resolveSubscriptionMetadataPath(env: NodeJS.ProcessEnv = process.env): string {
+  return resolve(dirname(resolveDbPath(env)), 'subscription-metadata.db');
 }
