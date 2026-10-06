@@ -17,6 +17,11 @@ const readRendererSources = (directory = 'src/desktop/renderer/src'): string =>
     .join('\n');
 
 describe('desktop shell security defaults', () => {
+  it('keeps native SQLite outside the main bundle so its binding resolves at runtime', () => {
+    const config = readProjectFile('electron.vite.config.ts');
+    expect(config).toContain("external: ['electron', 'better-sqlite3']");
+  });
+
   it('uses isolated and sandboxed BrowserWindow preferences', () => {
     const mainSource = readProjectFile('src/desktop/main.ts');
 
@@ -75,6 +80,10 @@ describe('desktop shell security defaults', () => {
     );
     expect(sharedApiTypes).toContain('getStatus: () => Promise<DesktopAppStatus>');
     expect(sharedApiTypes).toContain('getVersion: () => Promise<string>');
+    expect(sharedApiTypes).toContain('getSettings: () => Promise<DesktopAppearanceSettings>');
+    expect(sharedApiTypes).toContain(
+      'setTheme: (theme: DesktopTheme) => Promise<DesktopAppearanceSettings>'
+    );
     expect(sharedApiTypes).toContain(
       'exportReport: (request: DesktopShareReportRequestInput) => Promise<DesktopShareReportResult>'
     );

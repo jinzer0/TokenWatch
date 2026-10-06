@@ -31,6 +31,25 @@ const isoDateTimeSchema = z.string().datetime({ offset: true });
 const dateOnlySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const sanitizedPrivacySchema = z.object({ sanitized: z.literal(true) }).strict();
 
+const desktopPeriodTotalsSchema = z
+  .object({
+    tokens: positiveIntegerSchema,
+    estimatedCostUsd: nullableCostSchema,
+    previousTokens: positiveIntegerSchema,
+    changePercent: z.number().finite().nullable()
+  })
+  .strict();
+
+export const desktopPeriodSummarySchema = z
+  .object({
+    day: desktopPeriodTotalsSchema,
+    week: desktopPeriodTotalsSchema,
+    trend: z
+      .array(z.object({ date: dateOnlySchema, tokens: positiveIntegerSchema }).strict())
+      .length(7)
+  })
+  .strict();
+
 const unsafePrivacyPattern =
   /(PROMPT|RESPONSE|FAKE_API_KEY|FAKE_OAUTH|FAKE_CREDENTIAL|AUTH_CONFIG|RAW_SESSION|RAW_WORKSPACE|RAW_PATH|TOKENWATCH_PATH|STACK_TRACE|SQL_PAYLOAD)_SENTINEL_DO_NOT_LEAK|api[_-]?key|oauth|credential|secret|password|bearer\s+[A-Za-z0-9._-]+|sk-[A-Za-z0-9_-]{8,}|ghp_[A-Za-z0-9_]{8,}|xox[baprs]-[A-Za-z0-9-]{8,}|raw[_-]?(record|json|content)|prompt[_-]?sentinel|response[_-]?sentinel|select\s+.+\s+from\s+|insert\s+into\s+|\bat\s+[\w.]+\s+\([^)]*:\d+:\d+\)|(^~([/\\]|$)|^[A-Za-z]:[/\\]|^\/(Users|home|private|var|tmp|etc)(\/|$)|(^|[/\\])(Users|home|private)([/\\]|$)|(^|[/\\])\.?(ssh|aws|config)([/\\]|$)|[/\\][^/\\]*(secret|credential|oauth|token|key|private)[^/\\]*)/i;
 
@@ -182,6 +201,7 @@ export const desktopDashboardSchema = z
     kind: z.literal('desktop-dashboard'),
     generatedAt: isoDateTimeSchema,
     totals: dashboardTotalsSchema,
+    periodSummary: desktopPeriodSummarySchema,
     dateRange: dashboardDateRangeSchema,
     top: dashboardTopSchema,
     usageSeries: z.array(dashboardUsageSeriesPointSchema),
@@ -249,6 +269,7 @@ export const desktopIpcErrorSchema = z
   .strict();
 
 export type DesktopDashboard = z.infer<typeof desktopDashboardSchema>;
+export type DesktopPeriodSummary = z.infer<typeof desktopPeriodSummarySchema>;
 export type DesktopDashboardBreakdown = z.infer<typeof dashboardBreakdownSchema>;
 export type { DesktopDashboardProjectGroup };
 export type { DesktopDashboardScanRun };

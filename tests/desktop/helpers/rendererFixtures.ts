@@ -2,6 +2,10 @@ import { vi } from 'vitest';
 
 import type { TokenWatchDesktopApi } from '../../../src/desktop/shared/api.js';
 import type {
+  DesktopSubscriptionSnapshot,
+  DesktopSubscriptionCard
+} from '../../../src/desktop/shared/subscriptionContracts.js';
+import type {
   DesktopAppStatus,
   DesktopDashboardSnapshot
 } from '../../../src/desktop/shared/contracts.js';
@@ -26,6 +30,8 @@ export type DashboardOverrides = Partial<Dashboard> & {
 };
 
 export type TokenwatchApiOverrides = {
+  readonly subscription?: TokenWatchDesktopApi['subscription'];
+  readonly appearance?: TokenWatchDesktopApi['appearance'];
   readonly getSnapshot?: TokenWatchDesktopApi['dashboard']['getSnapshot'];
   readonly refresh?: TokenWatchDesktopApi['dashboard']['refresh'];
   readonly getStatus?: TokenWatchDesktopApi['app']['getStatus'];
@@ -46,6 +52,19 @@ export const setupSnapshot = (): DesktopDashboardSnapshot => ({
   dashboard: null,
   privacy: { sanitized: true }
 });
+
+export const subscriptionSnapshot = (): DesktopSubscriptionSnapshot => {
+  const card = (provider: DesktopSubscriptionCard['provider']): DesktopSubscriptionCard => ({
+    provider,
+    availability: provider === 'cursor' ? 'unsupported' : 'not-configured',
+    failure: provider === 'cursor' ? 'unsupported' : 'client-unavailable',
+    windows: [],
+    lastAttemptAt: null,
+    cached: false,
+    history: { continuity: 'unverified', eligible: false, reason: 'metadata-unverified' }
+  });
+  return { storage: 'ready', providers: [card('claude'), card('codex'), card('cursor')] };
+};
 
 export const appStatus = (status: DesktopAppStatus['database']['status']): DesktopAppStatus => ({
   app: 'ready',
@@ -150,6 +169,14 @@ export const dashboardFixture = (overrides: DashboardOverrides = {}): Dashboard 
     version: 1,
     kind: 'desktop-dashboard',
     generatedAt: '2026-06-07T12:00:00.000Z',
+    periodSummary: {
+      day: { tokens: 1234, estimatedCostUsd: null, previousTokens: 1000, changePercent: 23.4 },
+      week: { tokens: 12345, estimatedCostUsd: null, previousTokens: 10000, changePercent: 23.45 },
+      trend: Array.from({ length: 7 }, (_, index) => ({
+        date: `2026-06-0${index + 1}`,
+        tokens: 1000
+      }))
+    },
     totals,
     dateRange: {
       start: '2026-06-01T00:00:00.000Z',
@@ -508,6 +535,19 @@ export const populatedSnapshot = (
 });
 
 export const installTokenwatchApi = ({
+  subscription = Object.freeze({
+    getSnapshot: vi.fn(async () => subscriptionSnapshot()),
+    refresh: vi.fn(async () => subscriptionSnapshot())
+  }),
+  appearance = Object.freeze({
+    getSettings: vi.fn(async () => ({ theme: 'graphite' as const, status: 'default' as const })),
+    setTheme: vi.fn(
+      async (theme: Parameters<TokenWatchDesktopApi['appearance']['setTheme']>[0]) => ({
+        theme,
+        status: 'saved' as const
+      })
+    )
+  }),
   exportReport = vi.fn(async () => ({
     format: 'json',
     fileName: 'tokenwatch-share.json',
@@ -520,6 +560,8 @@ export const installTokenwatchApi = ({
   getVersion = vi.fn(async () => '0.1.0')
 }: TokenwatchApiOverrides = {}): TokenwatchApiOverrides => {
   const tokenwatchApi: TokenWatchDesktopApi = Object.freeze({
+    subscription,
+    appearance,
     dashboard: Object.freeze({ getSnapshot, refresh }),
     app: Object.freeze({ getStatus, getVersion }),
     share: Object.freeze({ exportReport })
@@ -528,5 +570,5 @@ export const installTokenwatchApi = ({
     configurable: true,
     value: tokenwatchApi
   });
-  return { exportReport, getSnapshot, refresh, getStatus, getVersion };
+  return { subscription, appearance, exportReport, getSnapshot, refresh, getStatus, getVersion };
 };

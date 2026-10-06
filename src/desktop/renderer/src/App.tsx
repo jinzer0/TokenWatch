@@ -1,13 +1,16 @@
 import type { ReactElement } from 'react';
 import { useMemo } from 'react';
 
+import { AppearanceSettings } from './components/AppearanceSettings.js';
 import { DashboardContent } from './components/DashboardContent.js';
 import { Shell } from './components/Shell.js';
+import { SubscriptionDashboard } from './components/SubscriptionDashboard.js';
 import { ErrorState, LoadingState, SetupState } from './components/StateCards.js';
 import { useTokenWatchDashboard } from './hooks/useTokenWatchDashboard.js';
 
 import './App.css';
 import './sessionFilters.css';
+import './subscriptions.css';
 
 export const App = (): ReactElement => {
   const {
@@ -38,7 +41,6 @@ export const App = (): ReactElement => {
 
   return (
     <Shell
-      dashboard={dashboard}
       databaseStatus={databaseStatus}
       lastRefreshedAt={lastRefreshedAt}
       loading={loading}
@@ -46,19 +48,25 @@ export const App = (): ReactElement => {
       refreshing={refreshing}
       shellState={shellState}
       version={version}
+      settings={<AppearanceSettings />}
     >
-      {loading ? <LoadingState /> : null}
-      {!loading && error ? <ErrorState error={error} /> : null}
-      {!loading && !error && !hasDashboardData ? (
-        <SetupState databaseStatus={databaseStatus} />
-      ) : null}
-      {!loading && !error && dashboard && hasDashboardData ? (
-        <DashboardContent
-          dashboard={dashboard}
-          onApplyFilters={applyFilters}
-          refreshing={refreshing}
-        />
-      ) : null}
+      <div className="desktop-dashboard-grid">
+        <section className="local-dashboard" aria-label="로컬 사용량 분석">
+          {loading ? <LoadingState /> : null}
+          {!loading && error ? <ErrorState error={error} /> : null}
+          {!loading && !error && !hasDashboardData ? (
+            <SetupState databaseStatus={databaseStatus} />
+          ) : null}
+          {!loading && !error && dashboard && hasDashboardData ? (
+            <DashboardContent
+              dashboard={dashboard}
+              onApplyFilters={applyFilters}
+              refreshing={refreshing}
+            />
+          ) : null}
+        </section>
+        <SubscriptionDashboard />
+      </div>
     </Shell>
   );
 };

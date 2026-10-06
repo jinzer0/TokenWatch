@@ -16,6 +16,7 @@ import {
   toDashboardPricingDiagnostics
 } from './desktopDiagnostics.js';
 import { buildDesktopDiagnosticsHub } from './desktopDiagnosticsHub.js';
+import { buildDesktopPeriodSummary } from './desktopPeriodSummary.js';
 import { groupEventsByDay, sumNumericEventField } from './desktopDashboardUtils.js';
 import {
   filterEvents,
@@ -90,6 +91,7 @@ export class DesktopDashboardService {
     options: Pick<BuildDesktopDashboardOptions, 'budgetEvaluationDate'> = {}
   ): DesktopDashboard {
     const filteredEvents = filterEvents(events, filters);
+    const evaluationDate = options.budgetEvaluationDate ?? new Date();
     const totals = this.aggregator.summarize(filteredEvents);
     const strictTotals = strictCostFields(filteredEvents);
     const costReport = this.reports.buildGraphReport(filteredEvents, {
@@ -103,7 +105,7 @@ export class DesktopDashboardService {
     const pricingDiagnostics = this.aggregator.pricingDiagnostics(filteredEvents, {
       lookupCache: this.pricingModels?.listLookupCache() ?? []
     });
-    const budgetEvaluations = this.budget?.evaluateCurrentMonth(options.budgetEvaluationDate) ?? [];
+    const budgetEvaluations = this.budget?.evaluateCurrentMonth(evaluationDate) ?? [];
     const budgetDiagnostics = toDashboardBudgetDiagnostics(budgetEvaluations);
     const projectGroups = groupEventsByPublicProject(filteredEvents).map((group) =>
       toDashboardProjectGroup(group, filteredEvents)
@@ -119,6 +121,7 @@ export class DesktopDashboardService {
       version: 1,
       kind: 'desktop-dashboard',
       generatedAt: nowIso(),
+      periodSummary: buildDesktopPeriodSummary(filteredEvents, evaluationDate),
       totals: {
         events: totals.totalEvents,
         tokens: totals.totalTokens,

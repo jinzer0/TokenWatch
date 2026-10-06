@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { DesktopDashboardSnapshot } from '../../src/desktop/shared/contracts.js';
@@ -58,7 +58,7 @@ describe('desktop renderer shell', () => {
 
     render(<App />);
 
-    expect(await screen.findByRole('heading', { name: 'Local token analytics' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'TokenWatch' })).toBeTruthy();
     expect(screen.getByLabelText('Dashboard status').textContent).toContain('Ready');
     expect(screen.getByLabelText('Database and refresh status').textContent).toContain(
       'DatabaseReady'
@@ -66,8 +66,8 @@ describe('desktop renderer shell', () => {
     expect(screen.getByLabelText('Database and refresh status').textContent).toContain(
       'Last refreshedJun 7, 2026'
     );
-    expect(screen.getByLabelText('Analytics summary metrics').textContent).toContain('42');
-    expect(screen.getByLabelText('Analytics summary metrics').textContent).toContain('123,456');
+    expect(screen.queryByLabelText('Analytics summary metrics')).toBeNull();
+    expect(screen.queryByText('A private command center for usage signals.')).toBeNull();
 
     const summary = screen.getByLabelText('Dashboard summary cards');
     expect(textOf(summary)).toContain('Total tokens');
@@ -376,6 +376,13 @@ describe('desktop renderer shell', () => {
     render(<App />);
 
     const filters = await screen.findByLabelText('UTC date filters');
+    await waitFor(() =>
+      expect(
+        within(filters)
+          .getByRole('button', { name: 'Apply UTC date filter' })
+          .hasAttribute('disabled')
+      ).toBe(false)
+    );
     fireEvent.change(within(filters).getByLabelText('From date UTC'), {
       target: { value: '2026-05-02' }
     });
@@ -814,7 +821,7 @@ describe('desktop renderer shell', () => {
     render(<App />);
 
     expect((await screen.findByLabelText('Setup needed dashboard state')).textContent).toContain(
-      'No TokenWatch database data is available yet.'
+      'No usage data yet.'
     );
     expect(screen.getByLabelText('Database and refresh status').textContent).toContain(
       'DatabaseSetup needed'
@@ -871,7 +878,7 @@ describe('desktop renderer shell', () => {
 
     render(<App />);
 
-    expect((await screen.findByLabelText('Analytics summary metrics')).textContent).toContain(
+    expect((await screen.findByLabelText('Dashboard summary cards')).textContent).toContain(
       '123,456'
     );
     expect(screen.getByLabelText('Database and refresh status').textContent).toContain(
@@ -883,7 +890,7 @@ describe('desktop renderer shell', () => {
 
     await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
     await waitFor(() =>
-      expect(screen.getByLabelText('Analytics summary metrics').textContent).toContain('654,321')
+      expect(screen.getByLabelText('Dashboard summary cards').textContent).toContain('654,321')
     );
     expect(screen.getByLabelText('Database and refresh status').textContent).toContain('13:30 UTC');
   });
@@ -915,7 +922,7 @@ describe('desktop renderer shell', () => {
 
   it('keeps auto-refresh off by default', async () => {
     const intervalSpy = vi.spyOn(globalThis, 'setInterval');
-    installTokenwatchApi({
+    const api = installTokenwatchApi({
       getSnapshot: vi.fn(async () => populatedSnapshot()),
       getStatus: vi.fn(async () => appStatus('ready'))
     });
@@ -924,9 +931,14 @@ describe('desktop renderer shell', () => {
       render(<App />);
 
       await screen.findByLabelText('Dashboard summary cards');
-      expect(
-        intervalSpy.mock.calls.filter(([callback]) => callback.name !== 'checkRealTimersCallback')
-      ).toEqual([]);
+      await act(async () => {
+        for (const [callback] of intervalSpy.mock.calls.filter(
+          ([handler]) => handler.name !== 'checkRealTimersCallback'
+        ))
+          callback();
+      });
+      expect(api.refresh).not.toHaveBeenCalled();
+      expect(api.subscription?.refresh).not.toHaveBeenCalled();
     } finally {
       intervalSpy.mockRestore();
     }

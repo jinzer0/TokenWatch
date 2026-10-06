@@ -1,8 +1,25 @@
 import type { IpcMainInvokeEvent, WebContents } from 'electron';
 import { createRequire } from 'node:module';
+import { join } from 'node:path';
 import type { z } from 'zod';
 
 import type { DesktopDbLifecycle } from './dbLifecycle.js';
+import type { DesktopSubscriptionService } from '../../services/desktopSubscriptions.js';
+import {
+  desktopSubscriptionIpcChannels,
+  desktopSubscriptionSnapshotSchema,
+  type DesktopSubscriptionIpcChannel
+} from '../shared/subscriptionContracts.js';
+import {
+  DESKTOP_APPEARANCE_SETTINGS_FILE,
+  DesktopAppearanceSettingsStore
+} from './appearanceSettings.js';
+import {
+  desktopAppearanceIpcChannels,
+  desktopAppearanceSetThemeArgsSchema,
+  desktopAppearanceSettingsSchema,
+  type DesktopAppearanceIpcChannel
+} from '../shared/appearanceContracts.js';
 import {
   desktopAppStatusSchema,
   desktopAppVersionSchema,
@@ -26,13 +43,17 @@ import {
 } from '../shared/shareContracts.js';
 import { ShareReportError } from '../../services/shareReport.js';
 
-const require = createRequire(import.meta.url);
+const electronRequire = createRequire(import.meta.url);
 const getElectronRuntime = (): typeof import('electron') =>
-  require('electron') as typeof import('electron');
+  electronRequire('electron') as typeof import('electron');
 const getElectronApp = (): typeof import('electron').app => getElectronRuntime().app;
 const getElectronDialog = (): typeof import('electron').dialog => getElectronRuntime().dialog;
 const getElectronIpcMain = (): typeof import('electron').ipcMain => getElectronRuntime().ipcMain;
-type DesktopMainIpcChannel = DesktopIpcChannel | DesktopShareIpcChannel;
+type DesktopMainIpcChannel =
+  | DesktopIpcChannel
+  | DesktopShareIpcChannel
+  | DesktopAppearanceIpcChannel
+  | DesktopSubscriptionIpcChannel;
 
 type IpcMainHandleTarget = {
   handle: (
@@ -46,6 +67,8 @@ type ChooseShareOutputPath = (request: DesktopShareReportRequest) => Promise<str
 
 type RegisterDesktopIpcHandlersOptions = {
   dbLifecycle: DesktopDbLifecycle;
+  subscriptions?: Pick<DesktopSubscriptionService, 'getSnapshot' | 'refresh'>;
+  appearanceSettings?: Pick<DesktopAppearanceSettingsStore, 'getSettings' | 'setTheme'>;
   ipcMainTarget?: IpcMainHandleTarget;
   getVersion?: () => string;
   getAllowedWebContents?: () => WebContents | unknown | null;
@@ -72,12 +95,20 @@ const createStatus = (snapshot: DesktopDashboardSnapshot): DesktopAppStatus => (
 
 export const registerDesktopIpcHandlers = ({
   dbLifecycle,
+  subscriptions,
+  appearanceSettings,
   ipcMainTarget = getElectronIpcMain(),
   getVersion = () => getElectronApp().getVersion(),
   getAllowedWebContents = () => null,
   chooseShareOutputPath = showShareSaveDialog,
   rendererUrl = process.env['ELECTRON_RENDERER_URL']
 }: RegisterDesktopIpcHandlersOptions): (() => void) => {
+  const getAppearanceSettings = () => {
+    appearanceSettings ??= new DesktopAppearanceSettingsStore(
+      join(getElectronApp().getPath('userData'), DESKTOP_APPEARANCE_SETTINGS_FILE)
+    );
+    return appearanceSettings;
+  };
   const definitions: HandlerDefinition<unknown>[] = [
     {
       channel: desktopIpcChannels.dashboardGetSnapshot,
@@ -138,11 +169,57 @@ export const registerDesktopIpcHandlers = ({
     }
   });
 
+  ipcMainTarget.handle(desktopAppearanceIpcChannels.getSettings, async (event, ...args) => {
+    try {
+      assertAuthorizedSender(event, getAllowedWebContents(), rendererUrl);
+      desktopIpcNoArgsSchema.parse(args);
+      return desktopAppearanceSettingsSchema.parse(await getAppearanceSettings().getSettings());
+    } catch (error) {
+      throw toDesktopIpcError(error);
+    }
+  });
+
+  ipcMainTarget.handle(desktopAppearanceIpcChannels.setTheme, async (event, ...args) => {
+    try {
+      assertAuthorizedSender(event, getAllowedWebContents(), rendererUrl);
+      const [theme] = desktopAppearanceSetThemeArgsSchema.parse(args);
+      return desktopAppearanceSettingsSchema.parse(await getAppearanceSettings().setTheme(theme));
+    } catch (error) {
+      throw toDesktopIpcError(error);
+    }
+  });
+
+  for (const channel of Object.values(desktopSubscriptionIpcChannels)) {
+    ipcMainTarget.handle(channel, async (event, ...args) => {
+      try {
+        assertAuthorizedSender(event, getAllowedWebContents(), rendererUrl);
+        desktopIpcNoArgsSchema.parse(args);
+        if (!subscriptions)
+          throw new TokenWatchDesktopIpcError({
+            code: 'desktop_ipc_failed',
+            message: 'error: desktop_ipc_failed'
+          });
+        const result =
+          channel === desktopSubscriptionIpcChannels.refresh
+            ? await subscriptions.refresh()
+            : subscriptions.getSnapshot();
+        return desktopSubscriptionSnapshotSchema.parse(result);
+      } catch (error) {
+        throw toDesktopIpcError(error);
+      }
+    });
+  }
+
   return () => {
     for (const definition of definitions) {
       ipcMainTarget.removeHandler(definition.channel);
     }
     ipcMainTarget.removeHandler(shareDefinition.channel);
+    ipcMainTarget.removeHandler(desktopAppearanceIpcChannels.getSettings);
+    ipcMainTarget.removeHandler(desktopAppearanceIpcChannels.setTheme);
+    for (const channel of Object.values(desktopSubscriptionIpcChannels)) {
+      ipcMainTarget.removeHandler(channel);
+    }
   };
 };
 
@@ -193,14 +270,18 @@ function assertAuthorizedSender(
   allowedWebContents: WebContents | unknown | null,
   rendererUrl: string | undefined
 ): void {
-  if (allowedWebContents !== null && event.sender !== allowedWebContents) {
+  if (allowedWebContents === null || event.sender !== allowedWebContents) {
     throw new TokenWatchDesktopIpcError({
       code: 'desktop_ipc_failed',
       message: 'error: desktop_ipc_failed'
     });
   }
   const senderFrame = event.senderFrame;
-  if (!senderFrame || !isAllowedDesktopRendererUrl(senderFrame.url, rendererUrl)) {
+  if (
+    !senderFrame ||
+    senderFrame !== event.sender.mainFrame ||
+    !isAllowedDesktopRendererUrl(senderFrame.url, rendererUrl)
+  ) {
     throw new TokenWatchDesktopIpcError({
       code: 'desktop_ipc_failed',
       message: 'error: desktop_ipc_failed'

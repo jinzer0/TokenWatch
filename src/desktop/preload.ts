@@ -7,6 +7,17 @@ import {
   type DesktopDashboardSnapshot
 } from './shared/contracts.js';
 import type { TokenWatchDesktopApi } from './shared/api.js';
+import {
+  desktopSubscriptionIpcChannels,
+  desktopSubscriptionSnapshotSchema
+} from './shared/subscriptionContracts.js';
+import {
+  desktopAppearanceIpcChannels,
+  desktopAppearanceSetThemeArgsSchema,
+  desktopAppearanceSettingsSchema,
+  type DesktopAppearanceSettings,
+  type DesktopTheme
+} from './shared/appearanceContracts.js';
 import { toDesktopIpcError } from './shared/ipcErrors.js';
 import {
   desktopShareIpcChannels,
@@ -48,7 +59,36 @@ const invokeShareExport = async (
   }
 };
 
+const getAppearanceSettings = async (): Promise<DesktopAppearanceSettings> => {
+  try {
+    return desktopAppearanceSettingsSchema.parse(
+      await ipcRenderer.invoke(desktopAppearanceIpcChannels.getSettings)
+    );
+  } catch (error) {
+    throw toDesktopIpcError(error);
+  }
+};
+
+const setAppearanceTheme = async (theme: DesktopTheme): Promise<DesktopAppearanceSettings> => {
+  try {
+    const [validatedTheme] = desktopAppearanceSetThemeArgsSchema.parse([theme]);
+    return desktopAppearanceSettingsSchema.parse(
+      await ipcRenderer.invoke(desktopAppearanceIpcChannels.setTheme, validatedTheme)
+    );
+  } catch (error) {
+    throw toDesktopIpcError(error);
+  }
+};
+
 const tokenwatchApi: TokenWatchDesktopApi = Object.freeze({
+  subscription: Object.freeze({
+    getSnapshot: () => invokeSubscription(desktopSubscriptionIpcChannels.getSnapshot),
+    refresh: () => invokeSubscription(desktopSubscriptionIpcChannels.refresh)
+  }),
+  appearance: Object.freeze({
+    getSettings: getAppearanceSettings,
+    setTheme: setAppearanceTheme
+  }),
   dashboard: Object.freeze({
     getSnapshot: (filters?: DesktopDashboardFilterInput) =>
       invokeDashboard(desktopIpcChannels.dashboardGetSnapshot, filters),
@@ -65,3 +105,11 @@ const tokenwatchApi: TokenWatchDesktopApi = Object.freeze({
 });
 
 contextBridge.exposeInMainWorld('tokenwatch', tokenwatchApi);
+
+async function invokeSubscription(channel: string) {
+  try {
+    return desktopSubscriptionSnapshotSchema.parse(await ipcRenderer.invoke(channel));
+  } catch (error) {
+    throw toDesktopIpcError(error);
+  }
+}
