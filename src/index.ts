@@ -51,7 +51,7 @@ export type {
 } from './parsers/base.js';
 export { readSubscriptionUsage } from './services/subscriptionUsage.js';
 export { collectCodexQuota, parseCodexQuota } from './services/subscriptionCollectors/codex.js';
-export { parseClaudeQuota } from './parsers/claudeQuota.js';
+export { parseClaudeQuota } from './services/subscriptionCollectors/claude.js';
 export { fitUsageSes, forecastSubscriptionUsage } from './services/usageForecast.js';
 export type {
   SubscriptionForecastInput,

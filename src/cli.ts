@@ -16,7 +16,7 @@ import { renderAuditText } from './services/auditRenderer.js';
 import { probeProviderUsage } from './services/providerUsage.js';
 import { collectCodexQuota } from './services/subscriptionCollectors/codex.js';
 import { readSubscriptionUsage } from './services/subscriptionUsage.js';
-import { parseClaudeQuota } from './parsers/claudeQuota.js';
+import { parseClaudeQuota } from './services/subscriptionCollectors/claude.js';
 import type { SubscriptionReadResult } from './desktop/shared/subscriptionContracts.js';
 import { writeReportPng } from './services/pngRenderer.js';
 import {

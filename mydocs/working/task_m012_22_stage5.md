@@ -179,3 +179,12 @@ host Node24 native 복구 후 관련 **3 files / 40 tests**, typecheck, 전체 *
 - Windows platform mock의 PATH/user-local `.exe` 탐색, extensionless 파일 미선택, Windows의 공백 포함 명시 override 회귀를 추가했다. focused **83 tests**, 전체 **72 files/875 tests**, desktop **17 files/190 tests**, typecheck·lint·CLI/desktop build 통과. 기존 mixed import 경고는 유지했다.
 - 실제 built CLI/collector에서 합성 executable child와 stdio 응답을 사용했다. macOS 기본 실행과 Windows platform 함수만 대체한 별도 프로세스 모두 잔여75%·DB/metadata 미생성·sentinel/raw path 미노출·cleanup을 확인했다. 테스트 `.exe`는 macOS에서 실행 가능한 합성 shebang 파일이며 실제 Windows PE/파일시스템/PATH delimiter 검증으로 확대하지 않는다. native Windows 실기기·실계정·Node20·공증 검증은 이번에 수행하지 않았다.
 - 기존 README의 설치/override 계약과 DTO/IPC/renderer는 변경이 없어 유지한다. 기존 공증 DMG는 최신 수정 미반영이며 보류 항목을 재시도하지 않았다. 승인된 커밋·기존 게시 브랜치 푸시 후 자동 재리뷰 상태를 확인하고 원격 댓글/해결 표시·병합·이슈 종료는 실행하지 않는다.
+
+### 2026-10-08 Claude quota parser 경계 P1 로컬 대응
+
+- 최신 `69805db` 리뷰 댓글 `4213031383`은 `UsageEventDraft`만 반환해야 하는 artifact parser 경계에 `SubscriptionReadResult`를 반환하는 quota normalizer가 놓인 구조 위반이다. 요청자의 `codex 리뷰 있냐? 있으면 대응 수정해`로 `src/parsers/claudeQuota.ts`를 `src/services/subscriptionCollectors/claude.ts`로 이동하고 CLI/library export/직접 테스트 import를 갱신했다. 구 parser 위치의 alias는 남기지 않았으며 parser 계약/registry와 정규화 동작은 변경하지 않았다.
+- focused quota/CLI/usage/parser **4 files/97 tests**, 전체 **72 files/875 tests**, desktop **17 files/190 tests**, typecheck·lint·CLI/desktop build 통과. source parser 디렉터리에 subscription DTO 의존성이 없고 구 normalizer import가 제거된 것을 확인했다. 기존 mixed import build 경고는 유지했다.
+- 실제 built library의 public `parseClaudeQuota`와 built CLI 합성 stdin 기본/`--record` smoke에서 잔여75%·unknown null·quota 없음 처리·sentinel/raw path 미노출을 확인했다. 기본 조회는 DB/metadata 미생성, 기록은 격리 metadata에만 저장되고 usage DB는 생성되지 않았다. `BUILT_LIBRARY_AND_CLI_BOUNDARY_SMOKE_OK` 및 cleanup을 확인했다. 실계정/Claude 설치·emitter 연결·실제 GUI·Node20·공증 재검증은 아니다.
+- 현재 파일 위치를 기존 계획/최종 보고에 반영했다. README/DTO/IPC/renderer 계약은 그대로라 변경하지 않는다. 이번 수정 요청은 새 커밋·푸시·원격 댓글/해결 표시·병합·이슈 종료 승인으로 확대하지 않았으며 로컬 변경만 유지한다. 기존 공증 DMG에는 리뷰 수정이 반영되지 않았다.
+
+요청자가 후속 지시로 승인된 수정은 항상 커밋·푸시하도록 명시했다. 상시 게시 권한을 root Git 규칙에 반영하고 위 로컬 수정의 커밋·`publish/task22` 게시를 진행한다. 이후 승인된 수정도 검증 후 별도 반복 승인 없이 게시하며 무관한 파일·병합·이슈 종료·원격 댓글/해결 표시·release는 제외한다.

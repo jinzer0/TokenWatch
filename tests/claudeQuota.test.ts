@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseClaudeQuota } from '../src/parsers/claudeQuota.js';
+import { parseClaudeQuota } from '../src/services/subscriptionCollectors/claude.js';
 import { subscriptionReadResultSchema } from '../src/desktop/shared/subscriptionContracts.js';
 
 const receivedAt = '2026-10-05T16:00:00.000Z';

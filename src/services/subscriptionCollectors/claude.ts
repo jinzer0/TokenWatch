@@ -2,7 +2,7 @@ import {
   subscriptionReadResultSchema,
   type SubscriptionQuotaWindow,
   type SubscriptionReadResult
-} from '../desktop/shared/subscriptionContracts.js';
+} from '../../desktop/shared/subscriptionContracts.js';
 
 /** Receive official Claude Code statusline metadata without retaining its other fields. */
 export function parseClaudeQuota(input: unknown, receivedAt: string): SubscriptionReadResult {

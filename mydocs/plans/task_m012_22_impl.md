@@ -12,6 +12,10 @@ Milestone: M012
 
 ### PR #23 Codex 리뷰 수정 범위
 
+요청자가 이후 승인된 수정은 항상 검증 후 커밋·푸시하도록 명시 지시했다. 이를 반복 승인을 요구하지 않는 상시 게시 권한으로 root `AGENTS.md`의 기존 Git 승인 규칙에 반영한다. 공통 Git 규칙이므로 root 위치를 유지하며 새 문서는 만들지 않는다. 아래 Claude 경계 수정의 로컬 전용 상태는 이 후속 지시로 해제하고 `local/task22 → publish/task22`로 게시한다. 무관한 사용자 자료·병합·이슈 종료·원격 댓글/해결 표시·release는 포함하지 않는다.
+
+2026-10-08 요청자의 `codex 리뷰 있냐? 있으면 대응 수정해`로 댓글 `4213031383`의 parser 경계 P1을 수정·검증한다. Claude statusline quota 정규화는 usage artifact parser가 아니므로 `src/services/subscriptionCollectors/claude.ts`로 이동하고 CLI·library export·직접 테스트 import를 갱신한다. 기존 parser 계약/registry는 바꾸지 않고 구 parser 위치의 alias도 남기지 않는다. 기존 계획/Stage5/최종 보고 위치와 현재 파일 목록을 갱신하며 quota/privacy 동작은 유지한다. focused·parser·전체/desktop 회귀와 typecheck/lint/build·built CLI/library 합성 smoke를 수행한다. 이번 요청은 새 커밋·푸시·원격 댓글/해결 표시·병합·이슈 종료·공증 승인으로 확대하지 않는다.
+
 2026-10-08 추가 일괄 승인으로 댓글 `4212945068`의 Windows client 탐색 P2에 대응한다. 자동 탐색은 native Windows에서 공식 installer의 `codex.exe`, 다른 플랫폼에서 `codex`를 사용하고 명시 override는 그대로 유지한다. collector·회귀·기존 계획/Stage5/최종 보고만 변경한다. mock Windows PATH/user-local 탐색과 override를 검증하고 전체 회귀·build·합성 subprocess smoke로 확인한다. Windows 실기기 검증은 현재 macOS host에서 수행할 수 없으며 성공으로 주장하지 않는다. 기존 문서 위치/지원·privacy 경계와 별도 병합·이슈 종료·원격 댓글/해결 표시·공증 승인 경계를 유지한다.
 
 2026-10-08 요청자의 `codex 재리뷰 대응 수정 진행 일괄 승인`으로 댓글 `4212839026`의 저장소 격리 P2에 대응한다. 파일 기반 metadata는 전체 usage DB 경로에 `.subscription-metadata.db`를 붙여 연결하고 `:memory:`는 두 저장소 모두 메모리 전용으로 유지한다. 기존 경로 resolver·metadata/CLI 회귀·README·계획/Stage5/최종 보고를 갱신하며 공유 파일을 읽는 호환 경로/마이그레이션은 추가하지 않는다. README는 기존 사용자 진입 위치를 유지한다. 동일 부모의 서로 다른 DB·상대/홈 경로·memory 저장/재개방 격리와 built CLI 기록 smoke를 검증한다. 커밋·게시·재리뷰 조회를 이어가되 병합·이슈 종료·원격 댓글/해결 표시·새 공증은 제외한다.
@@ -159,7 +163,7 @@ git diff --check
 ### 다음 단계 제품 구현 승인 — 2026-10-06
 
 - 요청자의 `다음 단계 승인`으로 기존 후보의 정규화 DTO·서비스 검증 경계, 공식 Codex stdio 수집기, Claude opt-in stdin parser/CLI 진입점, 순수 SES와 대응 합성 테스트 구현을 승인받았다. `subscription` 명령은 명시적으로 호출한 provider만 읽으며 DB를 열지 않고 정규화 JSON만 반환한다.
-- 확정 파일: `src/desktop/shared/subscriptionContracts.ts`, `src/services/subscriptionUsage.ts`, `src/services/usageForecast.ts`, `src/services/subscriptionCollectors/codex.ts`, `src/parsers/claudeQuota.ts`, `src/cli.ts`, `src/index.ts`. 대응 테스트는 `tests/subscriptionUsage.test.ts`, `tests/usageForecast.test.ts`, `tests/subscriptionCollectorsCodex.test.ts`, `tests/claudeQuota.test.ts`, `tests/subscriptionCli.test.ts`다.
+- 확정 파일: `src/desktop/shared/subscriptionContracts.ts`, `src/services/subscriptionUsage.ts`, `src/services/usageForecast.ts`, `src/services/subscriptionCollectors/codex.ts`, `src/services/subscriptionCollectors/claude.ts`(후속 parser 경계 리뷰로 이동), `src/cli.ts`, `src/index.ts`. 대응 테스트는 `tests/subscriptionUsage.test.ts`, `tests/usageForecast.test.ts`, `tests/subscriptionCollectorsCodex.test.ts`, `tests/claudeQuota.test.ts`, `tests/subscriptionCli.test.ts`다.
 - 현재 공식 입력의 원본 시각·절대 capacity·단위는 미확인으로 유지한다. DTO는 엄격한 enum/nullable 필드만 통과시키고 조회 시각을 원본 시각으로 대체하지 않는다. 실측 스냅샷에 대한 SES는 이력 부족/시각 미확인으로 차단한다. 순수 SES의 적격 입력과 정확도 주장은 구별한다.
 - DB schema·metadata 저장 연결·계정 연속성 확보가 미확정이므로 이번 실행은 이를 임의 선택하거나 usage DB를 writable로 변경하지 않는다. desktop IPC·주기 갱신·대시보드 연결은 저장 계약과 Stage 4 경계에서 처리한다. Cursor 비공식 collector와 Claude 설치·계정 접근·statusline 변경은 제외한다.
 - 기존 상세 계획의 추가 구현 기록으로 유지하며 새로운 계획/문서 루트는 만들지 않는다. 선행 보고 승인과 이 구현 승인은 커밋·푸시·PR 승인으로 확대하지 않는다.
