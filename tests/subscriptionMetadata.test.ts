@@ -1,7 +1,9 @@
 import Database from 'better-sqlite3';
 import { readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { homedir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { resolveDbPath, resolveSubscriptionMetadataPath } from '../src/app/paths.js';
 import { SubscriptionMetadataRepository } from '../src/db/subscriptionMetadata.js';
 import { openDatabase, openReadonlyDatabase } from '../src/db/client.js';
 import type { SubscriptionReadResult } from '../src/desktop/shared/subscriptionContracts.js';
@@ -67,6 +69,46 @@ describe('independent subscription metadata repository', () => {
     resources.push(db);
     return db;
   }
+
+  it('isolates observations for different database filenames in the same directory', () => {
+    const { dir } = fixture();
+    const a = resolveSubscriptionMetadataPath({ TOKENWATCH_DB_PATH: join(dir, 'a.db') });
+    const b = resolveSubscriptionMetadataPath({ TOKENWATCH_DB_PATH: join(dir, 'b.db') });
+    expect(a).toBe(join(dir, 'a.db.subscription-metadata.db'));
+    expect(b).toBe(join(dir, 'b.db.subscription-metadata.db'));
+    const first = repository(a);
+    const second = repository(b);
+    first.append(success(25));
+    expect(second.latest('codex')).toBeNull();
+    second.append(success(75));
+    expect(first.latest('codex')).toEqual(success(25));
+    expect(second.latest('codex')).toEqual(success(75));
+    first.close();
+    second.close();
+    expect(repository(a).latest('codex')).toEqual(success(25));
+    expect(repository(b).latest('codex')).toEqual(success(75));
+  });
+
+  it.each([
+    ['relative.db', resolve('relative.db')],
+    ['~/profile.db', join(homedir(), 'profile.db')]
+  ])('associates metadata with the expanded full database path for %s', (override, expected) => {
+    const env = { TOKENWATCH_DB_PATH: override };
+    expect(resolveDbPath(env)).toBe(expected);
+    expect(resolveSubscriptionMetadataPath(env)).toBe(`${expected}.subscription-metadata.db`);
+  });
+
+  it('keeps memory overrides ephemeral and isolated without resolving them to disk', () => {
+    const env = { TOKENWATCH_DB_PATH: ':memory:' };
+    expect(resolveDbPath(env)).toBe(':memory:');
+    expect(resolveSubscriptionMetadataPath(env)).toBe(':memory:');
+    const first = repository(resolveSubscriptionMetadataPath(env));
+    const second = repository(resolveSubscriptionMetadataPath(env));
+    first.append(success(25));
+    expect(second.latest('codex')).toBeNull();
+    first.close();
+    expect(repository(resolveSubscriptionMetadataPath(env)).latest('codex')).toBeNull();
+  });
 
   it('creates an identified versioned store, restricts permissions, and preserves null and zero on reopen', () => {
     const { metadataPath } = fixture();

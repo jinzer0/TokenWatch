@@ -181,7 +181,7 @@ async function runCli(args: string[], input: string | null = null, timeout = fal
     expect(stdin.listenerCount('data')).toBe(0);
     expect(stdin.listenerCount('end')).toBe(0);
     let recorded = null;
-    const metadataPath = join(temporary, 'subscription-metadata.db');
+    const metadataPath = `${dbPath}.subscription-metadata.db`;
     if (args.includes('--record')) {
       const repository = new SubscriptionMetadataRepository(metadataPath);
       try {

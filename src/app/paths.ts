@@ -1,10 +1,11 @@
 import { homedir } from 'node:os';
-import { dirname, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { DEFAULT_DB_RELATIVE_PATH } from './constants.js';
 import { ensureParentDirectory, expandHome } from '../utils/fs.js';
 
 export function resolveDbPath(env: NodeJS.ProcessEnv = process.env): string {
   const override = env.TOKENWATCH_DB_PATH;
+  if (override === ':memory:') return override;
   if (override && override.trim().length > 0) {
     return expandHome(override);
   }
@@ -16,5 +17,6 @@ export function ensureDbParent(dbPath: string): void {
 }
 
 export function resolveSubscriptionMetadataPath(env: NodeJS.ProcessEnv = process.env): string {
-  return resolve(dirname(resolveDbPath(env)), 'subscription-metadata.db');
+  const dbPath = resolveDbPath(env);
+  return dbPath === ':memory:' ? dbPath : `${dbPath}.subscription-metadata.db`;
 }

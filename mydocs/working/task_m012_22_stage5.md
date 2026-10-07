@@ -164,3 +164,11 @@ host Node24 native 복구 후 관련 **3 files / 40 tests**, typecheck, 전체 *
 - 과거·현재 하루·빈 결과 날짜 필터 3개 회귀를 추가했다. 수정 전 3개 실패를 확인했고 수정 후 오늘/이번 주/이전 기간/7일 추이·unknown 비용 null·필터 기반 totals/series·privacy 검사를 통과했다. focused **3 files/38 tests**, 전체 **72 files/867 tests**, desktop **17 files/190 tests**, typecheck·lint·CLI/desktop build가 통과했다. 기존 mixed dynamic/static import 경고는 유지했다.
 - 실제 built 서비스와 격리 SQLite에 합성 이벤트를 넣고 세 필터의 고정 기간/선택 집계 분리·unknown null·identity 미노출을 확인했다. `BUILT_DASHBOARD_ISOLATED_SMOKE_OK`, `SMOKE_CLEANUP_OK`를 확인했다. 실제 Electron GUI/계정 조회·Node20·새 공증 검증으로 확대하지 않는다.
 - 기존 계획/보고 위치만 유지하고 README/DTO/IPC/renderer는 계약 변경이 없어 수정하지 않는다. 기존 공증 DMG는 최신 리뷰 수정 미반영이며 보류된 접근성/실계정 검증도 그대로다. 커밋·기존 게시 브랜치 푸시 후 재리뷰 상태만 조회한다. 원격 댓글/해결 표시·병합·이슈 종료는 실행하지 않는다.
+
+### 2026-10-08 metadata 경로 격리 추가 P2 대응
+
+- 최신 `b695d04` 리뷰의 댓글 `4212839026`은 같은 디렉터리의 서로 다른 usage DB가 하나의 metadata 파일을 공유하고 `:memory:`도 디스크 파일로 바꾸던 결함이다. 요청자의 일괄 리뷰 대응 승인으로 metadata 파일명을 전체 usage DB 경로에 `.subscription-metadata.db`를 붙여 결정하고 memory override를 보존했다. 공유된 이전 파일은 읽거나 이전하지 않는다. 기본 파일명 변경과 ephemeral memory 동작을 기존 README에 명시했다.
+- 동일 디렉터리의 두 DB 관측 저장/재개방 독립성, 상대/홈 경로 전개, memory 저장소 간 독립성/재개방 소멸 회귀 4개를 추가했다. CLI 기록 검사도 새 파일명으로 변경했다. focused **3 files/61 tests**, 전체 **72 files/871 tests**, desktop **17 files/190 tests**, typecheck·lint·CLI/desktop build 통과. 기존 mixed import 경고는 유지했다.
+- 실제 built CLI `subscription --provider claude --stdin --record`를 두 파일 override와 memory override로 실행했다. 입력은 합성이고 Claude 설치/로그인/계정 조회는 없다. 두 파일의 관측25%/75%가 각각 유지되고 usage DB·공유 metadata·memory 디스크 파일은 생성되지 않았다. stdout/stderr sentinel·경로 미노출과 cleanup을 확인했다.
+- 실제 Electron source-build 앱을 격리 DB/userData에서 실행했다. 첫 `install-app-deps` 이후 renderer는 로드됐지만 metadata 파일은 없어 smoke를 실패로 기록했다. 정상 `@electron/rebuild`의 force rebuild 후 재검증에서는 동일 부모의 두 DB 각각 renderer 로드/각 metadata 생성이 true, 공유 metadata 생성/금지 로그 패턴이 false였다. 실제 provider 갱신은 호출하지 않았다. 소유 프로세스/임시 자료를 정리하고 정상 `corepack pnpm rebuild better-sqlite3` 후 `HOST_NATIVE_RESTORED` 및 focused61/desktop190 회귀를 다시 통과했다. 기존 `fs.R_OK` deprecation은 숨기지 않았다.
+- 이번 검증은 서명/공증/새 DMG·Node20 검증이 아니다. 이전 공증 DMG에는 리뷰 수정이 반영되지 않았다. 기존 DTO/IPC/renderer·의존성/락파일/서명 설정은 바꾸지 않았고 병합·이슈 종료·원격 댓글/해결 표시는 제외한다.

@@ -60,7 +60,7 @@ tokenwatch subscription --provider codex --record
 tokenwatch subscription --provider claude --stdin --record < statusline-input.json
 ```
 
-기본 조회는 DB를 열거나 데이터를 저장하지 않습니다. `--record`만 usage DB와 같은 디렉터리의 별도 `subscription-metadata.db`에 정규화된 관측을 저장합니다. 데스크톱의 구독 갱신도 이 별도 저장소를 사용하며 usage DB는 읽기 전용입니다. `TOKENWATCH_DB_PATH`로 둘을 함께 격리할 수 있습니다.
+기본 조회는 DB를 열거나 데이터를 저장하지 않습니다. `--record`만 전체 usage DB 경로에 `.subscription-metadata.db`를 붙인 별도 파일에 정규화된 관측을 저장합니다. 데스크톱의 구독 갱신도 이 별도 저장소를 사용하며 usage DB는 읽기 전용입니다. `TOKENWATCH_DB_PATH`가 같은 디렉터리의 서로 다른 파일을 가리켜도 관측은 서로 격리됩니다. `TOKENWATCH_DB_PATH=:memory:`이면 구독 관측도 메모리에만 저장되며 종료 후 사라집니다. 이전의 공유 `subscription-metadata.db`는 자동으로 읽거나 이전하지 않습니다.
 
 Claude 입력에서는 `rate_limits.five_hour`/`seven_day`의 사용 비율·리셋만 취하고 다른 필드는 저장하지 않습니다. stdin은 256 KiB·10초로 제한됩니다. statusline emitter 연결과 실제 Claude/Cursor 구독 검증이 완료된 것은 아닙니다. TokenWatch는 인증 파일·키·토큰이나 계정 식별자를 직접 읽어 연동하지 않습니다.
 
