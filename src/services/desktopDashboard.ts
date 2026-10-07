@@ -121,7 +121,7 @@ export class DesktopDashboardService {
       version: 1,
       kind: 'desktop-dashboard',
       generatedAt: nowIso(),
-      periodSummary: buildDesktopPeriodSummary(filteredEvents, evaluationDate),
+      periodSummary: buildDesktopPeriodSummary(events, evaluationDate),
       totals: {
         events: totals.totalEvents,
         tokens: totals.totalTokens,

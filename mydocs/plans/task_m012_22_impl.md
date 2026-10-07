@@ -12,6 +12,8 @@ Milestone: M012
 
 ### PR #23 Codex 리뷰 수정 범위
 
+2026-10-08 요청자의 `수정 회귀 검증 커밋 푸시 재리뷰 승인`으로 최신 P2 대응을 승인받았다. 고정 로컬 기간 요약은 전체 `events`로 계산하고 선택 날짜 기반 집계는 `filteredEvents`를 유지한다. 기존 dashboard 서비스·회귀 테스트·이 계획·Stage5/최종 보고만 변경한다. 문서 위치는 기존 작업 기록 경로를 유지하며 새 제품 문서는 만들지 않는다. 과거·좁은 날짜·빈 결과 필터에서 오늘/이번 주/비교 기간/7일 추이와 unknown 비용을 검증하고 focused·전체·desktop 회귀 및 타입/lint/build를 확인한다. 게시 후 재리뷰 상태를 조회하되 원격 댓글/해결 표시·병합·이슈 종료·새 공증 패키지는 포함하지 않는다.
+
 2026-10-07 추가 P1의 수정·검증·커밋·푸시·리뷰 확인 순서를 요청자가 승인했다. 현재 공식 v2 응답의 map이 null/누락이면 required `rateLimits` snapshot을 같은 검증/투영 경계로 처리한다. 존재하는 map은 우선하며 잘못된 map·충돌 ID·invalid window를 single snapshot으로 덮지 않는다. collector와 회귀 및 기존 보고만 수정하고 의존성/계정 접근/새 공증 패키지/병합/이슈 종료는 제외한다.
 
 요청자의 `codex 리뷰 대응 수정 진행해`로 두 P1 수정과 회귀 검증을 승인받았다. 공식 v2 schema는 임의 bucket map과 nullable `limitId`를 허용하므로 `codex` 항목만 선택하고 무관한 bucket은 버리며 충돌하는 non-null ID만 거부한다. macOS GUI의 축소된 PATH에서는 기존 PATH·표준 Homebrew/user-local prefix를 실행 가능 파일로 확인하고, 임의 prefix는 `TOKENWATCH_CODEX_EXECUTABLE` 절대 경로 override로 지정한다. override 실패 시 다른 client로 대체하지 않으며 child PATH만 보강한다. 로그인 shell·패키지 manager·인증 파일을 실행/조회하지 않고 경로는 메모리 내에서만 처리한다.

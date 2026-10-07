@@ -157,3 +157,10 @@ host Node24 native 복구 후 관련 **3 files / 40 tests**, typecheck, 전체 *
 - map null/누락·nullable ID·map 우선/throwing single getter·invalid map/window·conflicting ID 및 실제 stdio read/reap 회귀를 추가했다. focused **79 tests**, 전체 **72 files/864 tests**, typecheck·lint·CLI build가 통과했다. 이번에는 desktop suite/build·Node20·공증을 재실행하지 않았다.
 - built CLI에서 실제 합성 child를 실행해 map null/누락 두 응답을 각각 확인했다. 잔여75%·단일 window·sentinel/raw path 미노출·DB 미생성·임시 자료 정리가 모두 통과했다. 실계정 quota나 새로운 packaged binary의 증거가 아니다.
 - collector/회귀와 기존 계획·Stage5/최종 보고만 변경한다. 기존 공증 DMG는 이 수정 미반영이며 의존성·서명·보류 인수 범위는 유지한다. 게시 대상은 기존 `publish/task22`/PR #23이고 리뷰 해결 표시·병합·이슈 종료는 포함하지 않는다.
+
+### 2026-10-08 고정 기간 요약 P2 대응
+
+- 최신 `dfa4407` 리뷰의 댓글 `4203178562`는 날짜 필터가 오늘/이번 주/최근7일 및 비교 기간까지 자르는 결함이다. 요청자의 `수정 회귀 검증 커밋 푸시 재리뷰 승인`으로 대응했다. 고정 기간에는 전체 `events`를 전달하고 선택 날짜의 totals/series 등은 기존 `filteredEvents`를 유지한다.
+- 과거·현재 하루·빈 결과 날짜 필터 3개 회귀를 추가했다. 수정 전 3개 실패를 확인했고 수정 후 오늘/이번 주/이전 기간/7일 추이·unknown 비용 null·필터 기반 totals/series·privacy 검사를 통과했다. focused **3 files/38 tests**, 전체 **72 files/867 tests**, desktop **17 files/190 tests**, typecheck·lint·CLI/desktop build가 통과했다. 기존 mixed dynamic/static import 경고는 유지했다.
+- 실제 built 서비스와 격리 SQLite에 합성 이벤트를 넣고 세 필터의 고정 기간/선택 집계 분리·unknown null·identity 미노출을 확인했다. `BUILT_DASHBOARD_ISOLATED_SMOKE_OK`, `SMOKE_CLEANUP_OK`를 확인했다. 실제 Electron GUI/계정 조회·Node20·새 공증 검증으로 확대하지 않는다.
+- 기존 계획/보고 위치만 유지하고 README/DTO/IPC/renderer는 계약 변경이 없어 수정하지 않는다. 기존 공증 DMG는 최신 리뷰 수정 미반영이며 보류된 접근성/실계정 검증도 그대로다. 커밋·기존 게시 브랜치 푸시 후 재리뷰 상태만 조회한다. 원격 댓글/해결 표시·병합·이슈 종료는 실행하지 않는다.

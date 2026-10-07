@@ -107,3 +107,5 @@ PR #23은 `publish/task22 → main`으로 게시됐다. 이후 요청자의 `cod
 2026-10-07 추가 P1은 공식 map의 null/누락 시 required `rateLimits` snapshot을 읽지 않던 문제다. 요청자의 진행 승인으로 같은 quota 검증/투영 경계에서 단일 snapshot을 지원했다. 존재하는 map은 우선하고 malformed map·충돌 ID·invalid window를 단일 응답으로 덮지 않는다. focused **79 tests**, 전체 **72 files/864 tests**, typecheck·lint·CLI build 및 실제 합성 child를 사용하는 built CLI smoke 두 경우(map null/누락)가 통과했다. DB 미생성·sentinel/raw path 미노출·cleanup을 확인했다.
 
 이번 추가 수정의 커밋·기존 게시 브랜치 푸시·리뷰 상태 확인은 승인된 순서에 포함한다. 원격 리뷰 해결 표시·병합·이슈 종료는 수행하지 않는다. desktop/Node20/공증 재검증을 주장하지 않으며 기존 공증 DMG에는 이 수정이 반영되지 않았다.
+
+2026-10-08 최신 P2는 선택 날짜 필터가 고정 로컬 기간 카드와 이전 비교/7일 추이를 자르던 문제다. 요청자의 수정·회귀 검증·커밋·푸시·재리뷰 승인으로 고정 기간에는 전체 이벤트를 사용하고 선택 집계에는 기존 필터를 유지했다. 과거/하루/빈 결과 필터 회귀 3개를 추가했고 focused **38 tests**, 전체 **72 files/867 tests**, desktop **17 files/190 tests**, typecheck·lint·CLI/desktop build가 통과했다. 실제 built 서비스/격리 SQLite 합성 smoke에서도 기간 분리·unknown null·identity 미노출·cleanup을 확인했다. 기존 mixed import 경고를 숨기지 않았다. DTO/IPC/renderer/README는 계약 변경이 없어 유지한다. 이번 검증은 새 공증 DMG·실계정·Node20·실제 GUI 인수가 아니며 병합·이슈 종료·원격 댓글/해결 표시는 포함하지 않는다.
