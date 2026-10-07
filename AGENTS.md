@@ -127,7 +127,7 @@ This project uses the **Hyper-Waterfall** methodology. Read these rules carefull
 
 - Milestone: `M{version}` (for example, M100=v1.0.0, M05x=v0.5.x). Document filenames use lowercase `m{number}` (for example, `m100`).
 - Branches: `local/task{issue_number}` for work, `publish/task{issue_number}` for PR publication to `main`.
-- Commit authorization: an approved plan, Stage, report, or request to start work does not authorize a commit. Commit only when the current user instruction explicitly asks for it.
+- Commit authorization: an approved plan, Stage, report, or request to start work does not authorize a commit. An explicit user instruction to commit and push after every approved modification is standing authorization: after verification, commit only the task changes and push to the task's publication branch without requesting repeated approval. This does not authorize unrelated changes, review replies/resolution, merges, Issue closure, tags, or releases.
 - Commit subjects preserve Hyper-Waterfall traceability inside TokenWatch semantic English style:
   - Basic: `{type}: Task #{number}: summary`
   - Stage: `{type}: Task #{number} Stage {N}: summary`
