@@ -414,21 +414,55 @@ describe('Codex bounded official stdio collector', () => {
     expect(mocks.spawn).toHaveBeenCalledOnce();
   });
 
-  it('honors an absolute override including spaces without exposing its path', async () => {
-    const executable = '/synthetic/custom prefix/codex';
-    vi.stubEnv('TOKENWATCH_CODEX_EXECUTABLE', executable);
-    mocks.statSync.mockImplementation((path) => {
-      if (path === executable) return { isFile: () => true };
-      throw new Error(sentinel);
-    });
-    child.respond();
+  it.each(['/synthetic/bin/codex.exe', '/synthetic/home/.local/bin/codex.exe'])(
+    'resolves the native Windows executable %s without exposing its path',
+    async (executable) => {
+      mocks.platform.mockReturnValue('win32');
+      mocks.statSync.mockImplementation((path) => {
+        if (path === executable) return { isFile: () => true };
+        throw new Error(sentinel);
+      });
+      child.respond();
+      const result = await collectCodexQuota();
+      expectSafe(result);
+      expect(result.failure).toBe('none');
+      expect(mocks.spawn.mock.calls[0][0]).toBe(executable);
+      expect(mocks.spawn.mock.calls[0][2].shell).toBe(false);
+      expect(mocks.statSync.mock.calls.every(([path]) => String(path).endsWith('/codex.exe'))).toBe(
+        true
+      );
+      expect(JSON.stringify(result)).not.toContain(executable);
+    }
+  );
+
+  it('does not select an extensionless executable during native Windows automatic discovery', async () => {
+    mocks.platform.mockReturnValue('win32');
     const result = await collectCodexQuota();
     expectSafe(result);
-    expect(result.failure).toBe('none');
-    expect(mocks.spawn.mock.calls[0][0]).toBe(executable);
-    expect(mocks.spawn.mock.calls[0][2].env.PATH).toMatch(/^\/synthetic\/custom prefix:/);
-    expect(JSON.stringify(result)).not.toContain(executable);
+    expect(result.failure).toBe('client-unavailable');
+    expect(mocks.spawn).not.toHaveBeenCalled();
+    expect(mocks.mkdtemp).not.toHaveBeenCalled();
   });
+
+  it.each(['darwin', 'win32'])(
+    'honors an absolute override including spaces on %s without exposing its path',
+    async (os) => {
+      mocks.platform.mockReturnValue(os);
+      const executable = '/synthetic/custom prefix/codex';
+      vi.stubEnv('TOKENWATCH_CODEX_EXECUTABLE', executable);
+      mocks.statSync.mockImplementation((path) => {
+        if (path === executable) return { isFile: () => true };
+        throw new Error(sentinel);
+      });
+      child.respond();
+      const result = await collectCodexQuota();
+      expectSafe(result);
+      expect(result.failure).toBe('none');
+      expect(mocks.spawn.mock.calls[0][0]).toBe(executable);
+      expect(mocks.spawn.mock.calls[0][2].env.PATH).toMatch(/^\/synthetic\/custom prefix:/);
+      expect(JSON.stringify(result)).not.toContain(executable);
+    }
+  );
 
   it.each(['', 'codex', '/synthetic/missing/codex', '/synthetic/directory'])(
     'does not fall back from invalid override %s',

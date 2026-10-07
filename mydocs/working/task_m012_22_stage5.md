@@ -172,3 +172,10 @@ host Node24 native 복구 후 관련 **3 files / 40 tests**, typecheck, 전체 *
 - 실제 built CLI `subscription --provider claude --stdin --record`를 두 파일 override와 memory override로 실행했다. 입력은 합성이고 Claude 설치/로그인/계정 조회는 없다. 두 파일의 관측25%/75%가 각각 유지되고 usage DB·공유 metadata·memory 디스크 파일은 생성되지 않았다. stdout/stderr sentinel·경로 미노출과 cleanup을 확인했다.
 - 실제 Electron source-build 앱을 격리 DB/userData에서 실행했다. 첫 `install-app-deps` 이후 renderer는 로드됐지만 metadata 파일은 없어 smoke를 실패로 기록했다. 정상 `@electron/rebuild`의 force rebuild 후 재검증에서는 동일 부모의 두 DB 각각 renderer 로드/각 metadata 생성이 true, 공유 metadata 생성/금지 로그 패턴이 false였다. 실제 provider 갱신은 호출하지 않았다. 소유 프로세스/임시 자료를 정리하고 정상 `corepack pnpm rebuild better-sqlite3` 후 `HOST_NATIVE_RESTORED` 및 focused61/desktop190 회귀를 다시 통과했다. 기존 `fs.R_OK` deprecation은 숨기지 않았다.
 - 이번 검증은 서명/공증/새 DMG·Node20 검증이 아니다. 이전 공증 DMG에는 리뷰 수정이 반영되지 않았다. 기존 DTO/IPC/renderer·의존성/락파일/서명 설정은 바꾸지 않았고 병합·이슈 종료·원격 댓글/해결 표시는 제외한다.
+
+### 2026-10-08 Windows Codex 실행 파일명 추가 P2 대응
+
+- 최신 `712a544` 리뷰 댓글 `4212945068`은 자동 client 탐색이 Windows에서도 확장자 없는 `codex`만 확인하던 결함이다. 공식 Windows installer의 `codex.exe` 설치/실행 계약을 확인하고 요청자의 추가 일괄 승인으로 native Windows는 `codex.exe`, 다른 플랫폼은 `codex`를 선택하도록 수정했다. explicit override는 확장자를 임의로 덧붙이지 않고 지정 그대로 실행한다. shell 실행·전역 PATH 변경·인증/계정 접근은 추가하지 않았다.
+- Windows platform mock의 PATH/user-local `.exe` 탐색, extensionless 파일 미선택, Windows의 공백 포함 명시 override 회귀를 추가했다. focused **83 tests**, 전체 **72 files/875 tests**, desktop **17 files/190 tests**, typecheck·lint·CLI/desktop build 통과. 기존 mixed import 경고는 유지했다.
+- 실제 built CLI/collector에서 합성 executable child와 stdio 응답을 사용했다. macOS 기본 실행과 Windows platform 함수만 대체한 별도 프로세스 모두 잔여75%·DB/metadata 미생성·sentinel/raw path 미노출·cleanup을 확인했다. 테스트 `.exe`는 macOS에서 실행 가능한 합성 shebang 파일이며 실제 Windows PE/파일시스템/PATH delimiter 검증으로 확대하지 않는다. native Windows 실기기·실계정·Node20·공증 검증은 이번에 수행하지 않았다.
+- 기존 README의 설치/override 계약과 DTO/IPC/renderer는 변경이 없어 유지한다. 기존 공증 DMG는 최신 수정 미반영이며 보류 항목을 재시도하지 않았다. 승인된 커밋·기존 게시 브랜치 푸시 후 자동 재리뷰 상태를 확인하고 원격 댓글/해결 표시·병합·이슈 종료는 실행하지 않는다.

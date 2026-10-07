@@ -146,9 +146,10 @@ function codexCommand(): { executable: string; environment: NodeJS.ProcessEnv } 
     join(homedir(), '.npm-global', 'bin')
   ];
   const configured = process.env.TOKENWATCH_CODEX_EXECUTABLE;
+  const executableName = platform() === 'win32' ? 'codex.exe' : 'codex';
   const candidates =
     configured === undefined
-      ? directories.map((directory) => join(directory, 'codex'))
+      ? directories.map((directory) => join(directory, executableName))
       : [configured];
   const executable = candidates.find((candidate) => {
     if (!isAbsolute(candidate)) return false;
