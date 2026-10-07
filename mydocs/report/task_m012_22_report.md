@@ -103,3 +103,7 @@ PR #23은 `publish/task22 → main`으로 게시됐다. 이후 요청자의 `cod
 수정 후 focused collector **69 tests**, 전체 **72 files/854 tests**, desktop **17 files/190 tests**, typecheck·lint·CLI/desktop build를 통과했다. 최소 GUI형 PATH의 실제 built CLI subprocess와 공백 포함 override smoke 두 경우도 통과했고 client/quota는 합성·DB 미생성·sentinel 미노출을 확인했다. Finder에서 새 packaged binary를 실행하거나 실제 계정을 조회한 증거로 확대하지 않는다.
 
 이후 요청자의 `로컬 커밋 및 푸시해`로 리뷰 대응 변경의 커밋·`publish/task22` 푸시를 명시 승인받았다. 게시 직전 focused collector **69 tests**와 typecheck·diff 검사를 다시 통과했다. 원격 리뷰 댓글·해결 표시·병합·Issue 종료는 포함하지 않는다. 기존 공증 DMG는 리뷰 수정 전 소스이므로 새 수정의 공증/설치 증거가 아니다. 기존 생략·보류 승인과 지원·privacy·전망 제한은 유지한다.
+
+2026-10-07 추가 P1은 공식 map의 null/누락 시 required `rateLimits` snapshot을 읽지 않던 문제다. 요청자의 진행 승인으로 같은 quota 검증/투영 경계에서 단일 snapshot을 지원했다. 존재하는 map은 우선하고 malformed map·충돌 ID·invalid window를 단일 응답으로 덮지 않는다. focused **79 tests**, 전체 **72 files/864 tests**, typecheck·lint·CLI build 및 실제 합성 child를 사용하는 built CLI smoke 두 경우(map null/누락)가 통과했다. DB 미생성·sentinel/raw path 미노출·cleanup을 확인했다.
+
+이번 추가 수정의 커밋·기존 게시 브랜치 푸시·리뷰 상태 확인은 승인된 순서에 포함한다. 원격 리뷰 해결 표시·병합·이슈 종료는 수행하지 않는다. desktop/Node20/공증 재검증을 주장하지 않으며 기존 공증 DMG에는 이 수정이 반영되지 않았다.

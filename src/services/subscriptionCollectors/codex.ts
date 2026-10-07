@@ -45,12 +45,16 @@ export function parseCodexQuota(input: unknown, receivedAt: string): Subscriptio
 }
 
 function projectCodexQuota(input: unknown, receivedAt: string): SubscriptionReadResult {
-  if (!object(input) || !object(input.rateLimitsByLimitId))
-    return failed('unsupported', receivedAt);
+  if (!object(input)) return failed('unsupported', receivedAt);
   const pools = input.rateLimitsByLimitId;
-  if (!Object.hasOwn(pools, 'codex')) return failed('unsupported', receivedAt);
-  if (!object(pools.codex)) return failed('invalid-data', receivedAt);
-  const pool = pools.codex;
+  let pool: unknown;
+  if (pools === null || pools === undefined) {
+    pool = input.rateLimits;
+  } else {
+    if (!object(pools) || !Object.hasOwn(pools, 'codex')) return failed('unsupported', receivedAt);
+    pool = pools.codex;
+  }
+  if (!object(pool)) return failed('invalid-data', receivedAt);
   if (pool.limitId !== null && pool.limitId !== 'codex') return failed('unsupported', receivedAt);
   const windows: SubscriptionQuotaWindow[] = [];
   for (const key of ['primary', 'secondary']) {

@@ -246,10 +246,64 @@ describe('Codex official quota projection', () => {
     expect(result.windows).toHaveLength(1);
   });
 
-  it('fails closed for unknown pools, mismatched limitId and legacy-only responses', () => {
+  it.each([null, undefined])('reads the required single snapshot when map is %s', (map) => {
+    for (const limitId of ['codex', null]) {
+      const result = parseCodexQuota(
+        {
+          rateLimitsByLimitId: map,
+          rateLimits: { limitId, primary: window, accountId: sentinel, credits: sentinel }
+        },
+        receipt
+      );
+      expectSafe(result);
+      expect(result).toMatchObject({ failure: 'none', windows: [{ remainingPercent: 87 }] });
+      expect(result.windows).toHaveLength(1);
+    }
+  });
+
+  it('prefers an available map without reading the single snapshot', () => {
+    const result = parseCodexQuota(
+      {
+        ...quota(),
+        get rateLimits() {
+          throw new Error(sentinel);
+        }
+      },
+      receipt
+    );
+    expectSafe(result);
+    expect(result.failure).toBe('none');
+  });
+
+  it.each([[], false, {}, { other: { limitId: 'other', primary: window } }])(
+    'does not mask an invalid or unsupported map with a valid single snapshot (%j)',
+    (map) => {
+      const result = parseCodexQuota(
+        { rateLimitsByLimitId: map, rateLimits: { limitId: 'codex', primary: window } },
+        receipt
+      );
+      expectSafe(result);
+      expect(result.failure).toBe('unsupported');
+    }
+  );
+
+  it('applies the same validation to the single snapshot and discards failures', () => {
+    for (const rateLimits of [
+      null,
+      [],
+      { limitId: 'codex', primary: { usedPercent: -1, raw: sentinel } }
+    ]) {
+      const result = parseCodexQuota({ rateLimitsByLimitId: null, rateLimits }, receipt);
+      expectSafe(result);
+      expect(result).toMatchObject({ failure: 'invalid-data', windows: [] });
+    }
+    const result = parseCodexQuota({ rateLimits: { limitId: 'other', primary: window } }, receipt);
+    expectSafe(result);
+    expect(result.failure).toBe('unsupported');
+  });
+
+  it('fails closed for unknown pools and mismatched limitId', () => {
     for (const input of [
-      { rateLimits: { limitId: 'codex', primary: window } },
-      { rateLimitsByLimitId: null },
       { rateLimitsByLimitId: { other: { limitId: sentinel, primary: window } } },
       { rateLimitsByLimitId: { codex: { primary: window } } },
       { rateLimitsByLimitId: { codex: { limitId: 'other', primary: window } } }
@@ -266,6 +320,15 @@ describe('Codex official quota projection', () => {
 });
 
 describe('Codex bounded official stdio collector', () => {
+  it.each([null, undefined])('collects the required single snapshot with map %s', async (map) => {
+    child.respond({ rateLimitsByLimitId: map, rateLimits: { limitId: 'codex', primary: window } });
+    const result = await collectCodexQuota();
+    expectSafe(result);
+    expect(result).toMatchObject({ failure: 'none', windows: [{ remainingPercent: 87 }] });
+    expect(child.kill).toHaveBeenCalledWith('SIGTERM');
+    expect(mocks.rm).toHaveBeenCalledWith(ownedCwd, { recursive: true, force: true });
+  });
+
   it('spawns only the installed client with ephemeral overrides and sends only the permitted handshake/read', async () => {
     child.respond();
     const before = Date.now();

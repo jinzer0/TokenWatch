@@ -150,3 +150,10 @@ host Node24 native 복구 후 관련 **3 files / 40 tests**, typecheck, 전체 *
 - focused collector **1 file/69 tests**, 전체 **72 files/854 tests**, desktop **17 files/190 tests**, typecheck·lint·CLI/desktop build 통과. 기존 mixed import 경고는 유지했다.
 - built CLI의 실제 subprocess smoke 두 경우가 통과했다: 최소 GUI형 PATH의 user-local client 탐색, 공백을 포함한 절대 prefix override. 실제 프로세스와 `env node` shebang을 사용했지만 client/quota는 합성이다. 추가 bucket/null ID를 함께 검증했고 계정/raw path sentinel 미노출·DB 미생성·임시 자료 정리를 확인했다. 실제 Codex 계정 조회 또는 Finder로 실행한 새 packaged app 인수는 아니다.
 - README의 기존 설치/조회 안내에 표준 prefix와 GUI override 설정/해제 방법을 반영했다. 이후 `로컬 커밋 및 푸시해`로 리뷰 수정 커밋과 기존 `publish/task22` 푸시를 명시 승인받았다. 게시 직전 focused69·typecheck·diff를 다시 확인했다. 원격 리뷰 댓글/해결 표시·병합·Issue 종료는 승인 범위가 아니다. 기존 공증 DMG는 리뷰 수정 전 소스이므로 이 수정이 반영된 바이너리로 주장하지 않는다. 의존성/락파일/서명 설정은 변경하지 않았다.
+
+### 2026-10-07 공식 single snapshot 추가 P1 대응
+
+- 요청자가 제시된 수정·회귀 검증·커밋·푸시·리뷰 확인 순서를 승인했다. 공식 v2의 optional map이 null/누락이면 required `rateLimits`를 기존 quota 검증/투영 경계로 읽는다. 존재하는 map은 우선하고 map 오류·unknown pool·conflicting ID를 single snapshot으로 덮지 않는다. 단일 응답의 nullable ID는 공식 historical snapshot 계약으로 처리하며 private 형제 필드는 반환하지 않는다.
+- map null/누락·nullable ID·map 우선/throwing single getter·invalid map/window·conflicting ID 및 실제 stdio read/reap 회귀를 추가했다. focused **79 tests**, 전체 **72 files/864 tests**, typecheck·lint·CLI build가 통과했다. 이번에는 desktop suite/build·Node20·공증을 재실행하지 않았다.
+- built CLI에서 실제 합성 child를 실행해 map null/누락 두 응답을 각각 확인했다. 잔여75%·단일 window·sentinel/raw path 미노출·DB 미생성·임시 자료 정리가 모두 통과했다. 실계정 quota나 새로운 packaged binary의 증거가 아니다.
+- collector/회귀와 기존 계획·Stage5/최종 보고만 변경한다. 기존 공증 DMG는 이 수정 미반영이며 의존성·서명·보류 인수 범위는 유지한다. 게시 대상은 기존 `publish/task22`/PR #23이고 리뷰 해결 표시·병합·이슈 종료는 포함하지 않는다.
