@@ -22,6 +22,8 @@ TokenWatch는 사용량 메타데이터를 로컬 SQLite에 저장합니다. 프
 
 Codex 실행 파일은 현재 PATH에서 먼저 찾고, macOS에서는 표준 Homebrew prefix도 확인합니다. 사용자 홈의 `.local/bin`·`.npm-global/bin`도 확인하므로 Finder/Dock의 축소된 PATH에만 의존하지 않습니다. 다른 설치 prefix는 `TOKENWATCH_CODEX_EXECUTABLE`에 실행 가능한 Codex 파일의 절대 경로를 지정합니다. 이 값이 유효하지 않으면 다른 client로 대체하지 않습니다. 선택한 prefix는 해당 child PATH에만 추가하며 로그인 shell이나 패키지 manager를 실행하지 않습니다. 경로는 메모리 내 실행에만 사용하고 저장소·화면·로그에 반환하지 않습니다.
 
+npm launcher의 `env node` 실행을 위해 Codex prefix·기존 PATH/표준 prefix·현재 Node prefix·절대 경로의 `NVM_BIN`에서도 실행 가능한 Node를 확인합니다. 없으면 표준 `~/.nvm/versions/node`의 설치 version을 숫자 기준 내림차순으로 확인하고 검증된 Node prefix를 child PATH에만 추가합니다. Electron 자체를 Node로 간주하거나 로그인 shell/nvm 명령을 실행하지 않습니다. 사용자 지정 nvm 루트는 GUI 환경에 절대 경로의 `NVM_BIN`을 전달해야 합니다. Node가 없더라도 standalone native Codex 실행을 막지는 않습니다.
+
 GUI 앱에 임의 prefix를 지정할 때는 로컬 터미널에서 `launchctl setenv TOKENWATCH_CODEX_EXECUTABLE "<absolute-path-to-codex>"`를 실행하고 앱을 완전히 종료한 뒤 다시 엽니다. 지정 해제는 `launchctl unsetenv TOKENWATCH_CODEX_EXECUTABLE`입니다. CLI에서는 해당 환경 변수를 명령에 전달하면 됩니다. 이 설정은 설치된 공식 client를 선택하는 것이며 인증이나 로그인은 변경하지 않습니다.
 
 로컬 토큰/예상 비용을 구독 한도로 대체하지 않습니다. 계정 연속성·원본 시각·절대 한도/단위·완전 소비 이력이 확인되지 않아 실제 여유율·소진 전망은 제공하지 않습니다. 과거 조회 기록이 학습 가능한 소비 이력이라는 뜻도 아닙니다.

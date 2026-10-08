@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   rm: vi.fn(),
   statSync: vi.fn(),
   accessSync: vi.fn(),
+  readdirSync: vi.fn(),
   platform: vi.fn()
 }));
 vi.mock('node:child_process', () => ({ spawn: mocks.spawn }));
@@ -21,6 +22,7 @@ vi.mock('node:fs/promises', () => ({ mkdtemp: mocks.mkdtemp, rm: mocks.rm }));
 vi.mock('node:fs', async (importOriginal) => ({
   ...(await importOriginal<typeof import('node:fs')>()),
   statSync: mocks.statSync,
+  readdirSync: mocks.readdirSync,
   accessSync: mocks.accessSync
 }));
 vi.mock('node:os', async (importOriginal) => ({
@@ -91,6 +93,8 @@ beforeEach(() => {
   mocks.mkdtemp.mockResolvedValue(ownedCwd);
   mocks.rm.mockResolvedValue(undefined);
   mocks.platform.mockReturnValue('darwin');
+  mocks.readdirSync.mockReturnValue([]);
+  vi.stubEnv('NVM_BIN', undefined);
   vi.stubEnv('PATH', '/synthetic/bin');
   vi.stubEnv('TOKENWATCH_CODEX_EXECUTABLE', undefined);
   mocks.statSync.mockImplementation((path) => {
@@ -370,6 +374,100 @@ describe('Codex official quota projection', () => {
 });
 
 describe('Codex bounded official stdio collector', () => {
+  it('adds a validated separate nvm runtime prefix for npm launchers without modifying global PATH', async () => {
+    vi.stubEnv('PATH', '/usr/bin:/bin');
+    mocks.readdirSync.mockReturnValue([
+      { name: 'v9.0.0', isDirectory: () => true },
+      { name: 'v24.15.0', isDirectory: () => true },
+      { name: 'v25.0.0', isDirectory: () => true },
+      { name: sentinel, isDirectory: () => true },
+      { name: 'v99.0.0', isDirectory: () => false }
+    ]);
+    const executable = '/synthetic/home/.npm-global/bin/codex';
+    const runtime = '/synthetic/home/.nvm/versions/node/v24.15.0/bin/node';
+    mocks.statSync.mockImplementation((path) => {
+      if (path === executable || path === runtime) return { isFile: () => true };
+      throw new Error(sentinel);
+    });
+    child.respond();
+    const result = await collectCodexQuota();
+    expectSafe(result);
+    expect(result.failure).toBe('none');
+    expect(mocks.spawn.mock.calls[0][0]).toBe(executable);
+    expect(mocks.spawn.mock.calls[0][2].env.PATH).toMatch(
+      /^\/synthetic\/home\/\.nvm\/versions\/node\/v24\.15\.0\/bin:/
+    );
+    expect(mocks.statSync).toHaveBeenCalledWith(
+      '/synthetic/home/.nvm/versions/node/v25.0.0/bin/node'
+    );
+    expect(mocks.statSync).not.toHaveBeenCalledWith(
+      '/synthetic/home/.nvm/versions/node/v9.0.0/bin/node'
+    );
+    expect(mocks.statSync.mock.calls.some(([path]) => String(path).includes(sentinel))).toBe(false);
+    expect(process.env.PATH).toBe('/usr/bin:/bin');
+    expect(JSON.stringify(result)).not.toContain(runtime);
+  });
+
+  it('uses an absolute NVM_BIN runtime without enumerating installations', async () => {
+    vi.stubEnv('NVM_BIN', '/synthetic/active node/bin');
+    mocks.statSync.mockImplementation((path) => {
+      if (path === installedExecutable || path === '/synthetic/active node/bin/node')
+        return { isFile: () => true };
+      throw new Error(sentinel);
+    });
+    child.respond();
+    expect((await collectCodexQuota()).failure).toBe('none');
+    expect(mocks.spawn.mock.calls[0][2].env.PATH).toMatch(/^\/synthetic\/active node\/bin:/);
+    expect(mocks.readdirSync).not.toHaveBeenCalled();
+  });
+
+  it('reuses the running Node prefix when PATH does not include its interpreter', async () => {
+    mocks.statSync.mockImplementation((path) => {
+      if (path === installedExecutable || path === process.execPath) return { isFile: () => true };
+      throw new Error(sentinel);
+    });
+    child.respond();
+    expect((await collectCodexQuota()).failure).toBe('none');
+    const childPath = mocks.spawn.mock.calls[0][2].env.PATH.split(':');
+    expect(childPath[0] + '/node').toBe(process.execPath);
+    expect(mocks.readdirSync).not.toHaveBeenCalled();
+  });
+
+  it('skips non-executable nvm Node files and selects the next validated version', async () => {
+    mocks.readdirSync.mockReturnValue([
+      { name: 'v25.0.0', isDirectory: () => true },
+      { name: 'v24.15.0', isDirectory: () => true }
+    ]);
+    const first = '/synthetic/home/.nvm/versions/node/v25.0.0/bin/node';
+    const next = '/synthetic/home/.nvm/versions/node/v24.15.0/bin/node';
+    mocks.statSync.mockImplementation((path) => {
+      if (path === installedExecutable || path === first || path === next)
+        return { isFile: () => true };
+      throw new Error(sentinel);
+    });
+    mocks.accessSync.mockImplementation((path) => {
+      if (path === first) throw new Error(sentinel);
+    });
+    child.respond();
+    expect((await collectCodexQuota()).failure).toBe('none');
+    expect(mocks.spawn.mock.calls[0][2].env.PATH).toMatch(
+      /^\/synthetic\/home\/\.nvm\/versions\/node\/v24\.15\.0\/bin:/
+    );
+  });
+
+  it('keeps native client execution usable when runtime discovery is unavailable', async () => {
+    vi.stubEnv('NVM_BIN', 'relative-runtime');
+    mocks.readdirSync.mockImplementation(() => {
+      throw new Error(sentinel);
+    });
+    child.respond();
+    const result = await collectCodexQuota();
+    expectSafe(result);
+    expect(result.failure).toBe('none');
+    expect(mocks.spawn.mock.calls[0][0]).toBe(installedExecutable);
+    expect(mocks.spawn.mock.calls[0][2].env.PATH).not.toContain('relative-runtime');
+  });
+
   it.each([null, undefined])('collects the required single snapshot with map %s', async (map) => {
     child.respond({ rateLimitsByLimitId: map, rateLimits: { limitId: 'codex', primary: window } });
     const result = await collectCodexQuota();

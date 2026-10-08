@@ -1,8 +1,8 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { accessSync, constants, statSync } from 'node:fs';
+import { accessSync, constants, readdirSync, statSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { homedir, platform, tmpdir } from 'node:os';
-import { delimiter, dirname, isAbsolute, join } from 'node:path';
+import { basename, delimiter, dirname, isAbsolute, join } from 'node:path';
 import { APP_VERSION } from '../../app/constants.js';
 import {
   subscriptionReadResultSchema,
@@ -152,6 +152,38 @@ function responseFailure(error: unknown): Failure {
   return 'client-failed';
 }
 
+function executableFile(candidate: string): boolean {
+  if (!isAbsolute(candidate)) return false;
+  try {
+    if (!statSync(candidate).isFile()) return false;
+    accessSync(candidate, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function nodeRuntime(directories: string[]): string | undefined {
+  const prefixes = [
+    ...directories,
+    ...(basename(process.execPath) === 'node' ? [dirname(process.execPath)] : []),
+    ...(process.env.NVM_BIN && isAbsolute(process.env.NVM_BIN) ? [process.env.NVM_BIN] : [])
+  ];
+  const runtime = prefixes.map((directory) => join(directory, 'node')).find(executableFile);
+  if (runtime) return runtime;
+  try {
+    const versionsRoot = join(homedir(), '.nvm', 'versions', 'node');
+    const versions = readdirSync(versionsRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && /^v\d+\.\d+\.\d+$/.test(entry.name))
+      .sort((a, b) => b.name.localeCompare(a.name, 'en', { numeric: true }));
+    return versions
+      .map((entry) => join(versionsRoot, entry.name, 'bin', 'node'))
+      .find(executableFile);
+  } catch {
+    return undefined;
+  }
+}
+
 function codexCommand(): { executable: string; environment: NodeJS.ProcessEnv } | null {
   const directories = [
     ...(process.env.PATH ?? '').split(delimiter).filter(isAbsolute),
@@ -165,22 +197,17 @@ function codexCommand(): { executable: string; environment: NodeJS.ProcessEnv } 
     configured === undefined
       ? directories.map((directory) => join(directory, executableName))
       : [configured];
-  const executable = candidates.find((candidate) => {
-    if (!isAbsolute(candidate)) return false;
-    try {
-      if (!statSync(candidate).isFile()) return false;
-      accessSync(candidate, constants.X_OK);
-      return true;
-    } catch {
-      return false;
-    }
-  });
+  const executable = candidates.find(executableFile);
   if (!executable) return null;
+  const runtime =
+    platform() === 'win32' ? undefined : nodeRuntime([dirname(executable), ...directories]);
   return {
     executable,
     environment: {
       ...process.env,
-      PATH: [...new Set([dirname(executable), ...directories])].join(delimiter)
+      PATH: [
+        ...new Set([...(runtime ? [dirname(runtime)] : []), dirname(executable), ...directories])
+      ].join(delimiter)
     }
   };
 }
