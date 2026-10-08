@@ -576,9 +576,9 @@ describe('Codex bounded official stdio collector', () => {
       expect(result.failure).toBe('none');
       expect(mocks.spawn.mock.calls[0][0]).toBe(executable);
       expect(mocks.spawn.mock.calls[0][2].shell).toBe(false);
-      expect(mocks.statSync.mock.calls.every(([path]) => String(path).endsWith('/codex.exe'))).toBe(
-        true
-      );
+      expect(
+        mocks.statSync.mock.calls.every(([path]) => /\/codex\.(exe|cmd)$/.test(String(path)))
+      ).toBe(true);
       expect(JSON.stringify(result)).not.toContain(executable);
     }
   );
@@ -590,6 +590,88 @@ describe('Codex bounded official stdio collector', () => {
     expect(result.failure).toBe('client-unavailable');
     expect(mocks.spawn).not.toHaveBeenCalled();
     expect(mocks.mkdtemp).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['/synthetic/bin', false],
+    ['/synthetic/npm prefix & 100% (local)', true]
+  ] as const)(
+    'launches Windows npm shim in %s through Node without a shell',
+    async (prefix, override) => {
+      mocks.platform.mockReturnValue('win32');
+      const shim = `${prefix}/${override ? 'codex.CMD' : 'codex.cmd'}`;
+      const script = `${prefix}/node_modules/@openai/codex/bin/codex.js`;
+      const runtime = `${prefix}/node.exe`;
+      if (override) vi.stubEnv('TOKENWATCH_CODEX_EXECUTABLE', shim);
+      mocks.statSync.mockImplementation((path) => {
+        if (path === shim || path === script || path === runtime) return { isFile: () => true };
+        throw new Error(sentinel);
+      });
+      child.respond();
+      const result = await collectCodexQuota();
+      expectSafe(result);
+      expect(result.failure).toBe('none');
+      expect(mocks.spawn.mock.calls[0][0]).toBe(runtime);
+      expect(mocks.spawn.mock.calls[0][1]).toEqual([
+        script,
+        '-c',
+        'mcp_servers={}',
+        '-c',
+        'analytics.enabled=false',
+        '-c',
+        'otel.exporter="none"',
+        '-c',
+        'otel.log_user_prompt=false',
+        'app-server',
+        '--listen',
+        'stdio://'
+      ]);
+      expect(mocks.spawn.mock.calls[0][2].shell).toBe(false);
+      expect(mocks.accessSync).not.toHaveBeenCalledWith(script, expect.anything());
+      expect(mocks.readdirSync).not.toHaveBeenCalled();
+      expect(JSON.stringify(result)).not.toContain(prefix);
+    }
+  );
+
+  it.each(['missing-script', 'directory-script', 'missing-node', 'non-executable-node'])(
+    'fails closed for an explicit npm shim with %s',
+    async (invalid) => {
+      mocks.platform.mockReturnValue('win32');
+      const shim = '/synthetic/override/codex.cmd';
+      const script = '/synthetic/override/node_modules/@openai/codex/bin/codex.js';
+      const runtime = '/synthetic/override/node.exe';
+      vi.stubEnv('TOKENWATCH_CODEX_EXECUTABLE', shim);
+      mocks.statSync.mockImplementation((path) => {
+        if (path === shim || path === installedExecutable) return { isFile: () => true };
+        if (path === script && invalid !== 'missing-script')
+          return { isFile: () => invalid !== 'directory-script' };
+        if (path === runtime && invalid !== 'missing-node') return { isFile: () => true };
+        throw new Error(sentinel);
+      });
+      mocks.accessSync.mockImplementation((path) => {
+        if (path === runtime && invalid === 'non-executable-node') throw new Error(sentinel);
+      });
+      const result = await collectCodexQuota();
+      expectSafe(result);
+      expect(result.failure).toBe('client-unavailable');
+      expect(mocks.spawn).not.toHaveBeenCalled();
+      expect(mocks.mkdtemp).not.toHaveBeenCalled();
+      expect(mocks.statSync).not.toHaveBeenCalledWith(installedExecutable);
+    }
+  );
+
+  it('prefers a standalone Windows executable over a same-prefix npm shim', async () => {
+    mocks.platform.mockReturnValue('win32');
+    mocks.statSync.mockImplementation((path) => {
+      if (path === '/synthetic/bin/codex.exe' || path === '/synthetic/bin/codex.cmd')
+        return { isFile: () => true };
+      throw new Error(sentinel);
+    });
+    child.respond();
+    expect((await collectCodexQuota()).failure).toBe('none');
+    expect(mocks.spawn.mock.calls[0][0]).toBe('/synthetic/bin/codex.exe');
+    expect(mocks.spawn.mock.calls[0][1][0]).toBe('-c');
+    expect(mocks.statSync).not.toHaveBeenCalledWith('/synthetic/bin/codex.cmd');
   });
 
   it.each(['darwin', 'win32'])(

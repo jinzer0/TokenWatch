@@ -2,7 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { accessSync, constants, readdirSync, statSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { homedir, platform, tmpdir } from 'node:os';
-import { basename, delimiter, dirname, isAbsolute, join } from 'node:path';
+import { basename, delimiter, dirname, extname, isAbsolute, join } from 'node:path';
 import { APP_VERSION } from '../../app/constants.js';
 import {
   subscriptionReadResultSchema,
@@ -164,13 +164,16 @@ function executableFile(candidate: string): boolean {
 }
 
 function nodeRuntime(directories: string[]): string | undefined {
+  const executableName = platform() === 'win32' ? 'node.exe' : 'node';
   const prefixes = [
     ...directories,
-    ...(basename(process.execPath) === 'node' ? [dirname(process.execPath)] : []),
+    ...(basename(process.execPath).toLowerCase() === executableName
+      ? [dirname(process.execPath)]
+      : []),
     ...(process.env.NVM_BIN && isAbsolute(process.env.NVM_BIN) ? [process.env.NVM_BIN] : [])
   ];
-  const runtime = prefixes.map((directory) => join(directory, 'node')).find(executableFile);
-  if (runtime) return runtime;
+  const runtime = prefixes.map((directory) => join(directory, executableName)).find(executableFile);
+  if (runtime || platform() === 'win32') return runtime;
   try {
     const versionsRoot = join(homedir(), '.nvm', 'versions', 'node');
     const versions = readdirSync(versionsRoot, { withFileTypes: true })
@@ -184,7 +187,11 @@ function nodeRuntime(directories: string[]): string | undefined {
   }
 }
 
-function codexCommand(): { executable: string; environment: NodeJS.ProcessEnv } | null {
+function codexCommand(): {
+  executable: string;
+  args: string[];
+  environment: NodeJS.ProcessEnv;
+} | null {
   const directories = [
     ...(process.env.PATH ?? '').split(delimiter).filter(isAbsolute),
     ...(platform() === 'darwin' ? ['/opt/homebrew/bin', '/usr/local/bin'] : []),
@@ -192,17 +199,32 @@ function codexCommand(): { executable: string; environment: NodeJS.ProcessEnv } 
     join(homedir(), '.npm-global', 'bin')
   ];
   const configured = process.env.TOKENWATCH_CODEX_EXECUTABLE;
-  const executableName = platform() === 'win32' ? 'codex.exe' : 'codex';
+  const executableNames = platform() === 'win32' ? ['codex.exe', 'codex.cmd'] : ['codex'];
   const candidates =
     configured === undefined
-      ? directories.map((directory) => join(directory, executableName))
+      ? directories.flatMap((directory) => executableNames.map((name) => join(directory, name)))
       : [configured];
   const executable = candidates.find(executableFile);
   if (!executable) return null;
+  const npmShim = platform() === 'win32' && extname(executable).toLowerCase() === '.cmd';
+  const script = npmShim
+    ? join(dirname(executable), 'node_modules', '@openai', 'codex', 'bin', 'codex.js')
+    : null;
+  if (script !== null) {
+    try {
+      if (!statSync(script).isFile()) return null;
+    } catch {
+      return null;
+    }
+  }
   const runtime =
-    platform() === 'win32' ? undefined : nodeRuntime([dirname(executable), ...directories]);
+    platform() === 'win32' && !npmShim
+      ? undefined
+      : nodeRuntime([dirname(executable), ...directories]);
+  if (npmShim && !runtime) return null;
   return {
-    executable,
+    executable: script !== null && runtime !== undefined ? runtime : executable,
+    args: script !== null ? [script] : [],
     environment: {
       ...process.env,
       PATH: [
@@ -277,6 +299,7 @@ export async function collectCodexQuota(
         child = spawn(
           command.executable,
           [
+            ...command.args,
             '-c',
             'mcp_servers={}',
             '-c',
