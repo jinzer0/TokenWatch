@@ -7,6 +7,8 @@ export const subscriptionUnitSchema = z.enum(['tokens', 'requests', 'credits']);
 export type SubscriptionUnit = z.infer<typeof subscriptionUnitSchema>;
 export const subscriptionAvailabilitySchema = z.enum([
   'available',
+  'usage-blocked',
+  'usage-unverified',
   'not-configured',
   'permission-required',
   'unsupported',
@@ -14,6 +16,8 @@ export const subscriptionAvailabilitySchema = z.enum([
 ]);
 export const subscriptionFailureSchema = z.enum([
   'none',
+  'usage-blocked',
+  'usage-unverified',
   'invalid-data',
   'client-unavailable',
   'client-failed',
@@ -108,6 +112,10 @@ export const subscriptionReadResultSchema = z
     )
       invalid();
     const keys = new Set<string>();
+    if ((result.availability === 'usage-blocked') !== (result.failure === 'usage-blocked'))
+      invalid();
+    if ((result.availability === 'usage-unverified') !== (result.failure === 'usage-unverified'))
+      invalid();
     for (const window of result.windows) {
       if (
         window.provider !== result.provider ||
@@ -140,6 +148,12 @@ export const desktopSubscriptionCardSchema = z
   })
   .strict()
   .superRefine((card, context) => {
+    if (
+      (card.availability === 'usage-blocked') !== (card.failure === 'usage-blocked') ||
+      (card.availability === 'usage-blocked' && (card.windows.length > 0 || card.cached))
+    ) {
+      context.addIssue({ code: 'custom', message: 'Invalid subscription permission' });
+    }
     if (card.windows.some((window) => window.provider !== card.provider)) {
       context.addIssue({ code: 'custom', message: 'Invalid subscription provider' });
     }

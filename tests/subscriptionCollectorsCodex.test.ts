@@ -118,6 +118,56 @@ async function started() {
 }
 
 describe('Codex official quota projection', () => {
+  it('honors authoritative denial before reading quota or private data', () => {
+    const input = {
+      ordinaryUsageAllowed: false,
+      accountId: sentinel,
+      get rateLimitsByLimitId() {
+        throw new Error(sentinel);
+      }
+    };
+    const result = parseCodexQuota(input, receipt);
+    expectSafe(result);
+    expect(result).toEqual({
+      provider: 'codex',
+      availability: 'usage-blocked',
+      failure: 'usage-blocked',
+      receivedAt: receipt,
+      windows: []
+    });
+    expect(parseCodexQuota({ ...quota(), ordinaryUsageAllowed: false }, receipt)).toEqual(result);
+  });
+
+  it('does not infer recovery from percentages when backend permission is explicitly unavailable', () => {
+    const result = parseCodexQuota({ ...quota(), ordinaryUsageAllowed: null }, receipt);
+    expectSafe(result);
+    expect(result).toMatchObject({
+      availability: 'usage-unverified',
+      failure: 'usage-unverified',
+      windows: []
+    });
+  });
+
+  it.each([true, undefined])(
+    'retains readable quota without inferring permission from %s',
+    (ordinaryUsageAllowed) => {
+      const result = parseCodexQuota({ ...quota(), ordinaryUsageAllowed }, receipt);
+      expectSafe(result);
+      expect(result.failure).toBe('none');
+      expect(result.windows[0].remainingPercent).toBe(87);
+    }
+  );
+
+  it.each([0, 1, 'false', {}, []])(
+    'rejects malformed ordinary usage permission %j',
+    (ordinaryUsageAllowed) => {
+      const result = parseCodexQuota({ ...quota(), ordinaryUsageAllowed }, receipt);
+      expectSafe(result);
+      expect(result.failure).toBe('invalid-data');
+      expect(result.windows).toEqual([]);
+    }
+  );
+
   it('projects only percentages and supplied duration; excludes private account and credit data', () => {
     const result = parseCodexQuota(
       { ...quota(), accountId: sentinel, rateLimitUpsell: { text: sentinel } },

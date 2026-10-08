@@ -62,6 +62,7 @@ export class DesktopSubscriptionService {
       card.failure = attempt.failure;
       card.lastAttemptAt = attempt.receivedAt;
     }
+    if (attempt?.availability === 'usage-blocked') return card;
     if (success !== null) {
       const currentTime = this.now().getTime();
       card.cached = cached;
@@ -111,6 +112,7 @@ export class DesktopSubscriptionService {
         this.success = success;
         this.cached = true;
       }
+      if (success === null) this.success = null;
     } catch {
       this.storage = 'unavailable';
     }
@@ -148,6 +150,7 @@ export class DesktopSubscriptionService {
           this.success = result;
           this.cached = false;
         }
+        if (result.availability === 'usage-blocked') this.success = null;
         if (this.repository !== null && this.storage === 'ready') {
           try {
             this.repository.append(result);

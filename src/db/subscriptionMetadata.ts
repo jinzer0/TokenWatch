@@ -181,7 +181,14 @@ export class SubscriptionMetadataRepository {
             `
           SELECT id, provider, availability, failure, received_at, window_count
           FROM subscription_observations WHERE provider = ?
-          ${success ? "AND availability = 'available' AND failure = 'none'" : ''}
+          ${
+            success
+              ? `AND availability = 'available' AND failure = 'none'
+          AND id > COALESCE((SELECT MAX(blocked.id) FROM subscription_observations AS blocked
+            WHERE blocked.provider = subscription_observations.provider
+              AND blocked.availability = 'usage-blocked'), 0)`
+              : ''
+          }
           ORDER BY id DESC LIMIT 1
         `
           )

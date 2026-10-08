@@ -16,6 +16,8 @@ const NAMES: Record<SubscriptionProvider, string> = {
 };
 const STATUS: Record<DesktopSubscriptionCard['availability'], string> = {
   available: '조회 가능',
+  'usage-blocked': '포함 사용 차단',
+  'usage-unverified': '사용 권한 미확인',
   'not-configured': '설정 필요',
   'permission-required': '권한 필요',
   unsupported: '지원되지 않음',
@@ -23,6 +25,8 @@ const STATUS: Record<DesktopSubscriptionCard['availability'], string> = {
 };
 const FAILURE: Record<DesktopSubscriptionCard['failure'], string> = {
   none: '',
+  'usage-blocked': '서비스에서 일반 포함 사용을 차단했습니다',
+  'usage-unverified': '서비스의 일반 포함 사용 권한을 확인할 수 없습니다',
   'invalid-data': '한도 확인 실패',
   'client-unavailable': '조회 환경 확인 필요',
   'client-failed': '조회 실패',

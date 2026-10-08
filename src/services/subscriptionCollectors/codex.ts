@@ -18,13 +18,17 @@ type Failure = Exclude<SubscriptionReadResult['failure'], 'none'>;
 
 function failed(failure: Failure, receivedAt = new Date().toISOString()): SubscriptionReadResult {
   const availability =
-    failure === 'unsupported'
-      ? 'unsupported'
-      : failure === 'permission-required'
-        ? 'permission-required'
-        : failure === 'client-unavailable'
-          ? 'not-configured'
-          : 'error';
+    failure === 'usage-blocked'
+      ? 'usage-blocked'
+      : failure === 'usage-unverified'
+        ? 'usage-unverified'
+        : failure === 'unsupported'
+          ? 'unsupported'
+          : failure === 'permission-required'
+            ? 'permission-required'
+            : failure === 'client-unavailable'
+              ? 'not-configured'
+              : 'error';
   return { provider: 'codex', availability, failure, receivedAt, windows: [] };
 }
 
@@ -46,6 +50,16 @@ export function parseCodexQuota(input: unknown, receivedAt: string): Subscriptio
 
 function projectCodexQuota(input: unknown, receivedAt: string): SubscriptionReadResult {
   if (!object(input)) return failed('unsupported', receivedAt);
+  const ordinaryUsageAllowed = input.ordinaryUsageAllowed;
+  if (ordinaryUsageAllowed === false) return failed('usage-blocked', receivedAt);
+  if (ordinaryUsageAllowed === null) return failed('usage-unverified', receivedAt);
+  if (
+    ordinaryUsageAllowed !== undefined &&
+    ordinaryUsageAllowed !== null &&
+    ordinaryUsageAllowed !== true
+  ) {
+    return failed('invalid-data', receivedAt);
+  }
   const pools = input.rateLimitsByLimitId;
   let pool: unknown;
   if (pools === null || pools === undefined) {

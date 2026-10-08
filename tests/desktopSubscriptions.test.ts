@@ -83,6 +83,62 @@ function deferred() {
 }
 
 describe('desktop subscription service', () => {
+  it('hides previous successful quota after backend denial, including after reopening storage', async () => {
+    const { path, repository } = store();
+    repository.append(success());
+    const denied: SubscriptionReadResult = {
+      provider: 'codex',
+      availability: 'usage-blocked',
+      failure: 'usage-blocked',
+      receivedAt: '2026-10-06T00:01:00.000Z',
+      windows: []
+    };
+    const instance = service({
+      repository,
+      collectCodex: vi.fn(async () => denied),
+      now: () => new Date(denied.receivedAt)
+    });
+    expect(instance.getSnapshot().providers[1].windows[0].remainingPercent).toBe(75);
+    const snapshot = await instance.refresh();
+    expect(snapshot.providers[1]).toMatchObject({
+      availability: 'usage-blocked',
+      failure: 'usage-blocked',
+      windows: [],
+      cached: false
+    });
+    expect(repository.latest('codex')).toEqual(denied);
+    expect(repository.latestSuccess('codex')).toBeNull();
+    instance.close();
+    const writer = new SubscriptionMetadataRepository(path);
+    writer.append(failure('2026-10-06T00:02:00.000Z'));
+    expect(writer.latestSuccess('codex')).toBeNull();
+    writer.close();
+    const reopened = service({
+      repository: new SubscriptionMetadataRepository(path),
+      collectCodex: vi.fn(),
+      now: () => new Date(denied.receivedAt)
+    });
+    expect(reopened.getSnapshot().providers[1]).toMatchObject({
+      availability: 'error',
+      windows: [],
+      cached: false
+    });
+    expect(
+      desktopSubscriptionSnapshotSchema.safeParse({
+        ...snapshot,
+        providers: [
+          snapshot.providers[0],
+          { ...snapshot.providers[1], windows: success().windows },
+          snapshot.providers[2]
+        ]
+      }).success
+    ).toBe(false);
+    const recovery = new SubscriptionMetadataRepository(path);
+    recovery.append(success('2026-10-06T00:03:00.000Z'));
+    recovery.close();
+    expect(reopened.getSnapshot().providers[1].windows[0].remainingPercent).toBe(75);
+  });
+
   it('observes externally recorded Claude metadata while alive and preserves source clocks', () => {
     const { path, repository } = store();
     const collect = vi.fn<typeof collectCodexQuota>();

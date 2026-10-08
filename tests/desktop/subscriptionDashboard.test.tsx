@@ -87,6 +87,26 @@ afterEach(() => {
 });
 
 describe('subscription dashboard', () => {
+  it('shows backend usage denial without a positive quota or cached window', async () => {
+    const denied = snapshot();
+    denied.providers[1] = card('codex', {
+      availability: 'usage-blocked',
+      failure: 'usage-blocked',
+      windows: [],
+      lastAttemptAt: NOW
+    });
+    install({ getSnapshot: vi.fn(async () => denied) });
+    render(<SubscriptionDashboard />);
+    await settle();
+    expect(codex().getByText('포함 사용 차단')).toBeTruthy();
+    expect(codex().getByText('서비스에서 일반 포함 사용을 차단했습니다')).toBeTruthy();
+    expect(codex().queryByRole('progressbar')).toBeNull();
+    expect(codex().queryByText(/% 남음|지난 조회/)).toBeNull();
+    const detail = within(screen.getByRole('region', { name: 'Codex 구독 상세' }));
+    expect(detail.getByText('포함 사용 차단')).toBeTruthy();
+    expect(detail.queryByRole('progressbar')).toBeNull();
+  });
+
   it('keeps provider headings outside selection buttons and preserves pressed state', async () => {
     install();
     render(<SubscriptionDashboard />);

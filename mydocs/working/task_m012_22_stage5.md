@@ -188,3 +188,13 @@ host Node24 native 복구 후 관련 **3 files / 40 tests**, typecheck, 전체 *
 - 현재 파일 위치를 기존 계획/최종 보고에 반영했다. README/DTO/IPC/renderer 계약은 그대로라 변경하지 않는다. 이번 수정 요청은 새 커밋·푸시·원격 댓글/해결 표시·병합·이슈 종료 승인으로 확대하지 않았으며 로컬 변경만 유지한다. 기존 공증 DMG에는 리뷰 수정이 반영되지 않았다.
 
 요청자가 후속 지시로 승인된 수정은 항상 커밋·푸시하도록 명시했다. 상시 게시 권한을 root Git 규칙에 반영하고 위 로컬 수정의 커밋·`publish/task22` 게시를 진행한다. 이후 승인된 수정도 검증 후 별도 반복 승인 없이 게시하며 무관한 파일·병합·이슈 종료·원격 댓글/해결 표시·release는 제외한다.
+
+### 2026-10-08 Codex authoritative permission P1 대응
+
+- 최신 리뷰의 신규 댓글 `4213164453`은 backend의 `ordinaryUsageAllowed: false`를 무시하고 잔여 숫자를 표시하던 결함이다. 기존 parser 경계 댓글 `4213031383`은 재조회 시 새 경로/commit으로 따라왔지만 본문은 이전 지적이며 소스 이동은 이미 반영됐다. 같은 지적을 새 결함으로 중복 수정하지 않는다.
+- 공식 account 응답 계약을 확인했다. false는 `usage-blocked`, 명시적 null은 `usage-unverified`와 빈 windows로 투영하고 잘못된 타입은 invalid-data로 거부한다. field 없는 historical 관측 숫자는 사용 허용으로 주장하지 않는다. DTO·renderer는 고정 상태/사유 문구만 전달하고 account/upsell/reset-credit raw data는 읽거나 저장하지 않는다.
+- 차단 시 desktop 성공 cache를 비우고 metadata 최신 성공 조회는 마지막 차단 이후 성공만 선택한다. 후속 timeout·재개방으로 차단 이전 quota가 다시 나타나지 않으며 새로운 성공 이후 관측은 다시 표시한다. 원래 관측 행은 보존하며 DB schema/마이그레이션은 변경하지 않는다. blocked card의 cached/windows 모순은 schema에서 거부한다.
+- focused **4 files/154 tests**, desktop focused **3 files/26 tests**, 전체 **72 files/886 tests**, desktop **17 files/191 tests**, typecheck·lint·CLI/desktop build 통과. backend denial/null/true/잘못된 값·getter privacy·저장/재개방/timeout 이후 quota 억제·새 성공·renderer 진행바/잔여 숫자 부재를 검증했다. 기존 mixed import 경고는 유지했다.
+- built CLI의 실제 합성 stdio child에서 false/null/true와 명시 기록을 확인했다. 차단/미확인은 빈 windows, true는 잔여75%, usage DB 미생성·격리 metadata 저장·sentinel/raw path 미노출·cleanup이 통과했다. 첫 smoke는 CLI exit1이라는 잘못된 기대 때문에 실패했고 기존 CLI 계약(availability error만 exit1)을 확인해 기대를 교정했다. 제품 exit 계약은 바꾸지 않았다.
+- 실제 Electron source-build의 격리 DB/userData/CDP smoke를 두 차례 시도했지만 renderer marker가 확인되지 않아 GUI 인수는 실패/미검증이다. 원인을 단정하거나 jsdom 성공으로 대체하지 않는다. 합성 cache만 사용했고 provider 갱신/실계정 접근은 없었다. 소유 프로세스·임시 자료를 정리하고 정상 host native rebuild 후 `HOST_NATIVE_RESTORED` 및 focused154/desktop191 재검증을 통과했다. 기존 native deprecation을 숨기지 않았다. 기존 불가 검증 보류 승인에 따라 물리 조작을 요구하거나 추가 재시도를 선행 조건으로 삼지 않는다.
+- README와 기존 계획/보고 위치를 유지했다. 의존성/락파일/서명 설정·Node20/새 공증 DMG는 변경·검증하지 않았다. 승인된 수정은 커밋·기존 게시 브랜치로 푸시하고 재리뷰 상태를 확인하되 병합·이슈 종료·원격 댓글/해결 표시는 제외한다.
