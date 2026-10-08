@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TokenWatch — Graphite 스타일 시안</title>
+    <style>
+      /* Graphite tokens: canvas #101215; workspace #191d22; inset #14181d;
+       raised #20262d; rule #36404a; text #edf1f5; muted #a9b2be;
+       cool accent #8fc9dd; shortage #eab18c; secondary #758c9d; tertiary #53616e. */
+      :root {
+        color-scheme: dark;
+        --canvas: #101215;
+        --surface: #191d22;
+        --inset: #14181d;
+        --raised: #20262d;
+        --line: #36404a;
+        --text: #edf1f5;
+        --muted: #a9b2be;
+        --accent: #8fc9dd;
+        --warn: #eab18c;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--canvas);
+        color: var(--text);
+        font:
+          14px/1.5 -apple-system,
+          BlinkMacSystemFont,
+          'Apple SD Gothic Neo',
+          'Malgun Gothic',
+          sans-serif;
+      }
+      .review {
+        width: calc(100% - 64px);
+        max-width: 1376px;
+        margin: 24px auto;
+      }
+      .caption {
+        margin: 0 0 12px;
+        color: var(--muted);
+        font-size: 12px;
+        letter-spacing: 0.04em;
+      }
+      .app {
+        min-width: 1120px;
+        min-height: 798px;
+        border: 1px solid var(--line);
+        background: var(--surface);
+      }
+      .viewport {
+        overflow-x: auto;
+      }
+      .titlebar {
+        min-height: 62px;
+        display: flex;
+        align-items: center;
+        gap: 22px;
+        padding: 0 22px;
+        border-bottom: 1px solid var(--line);
+      }
+      .wordmark {
+        font-size: 16px;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+      }
+      .mark {
+        display: inline-grid;
+        grid-template-columns: repeat(3, 3px);
+        gap: 3px;
+        align-items: end;
+        height: 16px;
+        margin-right: 10px;
+      }
+      .mark i {
+        background: var(--accent);
+        height: 9px;
+      }
+      .mark i:nth-child(2) {
+        height: 16px;
+      }
+      .mark i:nth-child(3) {
+        height: 12px;
+      }
+      h1 {
+        font-size: 14px;
+        font-weight: 500;
+        margin: 0;
+        color: var(--muted);
+      }
+      .tools {
+        margin-left: auto;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .tool {
+        border: 1px solid var(--line);
+        padding: 4px 10px;
+        color: var(--text);
+      }
+      .body {
+        display: grid;
+        grid-template-columns: 244px minmax(0, 1fr);
+        min-height: 734px;
+      }
+      .sidebar {
+        padding: 21px 20px;
+        border-right: 1px solid var(--line);
+        background: var(--inset);
+      }
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+      h2 {
+        font-size: 13px;
+        font-weight: 600;
+      }
+      h3 {
+        font-size: 16px;
+        font-weight: 600;
+      }
+      .muted,
+      .label {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .section-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+      }
+      .metric {
+        padding: 17px 0 22px;
+        border-bottom: 1px solid var(--line);
+      }
+      .number {
+        font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -0.055em;
+      }
+      .metric-value {
+        margin: 8px 0 10px;
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+      }
+      .metric-value strong {
+        font-size: 29px;
+        font-weight: 500;
+      }
+      .metric-value span {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .delta {
+        color: var(--accent);
+        font-size: 12px;
+        display: flex;
+        justify-content: space-between;
+        font-variant-numeric: tabular-nums;
+      }
+      .trend {
+        padding-top: 22px;
+      }
+      .trend svg {
+        width: 100%;
+        height: auto;
+        display: block;
+        margin-top: 21px;
+      }
+      .trend .axis {
+        display: flex;
+        justify-content: space-between;
+        color: var(--muted);
+        font-size: 11px;
+        margin-top: 8px;
+      }
+      .main {
+        padding: 21px 20px 24px;
+      }
+      .providers {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        border: 1px solid var(--line);
+      }
+      .provider {
+        padding: 18px 18px 17px;
+        border-right: 1px solid var(--line);
+        background: var(--surface);
+      }
+      .provider:last-child {
+        border-right: 0;
+      }
+      .provider.selected {
+        background: var(--raised);
+        box-shadow: inset 0 2px var(--accent);
+      }
+      .provider-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 23px;
+      }
+      .selected-tag {
+        font-size: 11px;
+        color: var(--accent);
+      }
+      .remaining {
+        font-size: 15px;
+        white-space: nowrap;
+      }
+      .remaining strong {
+        font-size: 30px;
+        font-weight: 500;
+        color: var(--text);
+        margin: 0 3px;
+      }
+      .meter {
+        height: 7px;
+        background: var(--line);
+        margin: 13px 0 12px;
+      }
+      .meter span {
+        display: block;
+        height: 100%;
+        background: var(--accent);
+      }
+      .provider:not(.selected) .meter span {
+        background: #758c9d;
+      }
+      .reset {
+        font-size: 12px;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
+      .state {
+        border-top: 1px solid var(--line);
+        margin-top: 20px;
+        padding-top: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+      .state strong {
+        font-size: 20px;
+        color: var(--accent);
+        font-weight: 500;
+        font-variant-numeric: tabular-nums;
+      }
+      .state.short strong {
+        color: var(--warn);
+      }
+      .state.unknown strong {
+        color: var(--muted);
+        font-size: 17px;
+      }
+      .bottom {
+        display: grid;
+        grid-template-columns: minmax(250px, 0.9fr) minmax(350px, 1.4fr);
+        border: 1px solid var(--line);
+        margin-top: 18px;
+        min-height: 331px;
+      }
+      .shares {
+        padding: 18px;
+        border-right: 1px solid var(--line);
+      }
+      .detail {
+        padding: 18px;
+      }
+      .subheading {
+        color: var(--muted);
+        font-size: 12px;
+        margin-top: 4px;
+      }
+      .share {
+        margin-top: 23px;
+      }
+      .share-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        font-size: 13px;
+      }
+      .share-title strong {
+        font-weight: 500;
+        font-variant-numeric: tabular-nums;
+      }
+      .share .meter {
+        height: 5px;
+        margin: 10px 0 0;
+      }
+      .share:nth-of-type(2) .meter span {
+        background: #758c9d;
+      }
+      .share:nth-of-type(3) .meter span {
+        background: #53616e;
+      }
+      .detail-heading {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+      }
+      .detail-heading span {
+        color: var(--accent);
+        font-size: 14px;
+      }
+      .detail dl {
+        margin: 18px 0 0;
+      }
+      .detail dl div {
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        border-bottom: 1px solid var(--line);
+        padding: 11px 0;
+        font-size: 13px;
+      }
+      dt {
+        color: var(--muted);
+      }
+      dd {
+        margin: 0;
+        font-variant-numeric: tabular-nums;
+      }
+      .positive {
+        color: var(--accent);
+      }
+      .detail-foot {
+        margin-top: 15px;
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .detail-foot strong {
+        color: var(--text);
+        font-size: 18px;
+        font-weight: 500;
+      }
+      .rationale {
+        margin: 17px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.8;
+      }
+      .rationale strong {
+        color: var(--text);
+        font-weight: 600;
+      }
+      @media (max-width: 700px) {
+        .review {
+          width: calc(100% - 32px);
+          margin: 16px auto;
+        }
+        .rationale {
+          max-width: 55ch;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="review">
+      <p class="caption">스타일 시안 · 예시 데이터</p>
+      <div class="viewport">
+        <section class="app" aria-label="TokenWatch Graphite 대시보드">
+          <header class="titlebar">
+            <span class="wordmark"
+              ><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>TokenWatch</span
+            >
+            <h1>대시보드</h1>
+            <div class="tools"><span>09:00</span><span class="tool">새로고침</span></div>
+          </header>
+          <div class="body">
+            <aside class="sidebar" aria-labelledby="local-heading">
+              <div class="section-title">
+                <h2 id="local-heading">로컬 토큰</h2>
+                <span class="label">사용 요약</span>
+              </div>
+              <section class="metric">
+                <p class="label">일간 · 오늘</p>
+                <p class="metric-value"><strong class="number">12,000</strong><span>토큰</span></p>
+                <p class="delta"><span>어제보다 +2,000</span><span>+20%</span></p>
+              </section>
+              <section class="metric">
+                <p class="label">주간 · 최근 7일</p>
+                <p class="metric-value"><strong class="number">84,000</strong><span>토큰</span></p>
+                <p class="delta"><span>지난주보다 +14,000</span><span>+20%</span></p>
+              </section>
+              <section class="trend">
+                <div class="section-title">
+                  <h2>사용 추이</h2>
+                  <span class="label">7일</span>
+                </div>
+                <p class="muted">일별 토큰</p>
+                <svg
+                  viewBox="0 0 204 174"
+                  role="img"
+                  aria-label="7일 토큰 추이: 8천, 1만, 9천, 1만 4천, 1만 5천, 1만 6천, 1만 2천"
+                >
+                  <g stroke="#36404a" stroke-width="1">
+                    <path d="M0 30H204 M0 85H204 M0 140H204" />
+                  </g>
+                  <g fill="#53616e">
+                    <rect x="3" y="85" width="18" height="55" />
+                    <rect x="32" y="71.25" width="18" height="68.75" />
+                    <rect x="61" y="78.125" width="18" height="61.875" />
+                    <rect x="90" y="43.75" width="18" height="96.25" />
+                    <rect x="119" y="36.875" width="18" height="103.125" />
+                    <rect x="148" y="30" width="18" height="110" />
+                  </g>
+                  <rect x="177" y="57.5" width="18" height="82.5" fill="#8fc9dd" />
+                  <g
+                    fill="#a9b2be"
+                    font-size="10"
+                    text-anchor="middle"
+                    font-family="system-ui,sans-serif"
+                  >
+                    <text x="12" y="162">8천</text>
+                    <text x="41" y="162">10천</text>
+                    <text x="70" y="162">9천</text>
+                    <text x="99" y="162">14천</text>
+                    <text x="128" y="162">15천</text>
+                    <text x="157" y="162">16천</text>
+                    <text x="186" y="162">12천</text>
+                  </g>
+                </svg>
+                <div class="axis"><span>6일 전</span><span>오늘</span></div>
+              </section>
+            </aside>
+            <div class="main">
+              <div class="section-title">
+                <h2>구독 서비스</h2>
+                <span class="label">남은 사용량</span>
+              </div>
+              <div class="providers">
+                <article class="provider selected">
+                  <div class="provider-top">
+                    <h3>Claude</h3>
+                    <span class="selected-tag">선택됨</span>
+                  </div>
+                  <p class="remaining">주간 <strong class="number">60%</strong> 남음</p>
+                  <div class="meter" role="img" aria-label="Claude 주간 60% 남음">
+                    <span style="width: 60%"></span>
+                  </div>
+                  <p class="reset">리셋 · 내일 09:00</p>
+                  <div class="state">
+                    <span class="label">사용 여유</span><strong>20% 여유</strong
+                    ><span class="muted">리셋까지 여유</span>
+                  </div>
+                </article>
+                <article class="provider">
+                  <div class="provider-top"><h3>ChatGPT Codex</h3></div>
+                  <p class="remaining">주간 <strong class="number">45%</strong> 남음</p>
+                  <div class="meter" role="img" aria-label="ChatGPT Codex 주간 45% 남음">
+                    <span style="width: 45%"></span>
+                  </div>
+                  <p class="reset">리셋 · 내일 09:00</p>
+                  <div class="state short">
+                    <span class="label">사용 여유</span><strong>10% 부족</strong
+                    ><span class="muted">소진 전망 · 내일 06:36</span>
+                  </div>
+                </article>
+                <article class="provider">
+                  <div class="provider-top"><h3>Cursor</h3></div>
+                  <p class="remaining">이번 달 <strong class="number">70%</strong> 남음</p>
+                  <div class="meter" role="img" aria-label="Cursor 이번 달 70% 남음">
+                    <span style="width: 70%"></span>
+                  </div>
+                  <p class="reset">리셋 · 다음 달 1일 09:00</p>
+                  <div class="state unknown">
+                    <span class="label">사용 여유</span><strong>사용 이력 부족</strong>
+                  </div>
+                </article>
+              </div>
+              <div class="bottom">
+                <section class="shares">
+                  <h2>서비스 사용 비중</h2>
+                  <p class="subheading">최근 7일 · 로컬 토큰</p>
+                  <div class="share">
+                    <p class="share-title"><span>Claude</span><strong>50%</strong></p>
+                    <div class="meter" role="img" aria-label="Claude 사용 비중 50%">
+                      <span style="width: 50%"></span>
+                    </div>
+                  </div>
+                  <div class="share">
+                    <p class="share-title"><span>ChatGPT Codex</span><strong>30%</strong></p>
+                    <div class="meter" role="img" aria-label="ChatGPT Codex 사용 비중 30%">
+                      <span style="width: 30%"></span>
+                    </div>
+                  </div>
+                  <div class="share">
+                    <p class="share-title"><span>Cursor</span><strong>20%</strong></p>
+                    <div class="meter" role="img" aria-label="Cursor 사용 비중 20%">
+                      <span style="width: 20%"></span>
+                    </div>
+                  </div>
+                </section>
+                <section class="detail">
+                  <div class="detail-heading">
+                    <h2>선택 서비스 상세</h2>
+                    <span>Claude</span>
+                  </div>
+                  <dl>
+                    <div>
+                      <dt>남은 사용량</dt>
+                      <dd>주간 60% 남음</dd>
+                    </div>
+                    <div>
+                      <dt>다음 리셋</dt>
+                      <dd>내일 09:00</dd>
+                    </div>
+                    <div>
+                      <dt>사용 여유</dt>
+                      <dd class="positive">20% 여유</dd>
+                    </div>
+                    <div>
+                      <dt>소진 전망</dt>
+                      <dd>리셋까지 여유</dd>
+                    </div>
+                  </dl>
+                  <p class="detail-foot">
+                    <span>최근 7일 · 로컬 토큰</span><strong class="number">42,000</strong>
+                  </p>
+                </section>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+      <p class="rationale">
+        <strong>Graphite.</strong> 촘촘한 분할선과 고정폭 숫자가 계기판처럼 빠른 비교를 돕는 어두운
+        작업 공간입니다.<br />통합된 표면 위에서 차가운 강조색은 선택한 서비스와 여유 상태에만
+        집중합니다.
+      </p>
+    </main>
+  </body>
+</html>

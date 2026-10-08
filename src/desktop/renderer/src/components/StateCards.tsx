@@ -6,8 +6,8 @@ export const LoadingState = (): ReactElement => (
   <section className="state-card" aria-label="Loading dashboard snapshot" aria-live="polite">
     <div className="loading-orbit" aria-hidden="true" />
     <div>
-      <h2>Loading sanitized snapshot</h2>
-      <p>Connecting to the preload API and preparing the dashboard shell.</p>
+      <h2>Loading dashboard</h2>
+      <p>Preparing usage statistics.</p>
     </div>
   </section>
 );
@@ -22,9 +22,9 @@ export const SetupState = ({
     <div>
       <h2>{databaseStatus === 'database-unavailable' ? 'Database unavailable' : 'Setup needed'}</h2>
       <p>
-        No TokenWatch database data is available yet. Run{' '}
+        No usage data yet. Run{' '}
         <code>tokenwatch scan --source &lt;source&gt; --path &lt;path&gt;</code> or{' '}
-        <code>tokenwatch doctor --sources</code>, then refresh this private analytics shell.
+        <code>tokenwatch doctor --sources</code>, then refresh.
       </p>
     </div>
   </section>

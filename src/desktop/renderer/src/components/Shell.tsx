@@ -1,11 +1,10 @@
 import type { ReactElement, ReactNode } from 'react';
 
-import type { Dashboard, DashboardDatabaseStatus } from '../types.js';
-import { formatCount, formatDatabaseStatus, formatDateTime } from '../utils/formatters.js';
+import type { DashboardDatabaseStatus } from '../types.js';
+import { formatDatabaseStatus, formatDateTime } from '../utils/formatters.js';
 
 type ShellProps = {
   readonly children: ReactNode;
-  readonly dashboard: Dashboard | null;
   readonly databaseStatus: DashboardDatabaseStatus;
   readonly lastRefreshedAt: string | null;
   readonly loading: boolean;
@@ -13,42 +12,36 @@ type ShellProps = {
   readonly refreshing: boolean;
   readonly shellState: string;
   readonly version: string | null;
+  readonly settings?: ReactNode;
 };
-
-const Metric = ({
-  label,
-  value
-}: {
-  readonly label: string;
-  readonly value: string;
-}): ReactElement => (
-  <article className="metric-card">
-    <p>{label}</p>
-    <strong>{value}</strong>
-  </article>
-);
 
 export const Shell = ({
   children,
-  dashboard,
   databaseStatus,
   lastRefreshedAt,
   loading,
   onRefresh,
   refreshing,
   shellState,
-  version
+  version,
+  settings
 }: ShellProps): ReactElement => (
   <main className="app-shell">
-    <div className="ambient-grid" aria-hidden="true" />
     <section className="dashboard-frame" aria-labelledby="desktop-shell-title">
       <header className="app-header">
-        <div className="brand-lockup">
-          <span className="brand-mark" aria-hidden="true" />
-          <div>
-            <p className="eyebrow">TokenWatch Desktop</p>
-            <h1 id="desktop-shell-title">Local token analytics</h1>
-          </div>
+        <h1 id="desktop-shell-title">TokenWatch</h1>
+        <div className="toolbar-status" aria-label="Dashboard status">
+          <span>{shellState}</span>
+          <dl className="status-meta" aria-label="Database and refresh status">
+            <div>
+              <dt>Database</dt>
+              <dd>{formatDatabaseStatus(databaseStatus)}</dd>
+            </div>
+            <div>
+              <dt>Last refreshed</dt>
+              <dd>{lastRefreshedAt ? formatDateTime(lastRefreshedAt) : 'Not refreshed yet'}</dd>
+            </div>
+          </dl>
         </div>
         <div className="header-actions">
           <p className="version-label" aria-label="Application version">
@@ -63,48 +56,10 @@ export const Shell = ({
           >
             {refreshing ? 'Refreshing' : 'Refresh'}
           </button>
+          {settings}
         </div>
       </header>
-
-      <section className="status-banner" aria-label="Dashboard status">
-        <span className="status-dot" aria-hidden="true" />
-        <div>
-          <p className="status-label">{shellState}</p>
-          <p className="status-copy">
-            {loading
-              ? 'Loading the sanitized desktop snapshot through the preload boundary.'
-              : 'Renderer sandbox active. Only normalized metadata summaries are shown.'}
-          </p>
-          <dl className="status-meta" aria-label="Database and refresh status">
-            <div>
-              <dt>Database</dt>
-              <dd>{formatDatabaseStatus(databaseStatus)}</dd>
-            </div>
-            <div>
-              <dt>Last refreshed</dt>
-              <dd>{lastRefreshedAt ? formatDateTime(lastRefreshedAt) : 'Not refreshed yet'}</dd>
-            </div>
-          </dl>
-        </div>
-      </section>
-
-      <section className="overview-panel" aria-labelledby="overview-title">
-        <div className="overview-copy">
-          <p className="eyebrow">Overview</p>
-          <h2 id="overview-title">A private command center for usage signals.</h2>
-          <p>
-            TokenWatch Desktop frames aggregate token usage without exposing prompts, responses,
-            auth material, local locations, or database internals.
-          </p>
-        </div>
-        <div className="signal-panel" aria-label="Analytics summary metrics">
-          <Metric label="Total events" value={formatCount(dashboard?.totals.events)} />
-          <Metric label="Total tokens" value={formatCount(dashboard?.totals.tokens)} />
-          <Metric label="Sources" value={formatCount(dashboard?.totals.sources)} />
-        </div>
-      </section>
-
-      {children}
+      <div className="dashboard-content">{children}</div>
     </section>
   </main>
 );

@@ -2,13 +2,28 @@ import type { BrowserWindow as BrowserWindowType } from 'electron';
 import { writeFileSync, writeSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
+import { resolveSubscriptionMetadataPath } from '../app/paths.js';
+import { SubscriptionMetadataRepository } from '../db/subscriptionMetadata.js';
+import { DesktopSubscriptionService } from '../services/desktopSubscriptions.js';
 import { createDesktopDbLifecycle } from './main/dbLifecycle.js';
 import { registerDesktopIpcHandlers } from './main/ipc.js';
+import {
+  DESKTOP_APPEARANCE_SETTINGS_FILE,
+  DesktopAppearanceSettingsStore
+} from './main/appearanceSettings.js';
 
-const require = createRequire(import.meta.url);
-const { app, BrowserWindow } = require('electron') as typeof import('electron');
+const electronRequire = createRequire(import.meta.url);
+const { app, BrowserWindow } = electronRequire('electron') as typeof import('electron');
+
+if (app.commandLine.hasSwitch('user-data-dir')) {
+  const userDataDirectory = app.commandLine.getSwitchValue('user-data-dir');
+  if (userDataDirectory) app.setPath('userData', userDataDirectory);
+}
 
 let mainWindow: BrowserWindowType | null = null;
+let appearanceSettings: DesktopAppearanceSettingsStore | null = null;
+let subscriptionRepository: SubscriptionMetadataRepository | null = null;
+let subscriptions: DesktopSubscriptionService | null = null;
 let unregisterDesktopIpcHandlers: (() => void) | null = null;
 const DESKTOP_RENDERER_LOADED_MARKER = 'tokenwatch_desktop_renderer_loaded';
 const shouldWriteDesktopSmokeMarker = (): boolean =>
@@ -24,6 +39,19 @@ const writeDesktopSmokeMarker = (): void => {
 };
 
 const createMainWindow = (): void => {
+  appearanceSettings ??= new DesktopAppearanceSettingsStore(
+    join(app.getPath('userData'), DESKTOP_APPEARANCE_SETTINGS_FILE)
+  );
+  if (!subscriptions) {
+    try {
+      subscriptionRepository = new SubscriptionMetadataRepository(
+        resolveSubscriptionMetadataPath()
+      );
+    } catch {
+      subscriptionRepository = null;
+    }
+    subscriptions = new DesktopSubscriptionService({ repository: subscriptionRepository });
+  }
   mainWindow = new BrowserWindow({
     width: 1180,
     height: 760,
@@ -32,6 +60,7 @@ const createMainWindow = (): void => {
     show: false,
     title: 'TokenWatch',
     titleBarStyle: 'hiddenInset',
+    backgroundColor: '#191d22',
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -43,6 +72,8 @@ const createMainWindow = (): void => {
   unregisterDesktopIpcHandlers?.();
   unregisterDesktopIpcHandlers = registerDesktopIpcHandlers({
     dbLifecycle: desktopDbLifecycle,
+    appearanceSettings,
+    subscriptions,
     getAllowedWebContents: () => mainWindow?.webContents ?? null
   });
 
@@ -81,6 +112,9 @@ const createMainWindow = (): void => {
   });
 
   mainWindow.on('closed', () => {
+    subscriptions?.close();
+    subscriptions = null;
+    subscriptionRepository = null;
     mainWindow = null;
   });
 };
@@ -106,4 +140,5 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   unregisterDesktopIpcHandlers?.();
   desktopDbLifecycle.close();
+  subscriptions?.close();
 });

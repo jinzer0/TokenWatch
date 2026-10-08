@@ -66,6 +66,11 @@ export const DashboardContent = ({
     key: formatSafeLabel(item.key),
     value: item.totalTokens
   }));
+  const serviceItems = dashboard.bySource.map((item) => ({
+    detail: `${formatCount(item.events)} events`,
+    key: formatSafeLabel(item.key),
+    value: item.totalTokens
+  }));
   const breakdownSections: BreakdownSection[] = [
     { id: 'model', rows: dashboard.byModel, title: 'By Model' },
     { id: 'agent', rows: dashboard.byAgent, title: 'By Agent' },
@@ -137,6 +142,12 @@ export const DashboardContent = ({
         title="SourceName distribution chart"
       />
       <RecentScanRunsPanel runs={dashboard.recentScanRuns} />
+      <DistributionChart
+        emptyLabel="No local service usage available"
+        eyebrow="Local token mix"
+        items={serviceItems}
+        title="Local service token distribution"
+      />
       <SessionMetricsPanel dashboard={dashboard} />
       <DiagnosticsHub dashboard={dashboard} />
       <BudgetPricingDiagnosticsPanel dashboard={dashboard} />

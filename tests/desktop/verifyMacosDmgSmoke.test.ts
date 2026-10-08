@@ -52,9 +52,11 @@ function runVerifier(
   runner: TestRunner
 ): { readonly code: string; readonly output: readonly string[] } {
   const output: string[] = [];
+  let directoryCount = 0;
   const code = runMacosDmgSmokeVerifier(commandArguments, {
     environment: { TOKENWATCH_DB_PATH: '/tmp/tokenwatch-macos-smoke.db' },
-    createMountPoint: () => '/tmp/tokenwatch-mounted-dmg',
+    createMountPoint: () =>
+      directoryCount++ === 0 ? '/tmp/tokenwatch-mounted-dmg' : '/tmp/tokenwatch-smoke-profile',
     execute: runner.execute,
     cleanupMountPoint: () => undefined,
     writeStatus: (status) => output.push(status)
@@ -82,7 +84,10 @@ describe('macOS DMG smoke verifier', () => {
         '-mountpoint',
         '/tmp/tokenwatch-mounted-dmg'
       ],
-      ['/tmp/tokenwatch-mounted-dmg/TokenWatch.app/Contents/MacOS/TokenWatch'],
+      [
+        '/tmp/tokenwatch-mounted-dmg/TokenWatch.app/Contents/MacOS/TokenWatch',
+        '--user-data-dir=/tmp/tokenwatch-smoke-profile'
+      ],
       ['/usr/bin/hdiutil', 'detach', '/tmp/tokenwatch-mounted-dmg']
     ]);
     expect(runner.calls[1]?.environment).toEqual(

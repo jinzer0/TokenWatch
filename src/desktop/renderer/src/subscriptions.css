@@ -1,0 +1,158 @@
+.desktop-dashboard-grid {
+  align-items: start;
+  display: grid;
+  gap: var(--space-5);
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 20rem);
+}
+
+.local-dashboard,
+.subscription-dashboard {
+  min-width: 0;
+}
+
+.period-trend {
+  margin-top: var(--space-3);
+}
+
+.period-trend svg {
+  display: block;
+  height: 64px;
+  width: 100%;
+}
+
+.period-trend polyline {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.period-trend-table {
+  border-collapse: collapse;
+  color: var(--muted);
+  font-size: 0.75rem;
+  table-layout: fixed;
+  text-align: center;
+  width: 100%;
+}
+
+.subscription-dashboard {
+  background: var(--surface);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.subscription-heading,
+.subscription-window-heading {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: space-between;
+}
+
+.subscription-heading {
+  margin-bottom: var(--space-3);
+}
+
+.subscription-heading h2 {
+  margin: 0;
+}
+
+.subscription-cards {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.subscription-card,
+.subscription-detail {
+  background: var(--inset);
+  border: 1px solid var(--line);
+  border-radius: var(--corner);
+  min-width: 0;
+  padding: var(--space-3);
+}
+
+.subscription-card.is-selected {
+  border-color: var(--accent);
+}
+
+.subscription-select {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: space-between;
+  min-height: 32px;
+  padding: 0;
+  text-align: left;
+  width: 100%;
+}
+
+.subscription-select .subscription-status,
+.subscription-metadata,
+.subscription-window time,
+.subscription-history {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.subscription-failure {
+  color: var(--shortage);
+  font-size: 0.8rem;
+}
+
+.subscription-cached {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.subscription-window {
+  border-top: 1px solid var(--line);
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+}
+
+.subscription-window-heading strong {
+  color: var(--accent);
+  font-size: 0.85rem;
+}
+
+.subscription-window progress {
+  accent-color: var(--accent);
+  background: var(--track);
+  display: block;
+  height: 5px;
+  margin: var(--space-2) 0;
+  width: 100%;
+}
+
+.subscription-window progress::-webkit-progress-bar {
+  background: var(--track);
+}
+
+.subscription-window progress::-webkit-progress-value {
+  background: var(--accent);
+}
+
+.subscription-window progress::-moz-progress-bar {
+  background: var(--accent);
+}
+
+.subscription-detail {
+  margin-top: var(--space-3);
+}
+
+.subscription-history {
+  margin-top: var(--space-3);
+}
+
+@media (max-width: 48rem) {
+  .desktop-dashboard-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

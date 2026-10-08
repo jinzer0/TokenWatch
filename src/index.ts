@@ -49,3 +49,23 @@ export type {
   RegisteredParser,
   TokenAccountingMode
 } from './parsers/base.js';
+export { readSubscriptionUsage } from './services/subscriptionUsage.js';
+export { collectCodexQuota, parseCodexQuota } from './services/subscriptionCollectors/codex.js';
+export { parseClaudeQuota } from './services/subscriptionCollectors/claude.js';
+export { fitUsageSes, forecastSubscriptionUsage } from './services/usageForecast.js';
+export type {
+  SubscriptionForecastInput,
+  SubscriptionUsageForecast,
+  UsageSesFit,
+  VerifiedUsageBucket
+} from './services/usageForecast.js';
+export {
+  subscriptionQuotaWindowSchema,
+  subscriptionReadResultSchema
+} from './desktop/shared/subscriptionContracts.js';
+export type {
+  SubscriptionProvider,
+  SubscriptionQuotaWindow,
+  SubscriptionReadResult,
+  SubscriptionUnit
+} from './desktop/shared/subscriptionContracts.js';

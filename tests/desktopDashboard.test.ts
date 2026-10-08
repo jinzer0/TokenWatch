@@ -19,6 +19,7 @@ let cleanup: (() => void) | undefined;
 let db: TokenWatchDb | undefined;
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   db?.close();
   cleanup?.();
   db = undefined;
@@ -78,6 +79,66 @@ function serviceSafeDashboardFixture() {
 }
 
 describe('desktop dashboard service contract', () => {
+  it.each([
+    ['historical', '2026-05-01', 100],
+    ['narrow', '2026-10-06', 50],
+    ['empty', '2026-10-10', 0]
+  ] as const)('keeps fixed local periods independent of a %s date filter', (_, date, tokens) => {
+    vi.stubEnv('TZ', 'UTC');
+    const { usageEvents, service } = createDashboardService();
+    usageEvents.insertMany(
+      (
+        [
+          ['2026-05-01T01:00:00.000Z', 100, 1],
+          ['2026-09-29T01:00:00.000Z', 40, 1],
+          ['2026-10-05T01:00:00.000Z', 10, 1],
+          ['2026-10-06T00:00:00.000Z', 20, 2],
+          ['2026-10-06T12:00:00.000Z', 30, null]
+        ] as const
+      ).map(([timestamp, totalTokens, estimatedCostUsd], index) =>
+        createTestEvent({
+          timestamp,
+          totalTokens,
+          inputTokens: totalTokens,
+          outputTokens: 0,
+          model: 'unknown-period-model',
+          estimatedCostUsd,
+          rawIdHash: `fixed-period-${index}`
+        })
+      )
+    );
+    const dashboard = service.buildDashboard({
+      filters: desktopDashboardFiltersSchema.parse({ from: date, to: date }),
+      budgetEvaluationDate: new Date('2026-10-06T12:00:00.000Z')
+    });
+
+    expect(dashboard.periodSummary.day).toEqual({
+      tokens: 50,
+      estimatedCostUsd: null,
+      previousTokens: 10,
+      changePercent: 400
+    });
+    expect(dashboard.periodSummary.week).toEqual({
+      tokens: 60,
+      estimatedCostUsd: null,
+      previousTokens: 40,
+      changePercent: 50
+    });
+    expect(dashboard.periodSummary.trend).toEqual([
+      { date: '2026-09-30', tokens: 0 },
+      { date: '2026-10-01', tokens: 0 },
+      { date: '2026-10-02', tokens: 0 },
+      { date: '2026-10-03', tokens: 0 },
+      { date: '2026-10-04', tokens: 0 },
+      { date: '2026-10-05', tokens: 10 },
+      { date: '2026-10-06', tokens: 50 }
+    ]);
+    expect(dashboard.totals.tokens).toBe(tokens);
+    expect(dashboard.usageSeries.reduce((sum, point) => sum + point.tokens, 0)).toBe(tokens);
+    expect(dashboard.filters).toEqual({ from: date, to: date });
+    assertJsonOutputPrivacy(dashboard);
+  });
+
   it('returns a strict sanitized empty dashboard', () => {
     const { service } = createDashboardService();
 

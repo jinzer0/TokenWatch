@@ -11,19 +11,30 @@ import {
   createDesktopDbLifecycle,
   type DesktopDbLifecycle
 } from '../../src/desktop/main/dbLifecycle.js';
-import { registerDesktopIpcHandlers } from '../../src/desktop/main/ipc.js';
+import { registerDesktopIpcHandlers as registerMainHandlers } from '../../src/desktop/main/ipc.js';
 import { desktopIpcChannels, type DesktopIpcChannel } from '../../src/desktop/shared/contracts.js';
+import { desktopSubscriptionIpcChannels } from '../../src/desktop/shared/subscriptionContracts.js';
+import type { DesktopShareIpcChannel } from '../../src/desktop/shared/shareContracts.js';
+import {
+  desktopAppearanceIpcChannels,
+  type DesktopAppearanceIpcChannel
+} from '../../src/desktop/shared/appearanceContracts.js';
 import { TokenWatchDesktopIpcError } from '../../src/desktop/shared/ipcErrors.js';
 import { containsPrivacySentinel, createTempDb, createTestEvent } from '../helpers.js';
 
 type RegisteredHandler = (_event: unknown, ...args: unknown[]) => unknown;
 type RegisteredHandlers = Map<string, RegisteredHandler>;
 
-const allowedWebContents = { id: 1 };
+const mainFrame = {
+  url: 'file:///Applications/TokenWatch.app/Contents/Resources/renderer/index.html'
+};
+const allowedWebContents = { id: 1, mainFrame };
 const authorizedEvent = {
   sender: allowedWebContents,
-  senderFrame: { url: 'file:///Applications/TokenWatch.app/Contents/Resources/renderer/index.html' }
+  senderFrame: mainFrame
 };
+const registerDesktopIpcHandlers = (options: Parameters<typeof registerMainHandlers>[0]) =>
+  registerMainHandlers({ getAllowedWebContents: () => allowedWebContents, ...options });
 
 const createIpcTarget = () => {
   const handlers: RegisteredHandlers = new Map();
@@ -42,7 +53,7 @@ const createIpcTarget = () => {
 
 const invoke = async (
   handlers: RegisteredHandlers,
-  channel: DesktopIpcChannel | DesktopShareIpcChannel,
+  channel: DesktopIpcChannel | DesktopShareIpcChannel | DesktopAppearanceIpcChannel,
   ...args: unknown[]
 ) => {
   const handler = handlers.get(channel);
@@ -75,6 +86,10 @@ describe('desktop IPC handlers', () => {
         desktopIpcChannels.appGetVersion,
         desktopIpcChannels.dashboardGetSnapshot,
         desktopIpcChannels.dashboardRefresh,
+        desktopAppearanceIpcChannels.getSettings,
+        desktopAppearanceIpcChannels.setTheme,
+        desktopSubscriptionIpcChannels.getSnapshot,
+        desktopSubscriptionIpcChannels.refresh,
         'share:exportReport'
       ].sort()
     );
@@ -276,5 +291,106 @@ describe('desktop IPC handlers', () => {
     });
 
     await expect(invoke(handlers, desktopIpcChannels.appGetVersion)).resolves.toBe('0.1.0');
+  });
+
+  it('reads and writes validated appearance without opening the usage database', async () => {
+    const { handlers, target } = createIpcTarget();
+    const readDashboard = vi.fn();
+    const getSettings = vi.fn(async () => ({ theme: 'paper' as const, status: 'saved' as const }));
+    const setTheme = vi.fn(async () => ({ theme: 'slate' as const, status: 'saved' as const }));
+    registerDesktopIpcHandlers({
+      dbLifecycle: { readDashboard } as unknown as DesktopDbLifecycle,
+      ipcMainTarget: target,
+      appearanceSettings: { getSettings, setTheme }
+    });
+    await expect(invoke(handlers, desktopAppearanceIpcChannels.getSettings)).resolves.toEqual({
+      theme: 'paper',
+      status: 'saved'
+    });
+    await expect(invoke(handlers, desktopAppearanceIpcChannels.setTheme, 'slate')).resolves.toEqual(
+      {
+        theme: 'slate',
+        status: 'saved'
+      }
+    );
+    expect(setTheme).toHaveBeenCalledWith('slate');
+    expect(readDashboard).not.toHaveBeenCalled();
+    for (const args of [[], ['unknown'], [null], ['paper', 'extra'], [{ theme: 'paper' }]]) {
+      await expect(
+        invoke(handlers, desktopAppearanceIpcChannels.setTheme, ...args)
+      ).rejects.toMatchObject({
+        code: 'validation_failed'
+      });
+    }
+    await expect(
+      invoke(handlers, desktopAppearanceIpcChannels.getSettings, {})
+    ).rejects.toMatchObject({
+      code: 'validation_failed'
+    });
+    expect(setTheme).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects missing owners, foreign senders and subframes before changing appearance', async () => {
+    const { handlers, target } = createIpcTarget();
+    const setTheme = vi.fn(async () => ({ theme: 'paper' as const, status: 'saved' as const }));
+    const appearanceSettings = {
+      getSettings: vi.fn(async () => ({ theme: 'graphite' as const, status: 'default' as const })),
+      setTheme
+    };
+    registerDesktopIpcHandlers({
+      dbLifecycle: createDesktopDbLifecycle({ existsSync: () => false }),
+      ipcMainTarget: target,
+      appearanceSettings
+    });
+    const handler = handlers.get(desktopAppearanceIpcChannels.setTheme)!;
+    for (const event of [
+      { sender: { id: 2, mainFrame }, senderFrame: mainFrame },
+      { sender: allowedWebContents, senderFrame: { ...mainFrame } },
+      { sender: allowedWebContents, senderFrame: null }
+    ]) {
+      await expect(Promise.resolve().then(() => handler(event, 'paper'))).rejects.toMatchObject({
+        code: 'desktop_ipc_failed'
+      });
+    }
+    registerDesktopIpcHandlers({
+      dbLifecycle: createDesktopDbLifecycle({ existsSync: () => false }),
+      ipcMainTarget: target,
+      appearanceSettings,
+      getAllowedWebContents: () => null
+    });
+    await expect(
+      invoke(handlers, desktopAppearanceIpcChannels.setTheme, 'paper')
+    ).rejects.toMatchObject({
+      code: 'desktop_ipc_failed'
+    });
+    expect(setTheme).not.toHaveBeenCalled();
+  });
+
+  it('rejects unsanitized appearance output and hides write failure details', async () => {
+    const { handlers, target } = createIpcTarget();
+    registerDesktopIpcHandlers({
+      dbLifecycle: createDesktopDbLifecycle({ existsSync: () => false }),
+      ipcMainTarget: target,
+      appearanceSettings: {
+        getSettings: vi.fn(async () => ({
+          theme: 'paper' as const,
+          status: 'saved' as const,
+          path: '/tmp/TOKENWATCH_PATH_SENTINEL_DO_NOT_LEAK'
+        })),
+        setTheme: vi.fn(async () => {
+          throw new Error('/tmp/TOKENWATCH_PATH_SENTINEL_DO_NOT_LEAK');
+        })
+      }
+    });
+    await expect(invoke(handlers, desktopAppearanceIpcChannels.getSettings)).rejects.toMatchObject({
+      code: 'validation_failed'
+    });
+    try {
+      await invoke(handlers, desktopAppearanceIpcChannels.setTheme, 'paper');
+      expect.unreachable('write failure must reject');
+    } catch (error) {
+      expect(error).toMatchObject({ code: 'desktop_ipc_failed', stack: undefined });
+      expect(containsPrivacySentinel(error)).toBe(false);
+    }
   });
 });

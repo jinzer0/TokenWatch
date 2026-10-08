@@ -13,6 +13,7 @@ import { UsageEventsRepository } from '../../src/db/repositories/usageEvents.js'
 import { createDesktopDbLifecycle } from '../../src/desktop/main/dbLifecycle.js';
 import { registerDesktopIpcHandlers } from '../../src/desktop/main/ipc.js';
 import type { DesktopIpcChannel } from '../../src/desktop/shared/contracts.js';
+import type { DesktopAppearanceIpcChannel } from '../../src/desktop/shared/appearanceContracts.js';
 import {
   desktopShareIpcChannels,
   type DesktopShareIpcChannel
@@ -20,15 +21,18 @@ import {
 import { createTempDb, createTestEvent } from '../helpers.js';
 import { assertExportFilePrivacy, assertIpcPayloadPrivacy } from '../privacyOutput.js';
 
-type TestIpcChannel = DesktopIpcChannel | DesktopShareIpcChannel;
+type TestIpcChannel = DesktopIpcChannel | DesktopShareIpcChannel | DesktopAppearanceIpcChannel;
 type RegisteredHandler = (_event: unknown, ...args: unknown[]) => unknown;
 type RegisteredHandlers = Map<TestIpcChannel, RegisteredHandler>;
 
-const allowedWebContents = { id: 1 };
+const mainFrame = {
+  url: 'file:///Applications/TokenWatch.app/Contents/Resources/renderer/index.html'
+};
+const allowedWebContents = { id: 1, mainFrame };
 const unauthorizedWebContents = { id: 2 };
 const authorizedEvent = {
   sender: allowedWebContents,
-  senderFrame: { url: 'file:///Applications/TokenWatch.app/Contents/Resources/renderer/index.html' }
+  senderFrame: mainFrame
 };
 const unauthorizedEvent = {
   sender: unauthorizedWebContents,
