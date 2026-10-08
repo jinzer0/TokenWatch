@@ -198,3 +198,10 @@ host Node24 native 복구 후 관련 **3 files / 40 tests**, typecheck, 전체 *
 - built CLI의 실제 합성 stdio child에서 false/null/true와 명시 기록을 확인했다. 차단/미확인은 빈 windows, true는 잔여75%, usage DB 미생성·격리 metadata 저장·sentinel/raw path 미노출·cleanup이 통과했다. 첫 smoke는 CLI exit1이라는 잘못된 기대 때문에 실패했고 기존 CLI 계약(availability error만 exit1)을 확인해 기대를 교정했다. 제품 exit 계약은 바꾸지 않았다.
 - 실제 Electron source-build의 격리 DB/userData/CDP smoke를 두 차례 시도했지만 renderer marker가 확인되지 않아 GUI 인수는 실패/미검증이다. 원인을 단정하거나 jsdom 성공으로 대체하지 않는다. 합성 cache만 사용했고 provider 갱신/실계정 접근은 없었다. 소유 프로세스·임시 자료를 정리하고 정상 host native rebuild 후 `HOST_NATIVE_RESTORED` 및 focused154/desktop191 재검증을 통과했다. 기존 native deprecation을 숨기지 않았다. 기존 불가 검증 보류 승인에 따라 물리 조작을 요구하거나 추가 재시도를 선행 조건으로 삼지 않는다.
 - README와 기존 계획/보고 위치를 유지했다. 의존성/락파일/서명 설정·Node20/새 공증 DMG는 변경·검증하지 않았다. 승인된 수정은 커밋·기존 게시 브랜치로 푸시하고 재리뷰 상태를 확인하되 병합·이슈 종료·원격 댓글/해결 표시는 제외한다.
+
+### 2026-10-08 denial 관측 순서 P2 대응
+
+- 최신 `3239176` 리뷰 댓글 `4213337517`은 repository의 ID 기반 차단 경계와 service의 receivedAt 기반 hydration이 충돌하던 결함이다. 같은 시각 또는 clock rollback의 외부 차단이 append되면 window는 지워지지만 status는 이전 available로 남을 수 있었다. 요청자의 대응 지시와 상시 게시 승인으로 저장소가 선택한 최신 attempt/success를 그대로 채택한다. timestamp는 순서 판정에 쓰지 않고 `isDeepStrictEqual` 내용 비교는 live/cache 구분에만 사용한다.
+- 기존 older external success를 무시하던 회귀 기대를 insertion 순서에 맞춰 갱신했다. 같은 시각·이전 시각의 외부 denial, 더 이른 timestamp의 timeout/새 성공, 재개방 시 최신60% 유지와 live cache false 유지 회귀를 확인했다. focused **2 files/45 tests**, 전체 **72 files/888 tests**, desktop **17 files/191 tests**, typecheck·lint·CLI/desktop build가 통과했다. 기존 mixed import 경고는 유지했다.
+- 실제 built service와 격리 SQLite에서 두 clock 경우를 재현했다. denial은 status blocked/빈 windows, 이후 timeout도 빈 windows, 이후 새 성공은60%/cached true와 재개방 일치를 확인했다. `BUILT_SQLITE_DENIAL_ORDER_AND_RECOVERY_OK`, 경로 미노출·cleanup을 확인했다. 합성 관측이며 실제 backend permission·계정 조회는 없다.
+- DTO/IPC/renderer/README 계약과 DB schema/저장소 query는 변경하지 않았다. 직전 두 실제 GUI smoke의 renderer marker 미확인 제한을 유지하며 이번에 GUI/Node20/공증을 재시도하지 않았다. 기존 실패를 통과로 바꾸지 않는다. 기존 계획/Stage5/최종 보고만 갱신하고 커밋·기존 게시 브랜치 푸시·재리뷰 조회를 수행한다. 병합·이슈 종료·원격 댓글/해결 표시는 제외한다.

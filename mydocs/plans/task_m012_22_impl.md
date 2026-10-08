@@ -12,6 +12,8 @@ Milestone: M012
 
 ### PR #23 Codex 리뷰 수정 범위
 
+2026-10-08 재리뷰 댓글 `4213337517`의 관측 순서 P2를 요청자 지시에 따라 수정·검증·커밋·푸시한다. 저장소의 insertion ID 기반 최신 관측/차단 경계를 서비스에서도 그대로 채택하고 receivedAt 비교로 결과를 거부하지 않는다. validated 결과의 내용 비교는 live/cache 구분에만 사용한다. 기존 service/회귀와 계획/Stage5/최종 보고를 갱신하고 같은 시각·clock rollback의 외부 차단과 후속 성공/실패·재개방을 검증한다. 기존 기록 위치를 유지하며 새 제품 문서/DTO/DB schema/GUI 재시도·공증·병합·이슈 종료·원격 댓글/해결 표시는 제외한다.
+
 2026-10-08 댓글 `4213164453`의 authoritative permission P1은 요청자의 리뷰 대응 지시로 수정·검증·상시 승인된 커밋/푸시까지 수행한다. 공식 `ordinaryUsageAllowed: false`는 quota 투영 전에 `usage-blocked` 상태/사유와 빈 windows로 정규화한다. 명시적 null은 `usage-unverified`와 빈 windows로 처리하고, 필드 없는 historical 응답의 관측 조회는 유지하되 사용 허용으로 주장하지 않는다. 잘못된 permission 타입은 invalid-data로 거부한다. DTO enum·collector·desktop cache 선택·renderer 문구 및 관련 회귀를 갱신하고 차단 후 과거 성공 quota도 숨긴다. metadata 최신 성공 조회는 마지막 차단 이후의 성공만 선택하여 timeout/재실행 때 과거 숫자가 부활하지 않게 한다. 기존 README/계획/Stage5/최종 보고 위치에 이 의미와 검증을 반영한다. DB schema/계정 접근/의존성/새 공증/병합/이슈 종료/원격 댓글·해결 표시는 제외한다.
 
 요청자가 이후 승인된 수정은 항상 검증 후 커밋·푸시하도록 명시 지시했다. 이를 반복 승인을 요구하지 않는 상시 게시 권한으로 root `AGENTS.md`의 기존 Git 승인 규칙에 반영한다. 공통 Git 규칙이므로 root 위치를 유지하며 새 문서는 만들지 않는다. 아래 Claude 경계 수정의 로컬 전용 상태는 이 후속 지시로 해제하고 `local/task22 → publish/task22`로 게시한다. 무관한 사용자 자료·병합·이슈 종료·원격 댓글/해결 표시·release는 포함하지 않는다.

@@ -83,6 +83,65 @@ function deferred() {
 }
 
 describe('desktop subscription service', () => {
+  it.each([receipt, '2026-10-05T23:58:00.000Z'])(
+    'adopts externally appended denial at %s and later recovery in repository order',
+    async (receivedAt) => {
+      const { path, repository } = store();
+      const collect = vi.fn<typeof collectCodexQuota>().mockResolvedValue(success());
+      const instance = service({ repository, collectCodex: collect, now: () => new Date(receipt) });
+      await instance.refresh();
+      const writer = new SubscriptionMetadataRepository(path);
+      try {
+        const denied: SubscriptionReadResult = {
+          provider: 'codex',
+          availability: 'usage-blocked',
+          failure: 'usage-blocked',
+          receivedAt,
+          windows: []
+        };
+        writer.append(denied);
+        expect(instance.getSnapshot().providers[1]).toMatchObject({
+          availability: 'usage-blocked',
+          failure: 'usage-blocked',
+          windows: [],
+          cached: false,
+          lastAttemptAt: receivedAt
+        });
+        expect(writer.latestSuccess('codex')).toBeNull();
+        writer.append(failure('2026-10-05T23:57:00.000Z'));
+        expect(instance.getSnapshot().providers[1]).toMatchObject({
+          availability: 'error',
+          failure: 'timeout',
+          windows: [],
+          lastAttemptAt: '2026-10-05T23:57:00.000Z'
+        });
+        const recovered = success('2026-10-05T23:56:00.000Z');
+        recovered.windows[0].usedPercent = 40;
+        recovered.windows[0].remainingPercent = 60;
+        writer.append(recovered);
+        expect(instance.getSnapshot().providers[1]).toMatchObject({
+          availability: 'available',
+          failure: 'none',
+          cached: true,
+          lastAttemptAt: recovered.receivedAt,
+          windows: [{ remainingPercent: 60, receivedAt: recovered.receivedAt }]
+        });
+        instance.close();
+        const reopened = service({
+          repository: new SubscriptionMetadataRepository(path),
+          now: () => new Date(receipt)
+        });
+        expect(reopened.getSnapshot().providers[1]).toMatchObject({
+          availability: 'available',
+          windows: [{ remainingPercent: 60, receivedAt: recovered.receivedAt }]
+        });
+        expect(collect).toHaveBeenCalledOnce();
+      } finally {
+        writer.close();
+      }
+    }
+  );
+
   it('hides previous successful quota after backend denial, including after reopening storage', async () => {
     const { path, repository } = store();
     repository.append(success());
@@ -179,7 +238,7 @@ describe('desktop subscription service', () => {
     }
   });
 
-  it('keeps current live Codex uncached until newer external metadata replaces it', async () => {
+  it('keeps current live Codex uncached until later appended external metadata replaces it', async () => {
     const { path, repository } = store();
     const collect = vi.fn<typeof collectCodexQuota>().mockResolvedValue(success());
     const instance = service({ repository, collectCodex: collect, now: () => new Date(receipt) });
@@ -189,8 +248,9 @@ describe('desktop subscription service', () => {
     try {
       writer.append(success('2026-10-05T23:58:00.000Z'));
       expect(instance.getSnapshot().providers[1]).toMatchObject({
-        cached: false,
-        windows: [{ receivedAt: receipt }]
+        cached: true,
+        lastAttemptAt: '2026-10-05T23:58:00.000Z',
+        windows: [{ receivedAt: '2026-10-05T23:58:00.000Z' }]
       });
       writer.append(success('2026-10-06T00:01:00.000Z'));
       expect(instance.getSnapshot().providers[1]).toMatchObject({

@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import type { SubscriptionMetadataRepository } from '../db/subscriptionMetadata.js';
 import {
   desktopSubscriptionSnapshotSchema,
@@ -96,23 +97,11 @@ export class DesktopSubscriptionService {
       }
       this.claudeAttempt = claudeAttempt;
       this.claudeSuccess = claudeSuccess;
-      if (
-        attempt !== null &&
-        (this.attempt === null ||
-          Date.parse(attempt.receivedAt) > Date.parse(this.attempt.receivedAt))
-      ) {
-        this.attempt = attempt;
+      if (!isDeepStrictEqual(attempt, this.attempt) || !isDeepStrictEqual(success, this.success)) {
         this.cached = true;
       }
-      if (
-        success !== null &&
-        (this.success === null ||
-          Date.parse(success.receivedAt) > Date.parse(this.success.receivedAt))
-      ) {
-        this.success = success;
-        this.cached = true;
-      }
-      if (success === null) this.success = null;
+      this.attempt = attempt;
+      this.success = success;
     } catch {
       this.storage = 'unavailable';
     }
