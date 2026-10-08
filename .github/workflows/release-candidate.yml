@@ -24,11 +24,11 @@ jobs:
           - arch: arm64
             runner: macos-14
             script: package:mac:arm64
-            artifact: release/TokenWatch-0.1.1-arm64.dmg
+            artifact: release/TokenWatch-0.1.2-arm64.dmg
           - arch: x64
             runner: macos-13
             script: package:mac:x64
-            artifact: release/TokenWatch-0.1.1-x64.dmg
+            artifact: release/TokenWatch-0.1.2-x64.dmg
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -64,11 +64,11 @@ jobs:
           - arch: x64
             runner: ubuntu-latest
             script: package:linux:x64
-            artifact: release/TokenWatch-0.1.1-x86_64.AppImage
+            artifact: release/TokenWatch-0.1.2-x86_64.AppImage
           - arch: arm64
             runner: ubuntu-24.04-arm
             script: package:linux:arm64
-            artifact: release/TokenWatch-0.1.1-arm64.AppImage
+            artifact: release/TokenWatch-0.1.2-arm64.AppImage
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

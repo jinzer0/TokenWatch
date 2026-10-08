@@ -8,6 +8,10 @@ Milestone: M012
 
 ## 단계 개요
 
+### 승인된 v0.1.2 배포
+
+PR #23은 `9d7e87c`로 병합되고 요청자 승인으로 #22를 종료했다. 병합 소스의 새0.1.1 DMG는 공증/서명/ticket/Gatekeeper/격리 mount smoke/SHA256과 host native 복구·전체904/desktop192/typecheck를 통과했지만 기존0.1.1 Release/tag와 충돌해 덮어쓰지 않았다. 이어 요청자가0.1.2 버전 상향·새 DMG 재공증/검증·v0.1.2 tag/Release 게시를 명시 승인했다. package/app version·직접 영향 packaging 경로/CI·회귀만 갱신하고 검증된 release source를 커밋한다. 의존성/락파일은 변경하지 않고 과거 verifier fixture의0.1.1 파일명은 일반 검증 입력으로 유지한다. 이번 배포 자산은 검증된 macOS arm64 DMG/SHA256뿐이며 full CI matrix·x64/Linux 검증을 주장하지 않는다. 기존 계획 위치만 유지하고 Release 설명은 한국어로 작성한다. 기존 tag/Release·무관한 사용자 자료는 수정/삭제하지 않는다.
+
 요청자의 `좋아 다음으로 일단 못하는 건 생략`으로 현재 불가능한 검증의 추가 재시도는 이번 진행에서 보류한다. 실패/미검증 기록과 제품의 지원·privacy·전망 제한은 그대로 유지하고 재시도를 다음 단계 선행 조건으로 요구하지 않는다. 이후 커밋·푸시·PR는 명시 승인받았고 병합·이슈 종료는 별도 승인 경계를 유지한다.
 
 ### PR #23 Codex 리뷰 수정 범위
