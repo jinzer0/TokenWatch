@@ -12,6 +12,8 @@ Milestone: M012
 
 ### PR #23 Codex 리뷰 수정 범위
 
+2026-10-08 댓글 `4215148034`/`4215148041`의 두 P2를 요청자의 수정·커밋·푸시 지시로 대응한다. usage-unverified도 blocked와 동일하게 과거 quota/cache를 숨기고 metadata 최신 성공 경계를 갱신한다. card schema도 미확인 상태의 cached/windows 모순을 거부한다. refresh 제한은 별도 monotonic clock(`performance.now`)으로 계산하고 wall clock은 관측/리셋 시각에만 사용한다. 기존 service/metadata/DTO·회귀·README와 계획/Stage5/최종 보고를 갱신하며 false/null·후속 failure/reopen/recovery와 wall clock 양방향 보정/59,999·60,000ms 경계를 검증한다. 기존 문서 위치와 DB schema/의존성/GUI 보류·공증/병합/이슈 종료·원격 댓글/해결 표시 경계를 유지한다.
+
 2026-10-08 댓글 `4213434334`의 npm launcher Node 누락 P2는 요청자의 수정·커밋·push 승인으로 대응한다. 선택한 Codex prefix/기존 PATH/표준 prefix, 실행 중인 Node의 prefix, 명시된 NVM_BIN 및 표준 nvm 설치의 version bin에서 실행 가능한 Node만 확인해 child PATH에 포함한다. nvm fallback은 설치된 version을 숫자 기준 내림차순으로 확인한다. Electron 실행 파일은 Node로 간주하지 않고 Windows native `.exe` 탐색/invalid Codex override fail-closed는 유지한다. collector/회귀와 기존 README/계획/Stage5/최종 보고를 갱신하고 별도 prefix의 env-node launcher 실제 합성 subprocess·nvm fallback·privacy·전체 회귀를 검증한다. shell/nvm 명령/설정/인증 파일·전역 PATH·의존성/공증/GUI 재시도·병합·이슈 종료·원격 댓글/해결 표시는 제외한다.
 
 2026-10-08 재리뷰 댓글 `4213337517`의 관측 순서 P2를 요청자 지시에 따라 수정·검증·커밋·푸시한다. 저장소의 insertion ID 기반 최신 관측/차단 경계를 서비스에서도 그대로 채택하고 receivedAt 비교로 결과를 거부하지 않는다. validated 결과의 내용 비교는 live/cache 구분에만 사용한다. 기존 service/회귀와 계획/Stage5/최종 보고를 갱신하고 같은 시각·clock rollback의 외부 차단과 후속 성공/실패·재개방을 검증한다. 기존 기록 위치를 유지하며 새 제품 문서/DTO/DB schema/GUI 재시도·공증·병합·이슈 종료·원격 댓글/해결 표시는 제외한다.

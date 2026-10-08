@@ -87,25 +87,33 @@ afterEach(() => {
 });
 
 describe('subscription dashboard', () => {
-  it('shows backend usage denial without a positive quota or cached window', async () => {
-    const denied = snapshot();
-    denied.providers[1] = card('codex', {
-      availability: 'usage-blocked',
-      failure: 'usage-blocked',
-      windows: [],
-      lastAttemptAt: NOW
-    });
-    install({ getSnapshot: vi.fn(async () => denied) });
-    render(<SubscriptionDashboard />);
-    await settle();
-    expect(codex().getByText('포함 사용 차단')).toBeTruthy();
-    expect(codex().getByText('서비스에서 일반 포함 사용을 차단했습니다')).toBeTruthy();
-    expect(codex().queryByRole('progressbar')).toBeNull();
-    expect(codex().queryByText(/% 남음|지난 조회/)).toBeNull();
-    const detail = within(screen.getByRole('region', { name: 'Codex 구독 상세' }));
-    expect(detail.getByText('포함 사용 차단')).toBeTruthy();
-    expect(detail.queryByRole('progressbar')).toBeNull();
-  });
+  it.each([
+    ['usage-blocked', '포함 사용 차단', '서비스에서 일반 포함 사용을 차단했습니다'],
+    ['usage-unverified', '사용 권한 미확인', '서비스의 일반 포함 사용 권한을 확인할 수 없습니다']
+  ] as const)(
+    'shows %s without a positive quota or cached window',
+    async (availability, label, message) => {
+      const denied = snapshot();
+      denied.providers[1] = card('codex', {
+        availability,
+        failure: availability,
+        windows: [],
+        lastAttemptAt: NOW
+      });
+      install({ getSnapshot: vi.fn(async () => denied) });
+      render(<SubscriptionDashboard />);
+      await settle();
+      expect(codex().getByText(label)).toBeTruthy();
+      expect(codex().getByText(message)).toBeTruthy();
+      expect(codex().queryByRole('progressbar')).toBeNull();
+      expect(codex().queryByText(/% 남음|지난 조회/)).toBeNull();
+      expect(codex().queryByText(/^리셋/)).toBeNull();
+      const detail = within(screen.getByRole('region', { name: 'Codex 구독 상세' }));
+      expect(detail.getByText(label)).toBeTruthy();
+      expect(detail.queryByRole('progressbar')).toBeNull();
+      expect(detail.queryByText(/^리셋/)).toBeNull();
+    }
+  );
 
   it('keeps provider headings outside selection buttons and preserves pressed state', async () => {
     install();

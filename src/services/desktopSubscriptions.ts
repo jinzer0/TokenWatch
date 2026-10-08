@@ -1,3 +1,4 @@
+import { performance } from 'node:perf_hooks';
 import { isDeepStrictEqual } from 'node:util';
 import type { SubscriptionMetadataRepository } from '../db/subscriptionMetadata.js';
 import {
@@ -16,13 +17,14 @@ export class DesktopSubscriptionService {
   private readonly repository: SubscriptionMetadataRepository | null;
   private readonly collect: typeof collectCodexQuota;
   private readonly now: () => Date;
+  private readonly monotonicNow: () => number;
   private storage: DesktopSubscriptionSnapshot['storage'];
   private attempt: SubscriptionReadResult | null = null;
   private success: SubscriptionReadResult | null = null;
   private claudeAttempt: SubscriptionReadResult | null = null;
   private claudeSuccess: SubscriptionReadResult | null = null;
   private cached = true;
-  private lastRefreshAt: number | null = null;
+  private lastRefreshTick: number | null = null;
   private pending: Promise<DesktopSubscriptionSnapshot> | null = null;
   private controller: AbortController | null = null;
   private stopped = false;
@@ -31,10 +33,12 @@ export class DesktopSubscriptionService {
     repository: SubscriptionMetadataRepository | null;
     collectCodex?: typeof collectCodexQuota;
     now?: () => Date;
+    monotonicNow?: () => number;
   }) {
     this.repository = options.repository;
     this.collect = options.collectCodex ?? collectCodexQuota;
     this.now = options.now ?? (() => new Date());
+    this.monotonicNow = options.monotonicNow ?? (() => performance.now());
     this.storage = this.repository === null ? 'unavailable' : 'ready';
     this.readStored();
   }
@@ -63,7 +67,8 @@ export class DesktopSubscriptionService {
       card.failure = attempt.failure;
       card.lastAttemptAt = attempt.receivedAt;
     }
-    if (attempt?.availability === 'usage-blocked') return card;
+    if (attempt?.availability === 'usage-blocked' || attempt?.availability === 'usage-unverified')
+      return card;
     if (success !== null) {
       const currentTime = this.now().getTime();
       card.cached = cached;
@@ -110,11 +115,11 @@ export class DesktopSubscriptionService {
   refresh(): Promise<DesktopSubscriptionSnapshot> {
     if (this.stopped) return Promise.resolve(this.getSnapshot());
     if (this.pending !== null) return this.pending;
-    const startedAt = this.now().getTime();
-    if (this.lastRefreshAt !== null && startedAt - this.lastRefreshAt < REFRESH_INTERVAL_MS) {
+    const startedAt = this.monotonicNow();
+    if (this.lastRefreshTick !== null && startedAt - this.lastRefreshTick < REFRESH_INTERVAL_MS) {
       return Promise.resolve(this.getSnapshot());
     }
-    this.lastRefreshAt = startedAt;
+    this.lastRefreshTick = startedAt;
     const controller = new AbortController();
     this.controller = controller;
     // Defer invocation so even synchronous collector errors share the pending request.
@@ -139,7 +144,8 @@ export class DesktopSubscriptionService {
           this.success = result;
           this.cached = false;
         }
-        if (result.availability === 'usage-blocked') this.success = null;
+        if (result.availability === 'usage-blocked' || result.availability === 'usage-unverified')
+          this.success = null;
         if (this.repository !== null && this.storage === 'ready') {
           try {
             this.repository.append(result);

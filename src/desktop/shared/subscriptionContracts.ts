@@ -150,7 +150,9 @@ export const desktopSubscriptionCardSchema = z
   .superRefine((card, context) => {
     if (
       (card.availability === 'usage-blocked') !== (card.failure === 'usage-blocked') ||
-      (card.availability === 'usage-blocked' && (card.windows.length > 0 || card.cached))
+      (card.availability === 'usage-unverified') !== (card.failure === 'usage-unverified') ||
+      ((card.availability === 'usage-blocked' || card.availability === 'usage-unverified') &&
+        (card.windows.length > 0 || card.cached))
     ) {
       context.addIssue({ code: 'custom', message: 'Invalid subscription permission' });
     }

@@ -66,7 +66,7 @@ tokenwatch subscription --provider claude --stdin --record < statusline-input.js
 
 Claude 입력에서는 `rate_limits.five_hour`/`seven_day`의 사용 비율·리셋만 취하고 다른 필드는 저장하지 않습니다. stdin은 256 KiB·10초로 제한됩니다. statusline emitter 연결과 실제 Claude/Cursor 구독 검증이 완료된 것은 아닙니다. TokenWatch는 인증 파일·키·토큰이나 계정 식별자를 직접 읽어 연동하지 않습니다.
 
-Codex가 `ordinaryUsageAllowed: false`를 반환하면 `usage-blocked`(포함 사용 차단)로 표시하고 잔여 숫자를 표시하지 않습니다. 명시적 null은 `usage-unverified`(사용 권한 미확인)입니다. 차단 이전 관측은 후속 조회 실패나 앱 재실행으로 다시 표시되지 않습니다. 이 필드가 없는 응답의 한도 숫자는 관측값일 뿐 사용 허용이나 리셋 후 복구의 증거가 아닙니다.
+Codex가 `ordinaryUsageAllowed: false`를 반환하면 `usage-blocked`(포함 사용 차단)로 표시하고 잔여 숫자를 표시하지 않습니다. 명시적 null은 `usage-unverified`(사용 권한 미확인)이며 이전 잔여량·리셋 시간도 숨깁니다. 차단 또는 권한 미확인 이전 관측은 후속 조회 실패나 앱 재실행으로 다시 표시되지 않습니다. 이 필드가 없는 응답의 한도 숫자는 관측값일 뿐 사용 허용이나 리셋 후 복구의 증거가 아닙니다. 갱신의 60초 제한은 시스템 시각 보정과 독립적인 monotonic 경과 시간으로 계산합니다.
 
 ## 소스에서 실행
 

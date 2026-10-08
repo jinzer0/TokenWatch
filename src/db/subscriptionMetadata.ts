@@ -186,7 +186,7 @@ export class SubscriptionMetadataRepository {
               ? `AND availability = 'available' AND failure = 'none'
           AND id > COALESCE((SELECT MAX(blocked.id) FROM subscription_observations AS blocked
             WHERE blocked.provider = subscription_observations.provider
-              AND blocked.availability = 'usage-blocked'), 0)`
+              AND blocked.availability IN ('usage-blocked', 'usage-unverified')), 0)`
               : ''
           }
           ORDER BY id DESC LIMIT 1

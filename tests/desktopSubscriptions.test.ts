@@ -70,7 +70,11 @@ function store() {
   return { path, repository: new SubscriptionMetadataRepository(path) };
 }
 function service(options: ConstructorParameters<typeof DesktopSubscriptionService>[0]) {
-  const instance = new DesktopSubscriptionService(options);
+  const now = options.now;
+  const instance = new DesktopSubscriptionService({
+    ...options,
+    monotonicNow: options.monotonicNow ?? (now ? () => now().getTime() : undefined)
+  });
   services.push(instance);
   return instance;
 }
@@ -83,6 +87,34 @@ function deferred() {
 }
 
 describe('desktop subscription service', () => {
+  it.each([-3_600_000, 3_600_000])(
+    'throttles by monotonic time despite wall clock correction of %s ms',
+    async (correction) => {
+      let wall = Date.parse(receipt);
+      let elapsed = 0;
+      const collect = vi.fn<typeof collectCodexQuota>().mockResolvedValue(success());
+      const instance = service({
+        repository: null,
+        collectCodex: collect,
+        now: () => new Date(wall),
+        monotonicNow: () => elapsed
+      });
+      await instance.refresh();
+      wall += correction;
+      await instance.refresh();
+      expect(collect).toHaveBeenCalledOnce();
+      elapsed = 59_999;
+      await instance.refresh();
+      expect(collect).toHaveBeenCalledOnce();
+      elapsed = 60_000;
+      await instance.refresh();
+      expect(collect).toHaveBeenCalledTimes(2);
+      wall -= correction;
+      await instance.refresh();
+      expect(collect).toHaveBeenCalledTimes(2);
+    }
+  );
+
   it.each([receipt, '2026-10-05T23:58:00.000Z'])(
     'adopts externally appended denial at %s and later recovery in repository order',
     async (receivedAt) => {
@@ -142,61 +174,64 @@ describe('desktop subscription service', () => {
     }
   );
 
-  it('hides previous successful quota after backend denial, including after reopening storage', async () => {
-    const { path, repository } = store();
-    repository.append(success());
-    const denied: SubscriptionReadResult = {
-      provider: 'codex',
-      availability: 'usage-blocked',
-      failure: 'usage-blocked',
-      receivedAt: '2026-10-06T00:01:00.000Z',
-      windows: []
-    };
-    const instance = service({
-      repository,
-      collectCodex: vi.fn(async () => denied),
-      now: () => new Date(denied.receivedAt)
-    });
-    expect(instance.getSnapshot().providers[1].windows[0].remainingPercent).toBe(75);
-    const snapshot = await instance.refresh();
-    expect(snapshot.providers[1]).toMatchObject({
-      availability: 'usage-blocked',
-      failure: 'usage-blocked',
-      windows: [],
-      cached: false
-    });
-    expect(repository.latest('codex')).toEqual(denied);
-    expect(repository.latestSuccess('codex')).toBeNull();
-    instance.close();
-    const writer = new SubscriptionMetadataRepository(path);
-    writer.append(failure('2026-10-06T00:02:00.000Z'));
-    expect(writer.latestSuccess('codex')).toBeNull();
-    writer.close();
-    const reopened = service({
-      repository: new SubscriptionMetadataRepository(path),
-      collectCodex: vi.fn(),
-      now: () => new Date(denied.receivedAt)
-    });
-    expect(reopened.getSnapshot().providers[1]).toMatchObject({
-      availability: 'error',
-      windows: [],
-      cached: false
-    });
-    expect(
-      desktopSubscriptionSnapshotSchema.safeParse({
-        ...snapshot,
-        providers: [
-          snapshot.providers[0],
-          { ...snapshot.providers[1], windows: success().windows },
-          snapshot.providers[2]
-        ]
-      }).success
-    ).toBe(false);
-    const recovery = new SubscriptionMetadataRepository(path);
-    recovery.append(success('2026-10-06T00:03:00.000Z'));
-    recovery.close();
-    expect(reopened.getSnapshot().providers[1].windows[0].remainingPercent).toBe(75);
-  });
+  it.each(['usage-blocked', 'usage-unverified'] as const)(
+    'hides previous successful quota after %s, including after reopening storage',
+    async (availability) => {
+      const { path, repository } = store();
+      repository.append(success());
+      const denied: SubscriptionReadResult = {
+        provider: 'codex',
+        availability,
+        failure: availability,
+        receivedAt: '2026-10-06T00:01:00.000Z',
+        windows: []
+      };
+      const instance = service({
+        repository,
+        collectCodex: vi.fn(async () => denied),
+        now: () => new Date(denied.receivedAt)
+      });
+      expect(instance.getSnapshot().providers[1].windows[0].remainingPercent).toBe(75);
+      const snapshot = await instance.refresh();
+      expect(snapshot.providers[1]).toMatchObject({
+        availability,
+        failure: availability,
+        windows: [],
+        cached: false
+      });
+      expect(repository.latest('codex')).toEqual(denied);
+      expect(repository.latestSuccess('codex')).toBeNull();
+      instance.close();
+      const writer = new SubscriptionMetadataRepository(path);
+      writer.append(failure('2026-10-06T00:02:00.000Z'));
+      expect(writer.latestSuccess('codex')).toBeNull();
+      writer.close();
+      const reopened = service({
+        repository: new SubscriptionMetadataRepository(path),
+        collectCodex: vi.fn(),
+        now: () => new Date(denied.receivedAt)
+      });
+      expect(reopened.getSnapshot().providers[1]).toMatchObject({
+        availability: 'error',
+        windows: [],
+        cached: false
+      });
+      expect(
+        desktopSubscriptionSnapshotSchema.safeParse({
+          ...snapshot,
+          providers: [
+            snapshot.providers[0],
+            { ...snapshot.providers[1], windows: success().windows },
+            snapshot.providers[2]
+          ]
+        }).success
+      ).toBe(false);
+      const recovery = new SubscriptionMetadataRepository(path);
+      recovery.append(success('2026-10-06T00:03:00.000Z'));
+      recovery.close();
+      expect(reopened.getSnapshot().providers[1].windows[0].remainingPercent).toBe(75);
+    }
+  );
 
   it('observes externally recorded Claude metadata while alive and preserves source clocks', () => {
     const { path, repository } = store();
