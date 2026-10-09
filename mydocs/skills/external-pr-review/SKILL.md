@@ -15,6 +15,7 @@ description: |
 
 ## Preconditions
 
+- root/nearest-child `AGENTS.md` Risk-Based Execution Policy·native permission과 실제 요청 scope를 우선한다. 안전한 local 분석/검증 계획은 같은 scope에서 자율 진행하지만 외부 code 실행·formal 게시·merge/close 권한을 만들지 않는다.
 - The PR under review is opened from an external contributor fork to this repository's `main` or agreed base.
 - Do not use this SKILL for internal task PRs such as `publish/task{N}`. Internal tasks use the normal stage procedure.
 - `gh` CLI authentication is available.
@@ -42,12 +43,12 @@ description: |
      - Verification plan
      - Recommendation: merge / request changes / close
      - Approval request to task requester
-3. Request task requester approval for the review direction.
+3. 같은 scope의 안전한 local review 방향/context·evidence를 기록하고 자율 진행한다. 실질 요구 충돌/scope 이탈·HIGH 위험 결정만 한정 승인 항목으로 분리한다. 분석·계획 요청을 source 변경/외부 게시 위임으로 확대하지 않는다.
 4. If needed, write a modification/verification plan: `mydocs/pr/pr_{N}_review_impl.md`.
    - Use central template `mydocs/_templates/external_pr_review_impl.md`.
    - Use this only when this repository needs additional verification work.
-   - Request approval after writing it.
-5. Run verification only when applicable.
+   - 같은 scope의 안전한 verification plan 작성은 재승인하지 않는다. 기존 canonical review 계획이 있으면 재사용하며 별도 원본을 강제하지 않는다.
+5. 적용 가능한 검증만 수행한다. untrusted 외부 code 실행은 안전·sandbox·native permission과 실제 별도 위임을 먼저 확인하며 검토 요청/계획 status만으로 실행하지 않는다. safe local 정적 분석/evidence 기록은 독립 진행한다. HIGH의 targets/actions/impact/recovery_conditions·실제 승인 결과/evidence를 위험 행동 직전/재개에 확인하고 동일 조건만 재사용한다. missing/denied는 그 위험 행동만 차단한다.
    - Apply `the applicable TokenWatch checks from the root AGENTS.md, using isolated TOKENWATCH_DB_PATH=/tmp/... databases whenever behavior touches the database` based on change type.
 6. Write final report: `mydocs/pr/pr_{N}_report.md`.
    - Use central template `mydocs/_templates/external_pr_report.md`.

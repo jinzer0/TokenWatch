@@ -5,9 +5,13 @@
 - Why was the change made?
 - What changed?
 - What should reviewers inspect first?
+root/nearest-child AGENTS.md Risk-Based Execution Policy·native permission을 우선한다.
+body 준비만으로 implementation/publication 권한을 만들지 않는다.
+검증된 task-owned standing commit/push와 명확한 변경 요청의 PR만 처리하며 실패/미위임/permission-blocked publication은 실행하지 않는다.
+Merge/Release·formal posting·Issue close·tag·미위임 삭제/cleanup 권한은 별도다.
 -->
 
-- Target task: #
+- Target task: {실제 Issue 번호 또는 기존 task context/scope; 가짜 번호를 만들지 않음}
 - Why:
 - What:
 - Review focus:
@@ -18,9 +22,10 @@
 For Stage-based work, write one line per Stage.
 Link each Stage title to the stage report and each short commit SHA to the commit URL.
 Example: **[Stage 1](stage-url)** ([0cdbae0](commit-url)): one-line summary
+실제 필요한 stage/context만 기록한다. LOW에는 Issue/board/plan/모든 stage report를 강제하지 않는다.
 -->
 
-- **[Stage 1](stage-url)** ([0cdbae0](commit-url)):
+- {실제 stage/context 변경 요약; 존재하는 공개 evidence/commit만 링크}
 
 ### Impact Areas
 
@@ -37,10 +42,11 @@ If only 1-2 areas changed, delete this subsection. Maximum 5 rows. -->
 Just before creating the PR, run `git rev-parse HEAD` and use GitHub blob URLs pinned to the PR head commit SHA.
 Use `[filename](https://github.com/jinzer0/TokenWatch/blob/{head_sha}/mydocs/...)` instead of raw URLs.
 Delete entries that do not apply.
+기존 단일 canonical 계획과 필요한 공개 evidence만 링크한다. 기존 _impl canonical은 그대로 참조하되 별도 implementation 원본을 강제하지 않는다.
+비공개 native context의 raw path/session 자료나 가짜 문서 링크는 공개하지 않는다.
 -->
 
-- Task plan: [task*m{milestone}*{issue}.md](https://github.com/jinzer0/TokenWatch/blob/{head_sha}/mydocs/plans/task_m{milestone}_{issue}.md)
-- Implementation plan: [task*m{milestone}*{issue}\_impl.md](https://github.com/jinzer0/TokenWatch/blob/{head_sha}/mydocs/plans/task_m{milestone}_{issue}_impl.md)
+- Canonical plan/context: {존재하는 공개 가능 문서의 SHA-pinned filename link 또는 해당 없음}
 - Final report: [task*m{milestone}*{issue}\_report.md](https://github.com/jinzer0/TokenWatch/blob/{head_sha}/mydocs/report/task_m{milestone}_{issue}_report.md)
 
 ## Key Review Points

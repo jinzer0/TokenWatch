@@ -2,7 +2,9 @@
 
 ## Purpose
 
-This document defines rules for writing internal task PR bodies. Writing a body prepares review material only; pushing work from `local/task{number}` to `publish/task{number}` and creating a PR against `main` require separately explicit current user authorization.
+내부 task PR body를 정의한다. root/nearest-child `AGENTS.md` Risk-Based Execution Policy·native permission에 따라 검증된 task-owned 변경의 standing commit/push와 명확한 변경 요청의 PR를 처리한다. 조회·계획·보고/PR body 준비만의 요청은 구현/publication 위임이 아니다. Merge/Release·formal review/comment·Issue close·tag·미위임 삭제/cleanup은 별도 권한을 유지한다.
+
+실제 repo/remote/base/head·현재 검증/ownership과 기존 PR를 확인하고 exact filename allowlist만 공개한다. unrelated dirty/untracked는 보존하며 검증 실패/미달·미위임/permission-blocked publication은 실행하지 않는다. Issue 없는 작업은 실제 task slug/context로 추적하며 가짜 번호·계획·stage 산출물을 만들지 않는다.
 
 Branch creation, push, and `gh pr create` commands follow [`pr_command_guide.md`](pr_command_guide.md).
 
@@ -28,7 +30,7 @@ Internal task PRs use these top-level sections:
 - `Proposed Follow-up Issues`
 - `Remaining Risks`
 
-`Changes` keeps only the Stage timeline in the body and separates `Impact Areas` and `Work Documents` as subsections. This makes the Stage flow visible at the top of the PR while still exposing area tables and document links in the GitHub sidebar ToC.
+stage 기반 작업의 `Changes`는 실제 timeline과 필요한 `Impact Areas`/`Work Documents`를 분리한다. LOW/context 작업은 필요한 변경·검증 요약만 기록하며 없는 stage/report 파일을 만들지 않는다.
 
 Keep `Key Review Points`, `Screenshots`, `Proposed Follow-up Issues`, and `### Impact Areas` only when needed. If they do not apply, delete the whole section or write `None`.
 
@@ -39,10 +41,11 @@ Keep `Key Review Points`, `Screenshots`, `Proposed Follow-up Issues`, and `### I
 - Use at most 4 bullets.
 - Include target task, reason for change, what changed, and what reviewers should inspect first.
 - Put the Issue directly performed by this PR in `Target task`.
+- Issue가 없으면 기존 task context의 짧은 식별/scope를 사용한다. 번호를 만들지 않는다.
 
 `Changes`:
 
-- Keep only the Stage timeline in the main body. Put area tables and work document links in subsections.
+- 실제 stage가 있으면 timeline을 사용하고 아니면 기존 context의 변경 요약을 사용한다. area table/work document는 필요할 때만 subsection에 둔다.
 - For Stage-based work, write one line per Stage.
 - Link the Stage title to the stage report, and link the short commit SHA next to it to the commit URL.
 - Example: `**[Stage 1](stage-url)** ([0cdbae0](commit-url)): one-line summary`
@@ -55,9 +58,10 @@ Keep `Key Review Points`, `Screenshots`, `Proposed Follow-up Issues`, and `### I
 
 `### Work Documents` under `Changes`:
 
-- List task plan, implementation plan, and final report.
+- 존재하는 공개 가능한 **단일 canonical 계획/context와 필요한 final evidence**만 참조한다. 기존 `_impl` canonical은 보존·참조하되 task plan + 별도 implementation 원본을 강제하지 않는다. LOW는 existing context로 충분하며 optional 문서 부재는 실패가 아니다.
 - Do not duplicate stage reports here; they are already linked from the Stage timeline.
 - Use PR head commit SHA GitHub blob URLs and display them as `[filename](URL)`, not raw URLs.
+- 비공개 native 계획/context의 raw path/session 자료·private 설정·가짜 문서 링크를 노출하지 않는다. 실제 공개 문서만 SHA-pinned 링크로 연결한다.
 
 `Key Review Points`:
 
