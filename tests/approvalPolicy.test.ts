@@ -580,6 +580,59 @@ describe('risk-based approval delivery source contracts (not native enforcement)
     }
   });
 
+  it('P1 full-route completion records built before publication in format-aware state', () => {
+    const text = read('mydocs/skills/bmad-build/step-05-present.md');
+    const built = section(text, '### Mark Plan Built');
+    has(
+      built,
+      /explicitly record `status: 'built'` in the resolved state\/evidence location before publication/i,
+      'full completion writes actual built state'
+    );
+    has(
+      built,
+      /authorized existing BMAD frontmatter[\s\S]*otherwise[\s\S]*existing context/i,
+      'built state supports both canonical formats'
+    );
+    has(
+      built,
+      /without modifying an unformatted canonical plan/i,
+      'built state leaves human plan intact'
+    );
+    has(
+      built,
+      /read-only\/planning-only\/report-only[\s\S]*incomplete required review[\s\S]*do not write `built`/i,
+      'failed or non-mutating terminal cannot write success'
+    );
+    expect(text.indexOf('### Mark Plan Built') < text.indexOf('### Commit and Complete')).toBe(
+      true
+    );
+  });
+
+  it('P1 ordinary triage rows and resumed rows share the resolved context location', () => {
+    const text = read('mydocs/skills/bmad-build/step-04-review.md');
+    const classify = section(text, '### Classify');
+    has(
+      classify,
+      /If `## Review Triage Log` at the resolved state\/evidence location already has rows/,
+      'resumed review reads the actual log location'
+    );
+    has(
+      classify,
+      /Every finding gets one row in the Review Triage Log at the resolved state\/evidence location/,
+      'all findings append in resolved state'
+    );
+    has(
+      classify,
+      /unformatted canonical plan[\s\S]*existing context without adding a section or editing the plan/,
+      'unformatted log rows cannot alter the human plan'
+    );
+    lacks(
+      classify,
+      /Review Triage Log` section of `\{plan_file\}`/,
+      'no forced triage section in canonical document'
+    );
+  });
+
   it('AC03/05 linked guides do not restore mandatory Issues, duplicate plans or stage approvals', () => {
     const external = read('mydocs/manual/external_pr_review_guide.md');
     lacks(

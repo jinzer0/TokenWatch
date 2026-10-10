@@ -13,6 +13,10 @@
 
 Revalidate current ownership, required verification/acceptance and review evidence, even for review `none`. Only satisfied current evidence permits `built`. Failures/unmet acceptance remain incomplete; unresolved actions record scoped blocked reasons without successful publication. Preserve historical evidence and report limitations truthfully.
 
+When current required verification/acceptance and required review are satisfied and the request authorizes state writes, explicitly record `status: 'built'` in the resolved state/evidence location before publication. Reuse the same location selected during implementation/review: authorized existing BMAD frontmatter for a supported plan; otherwise existing context, without modifying an unformatted canonical plan or creating frontmatter. Preserve the original baseline and all prior logs.
+
+For read-only/planning-only/report-only, failed verification, unmet acceptance or incomplete required review, do not write `built` or report successful completion/publication. Retain the actual state and report truthful incomplete/scoped blocked evidence or permitted read-only analysis instead.
+
 ### Commit and Complete
 
 Before each publication action verify current scope/delegation, native permission, required verification/acceptance, reviewed task-owned files/hunks and HIGH authority. Ownership is separate from all changes since baseline_revision. Commit only reviewed verified task-owned changes/evidence using exact filename allowlist and identified hunks; preserve unrelated staged/dirty/untracked work. Clean means task-owned pending changes, never the whole working tree. Inseparable overlap blocks affected publication, not safe context work.

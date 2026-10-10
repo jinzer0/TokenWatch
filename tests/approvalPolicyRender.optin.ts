@@ -277,6 +277,54 @@ function safety(snapshot: Snapshot, skill: Skill, route: Route, review: Review):
       `${skill}/${file}: no unconditional canonical mutation`
     ).toBe(false);
   }
+  const present = files['step-05-present.md'];
+  if (present) {
+    const built =
+      present.split('### Mark Plan Built\n')[1]?.split('\n### Commit and Complete')[0] ?? '';
+    assertText(
+      built,
+      /explicitly record `status: 'built'` in the resolved state\/evidence location before publication/i,
+      'rendered full route records built'
+    );
+    assertText(
+      built,
+      /authorized existing BMAD frontmatter[\s\S]*otherwise[\s\S]*existing context/i,
+      'rendered built supports both canonical formats'
+    );
+    assertText(
+      built,
+      /without modifying an unformatted canonical plan/i,
+      'rendered built preserves canonical content'
+    );
+    assertText(
+      built,
+      /read-only\/planning-only\/report-only[\s\S]*incomplete required review[\s\S]*do not write `built`/i,
+      'rendered terminal rejects unauthorized or failed success'
+    );
+  }
+  const ordinaryReview =
+    skill === 'bmad-build' && review !== 'none' ? files['step-04-review.md'] : undefined;
+  if (ordinaryReview) {
+    assertText(
+      ordinaryReview,
+      /If `## Review Triage Log` at the resolved state\/evidence location already has rows/,
+      'rendered resume uses resolved log'
+    );
+    assertText(
+      ordinaryReview,
+      /Every finding gets one row in the Review Triage Log at the resolved state\/evidence location/,
+      'rendered findings use resolved log'
+    );
+    assertText(
+      ordinaryReview,
+      /unformatted canonical plan[\s\S]*existing context without adding a section or editing the plan/,
+      'rendered triage cannot mutate the human plan'
+    );
+    expect(
+      /Review Triage Log` section of `\{plan_file\}`/.test(ordinaryReview),
+      'no rendered forced triage section'
+    ).toBe(false);
+  }
   const guardStart = step.indexOf('## Request-mode guard');
   const routingStart = step.indexOf('## Intent check');
   expect(
