@@ -4,7 +4,7 @@ description: |
   Register a new task that does not yet have a GitHub Issue in the Hyper-Waterfall workflow.
   Query open milestones and existing labels, choose candidates,
   confirm with the task requester before creating the Issue, then create the GitHub Issue number.
-  After Issue creation, hand off branch, daily task board, and task plan work to task-start.
+  Issue 등록이 필요한 명시 요청에만 사용한다. 승인된 생성 후에는 기존 scope의 task-start로 추가 승인 대기 없이 연결한다.
 ---
 
 # Hyper-Waterfall Issue Registration
@@ -16,6 +16,7 @@ description: |
 
 ## Preconditions
 
+- root/nearest-child `AGENTS.md` Risk-Based Execution Policy와 native permission을 우선한다. 명확한 LOW 요청은 existing context로 처리할 수 있으며 이 등록 절차를 강제하지 않는다.
 - The work does not yet have an Issue number.
 - Purpose, background, and scope are at least drafted.
 - `gh` CLI is authenticated for the current user.
@@ -114,7 +115,7 @@ description: |
    gh issue view {N} --repo jinzer0/TokenWatch \
      --json number,title,state,milestone,labels,url
    ```
-10. Report the created Issue number and URL, then request approval to enter `task-start`.
+10. 생성한 Issue 번호/URL과 scope·선택 근거를 기록하고 `task-start`에 연결한다. 같은 scope의 branch/필요 보드/기존 canonical 계획 또는 context/구현·검증·repair·stage는 다시 승인받지 않는다. 필요한 새 계획은 BMAD 하나만 만들고 HF는 참조/evidence를 연결한다. read-only/planning-only 등록 요청 자체를 implementation/publication 권한으로 확대하지 않는다. HIGH는 다음 위험 행동 직전 및 재개에서 한정 승인 조건을 확인한다.
 
 ## Verification
 
@@ -132,7 +133,8 @@ description: |
 - Run `gh issue create` without task requester approval.
 - Create a new milestone or label.
 - Arbitrarily use a closed milestone.
-- Continue to `task-start` after Issue creation without approval.
+- LOW 작업에 Issue/보드/계획을 강제하거나 승인된 등록 뒤 같은 scope의 start를 반복 승인 대기로 막는다.
+- 등록 승인을 HIGH 위험 행동·Merge/Release·formal posting·Issue close·tag·미위임 삭제/cleanup 권한으로 확대한다.
 - Create branches, update the daily task board, or write the task plan inside this Skill.
 
 ## Invocation
