@@ -277,6 +277,44 @@ function safety(snapshot: Snapshot, skill: Skill, route: Route, review: Review):
       `${skill}/${file}: no unconditional canonical mutation`
     ).toBe(false);
   }
+  if (skill === 'bmad-build') {
+    for (const file of ['step-02-plan.md', 'step-04-review.md', 'step-oneshot.md']) {
+      const text = files[file];
+      if (!text) continue;
+      expect(
+        /source_plan\s*:[^\n]*\{plan_file\}/.test(text),
+        `${file}: no rendered raw plan serialization`
+      ).toBe(false);
+      const hasDeferredBranch =
+        file === 'step-02-plan.md' ? route !== 'oneshot' : review !== 'none';
+      if (!hasDeferredBranch) continue;
+      assertText(
+        text,
+        /resolve the real paths of the canonical plan and repository root/i,
+        `${file}: rendered containment checks`
+      );
+      assertText(
+        text,
+        /normalize an absolute in-repository plan path to a privacy-safe repository-relative reference/i,
+        `${file}: rendered safe canonical reference`
+      );
+      assertText(
+        text,
+        /non-persisted current context only[^\n]*do not write/i,
+        `${file}: rendered unsafe-reference persistence blocked`
+      );
+      assertText(
+        text,
+        /Never persist raw paths, private identifiers or hashes of them/i,
+        `${file}: rendered privacy boundary`
+      );
+      assertText(
+        text,
+        /Do not copy or relocate the canonical plan/i,
+        `${file}: rendered no duplicate plan`
+      );
+    }
+  }
   const present = files['step-05-present.md'];
   if (present) {
     const built =

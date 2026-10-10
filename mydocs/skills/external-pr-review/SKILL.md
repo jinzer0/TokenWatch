@@ -42,7 +42,7 @@ description: |
      - Code/documentation review findings
      - Verification plan
      - Recommendation: merge / request changes / close
-     - Approval request to task requester
+     - 실제 HIGH/핵심 intent·scope 변경 또는 외부 행동의 한정 승인 조건·evidence; 같은 scope의 안전한 검토/검증 계획 재승인 요청은 제외
 3. 같은 scope의 안전한 local review 방향/context·evidence를 기록하고 자율 진행한다. 실질 요구 충돌/scope 이탈·HIGH 위험 결정만 한정 승인 항목으로 분리한다. 분석·계획 요청을 source 변경/외부 게시 위임으로 확대하지 않는다.
 4. If needed, write a modification/verification plan: `mydocs/pr/pr_{N}_review_impl.md`.
    - Use central template `mydocs/_templates/external_pr_review_impl.md`.

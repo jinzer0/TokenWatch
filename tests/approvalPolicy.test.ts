@@ -50,7 +50,10 @@ const publicationFiles = [
 const consumerGuides = [
   'mydocs/manual/external_pr_review_guide.md',
   'mydocs/plans/README.md',
-  'mydocs/working/README.md'
+  'mydocs/working/README.md',
+  'mydocs/pr/README.md',
+  'mydocs/_templates/external_pr_review.md',
+  'mydocs/_templates/external_pr_review_impl.md'
 ] as const;
 const deliveryPaths = Object.entries(bmadFiles).flatMap(([skill, files]) =>
   files.map((file) => `mydocs/skills/${skill}/${file}`)
@@ -631,6 +634,73 @@ describe('risk-based approval delivery source contracts (not native enforcement)
       /Review Triage Log` section of `\{plan_file\}`/,
       'no forced triage section in canonical document'
     );
+  });
+
+  it('P1 deferred records require private-safe canonical references before persistence', () => {
+    for (const file of ['step-02-plan.md', 'step-04-review.md', 'step-oneshot.md']) {
+      const text = read(`mydocs/skills/bmad-build/${file}`);
+      lacks(
+        text,
+        /source_plan\s*:[^\n]*\{plan_file\}/,
+        `${file}: never serialize the raw plan path`
+      );
+      has(
+        text,
+        /resolve the real paths of the canonical plan and repository root/i,
+        `${file}: symlink-aware containment`
+      );
+      has(
+        text,
+        /normalize an absolute in-repository plan path to a privacy-safe repository-relative reference/i,
+        `${file}: safe absolute-to-relative conversion`
+      );
+      has(text, /outside the repository|outside-repository/i, `${file}: outside-root case`);
+      has(
+        text,
+        /non-persisted current context only[^\n]*do not write/i,
+        `${file}: unsafe references cannot persist`
+      );
+      has(
+        text,
+        /Never persist raw paths, private identifiers or hashes of them/i,
+        `${file}: no obscured private reference`
+      );
+      has(
+        text,
+        /Do not copy or relocate the canonical plan/i,
+        `${file}: privacy does not create a second plan`
+      );
+    }
+  });
+
+  it('P2 external review consumers keep safe verification autonomous and risky actions gated', () => {
+    for (const path of [
+      'mydocs/_templates/external_pr_review.md',
+      'mydocs/_templates/external_pr_review_impl.md',
+      'mydocs/pr/README.md'
+    ]) {
+      const text = read(path);
+      lacks(
+        text,
+        /after external PR review document approval|If you approve the verification\/auxiliary work scope|If you agree with the review direction[^\n]*proceed to verification|Approval request to task requester/i,
+        `${path}: no renewed verification approval`
+      );
+      has(
+        text,
+        /같은 scope[^\n]*안전한[^\n]*재승인[^\n]*자율/,
+        `${path}: safe same-scope continuation`
+      );
+      has(
+        text,
+        /untrusted[^\n]*native[^\n]*별도 위임/,
+        `${path}: untrusted execution still bounded`
+      );
+      has(
+        text,
+        /Merge\/Release[^\n]*별도 권한/,
+        `${path}: merge/publication authority is separate`
+      );
+    }
   });
 
   it('AC03/05 linked guides do not restore mandatory Issues, duplicate plans or stage approvals', () => {

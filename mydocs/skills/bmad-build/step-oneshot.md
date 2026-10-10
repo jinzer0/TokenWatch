@@ -98,15 +98,22 @@ For each group:
 
 - **patch** — This change caused or exposed the problem. The smallest fix is simple, adds no new public API, and does not guard code paths you did not show are reachable. Fix it now.
 - **repair/replan** — Same-scope complex fixes proceed autonomously. Amend only agent-owned technical planning, preserve human intent/baseline/append logs and KEEP evidence, repair only task-owned changes, then reverify and refresh the bounded diff/review. Any delegated rollback is only identified task-owned hunks against their pre-edit baseline; inseparable overlap blocks it. Ask only for genuine changed intent/scope/HIGH authority, not complexity.
-- **defer** — Old bugs not caused by this change, ideas outside delegated intent, or groups where every member is `maybe-false` and would be `medium` or `high` if true (record that severity marked unverified and what would prove it; if it would only be `low`, reject it). Context/spec changes outside explicit delegated intent require their own scope/authority; an explicitly delegated correction is assessed by actual risk, not deferred solely by filename. Required HIGH/native authority still applies. Add one entry to `{{ config.output_folder }}/{active_initiative}/deferred-work.md`:
+- **defer** — Old bugs not caused by this change, ideas outside delegated intent, or groups where every member is `maybe-false` and would be `medium` or `high` if true (record that severity marked unverified and what would prove it; if it would only be `low`, reject it). Context/spec changes outside explicit delegated intent require their own scope/authority; an explicitly delegated correction is assessed by actual risk, not deferred solely by filename. Required HIGH/native authority still applies.
+
+  Before persistence, resolve the real paths of the canonical plan and repository root. Normalize an absolute in-repository plan path to a privacy-safe repository-relative reference for `source_plan`; never serialize `{plan_file}` verbatim. Reject traversal, symlink escapes and private path components. If the plan is outside the repository or no safe reference exists, keep the finding/evidence in non-persisted current context only; do not write a deferred record or leak the reference in a report. Never persist raw paths, private identifiers or hashes of them in any field. Do not copy or relocate the canonical plan to manufacture a reference; continue independent safe work.
+
+  Only after those checks, add one entry to `{{ config.output_folder }}/{active_initiative}/deferred-work.md`, with privacy-safe summary/evidence and YAML block scalars so punctuation remains data:
 
   ```markdown
-  - source_plan: `{plan_file}`
-    summary: <one sentence>
-    evidence: <why this is real; for maybe-false, what would prove it>
+  - source_plan: |-
+    <privacy-safe repository-relative canonical reference>
+    summary: |-
+    <one sentence>
+    evidence: |-
+    <why this is real; for maybe-false, what would prove it>
   ```
 
-  Do not edit old entries or check for duplicates.
+  Preserve old entries without checking for duplicates. Parse the appended record to confirm its fields retain the intended privacy-safe text before continuing.
   {% endif %}
 
 After any patch or technical replan, rerun required verification/acceptance and proportional review, refresh only the task-owned diff and append all failed/passed evidence. Unresolved failures or nonconvergence remain incomplete with no successful publication.

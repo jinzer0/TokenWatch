@@ -49,11 +49,18 @@ Only an existing BMAD-format plan with authorized task-owned metadata may use it
    - **Token count** (see SCOPE STANDARD). If the plan exceeds 1600 tokens, record a context-size warning and continue within clear scope. Offer these options without an approval wait; never split the requested goal unilaterally:
      - **Split** — carve off secondary goals. Propose the split — name each secondary goal. For each deferred goal, append one new entry to `{{ config.output_folder }}/{active_initiative}/deferred-work.md` using the format below. Do not modify existing entries or look for duplicates. Rewrite the current plan to cover only the main goal — do not surgically carve sections out; regenerate the plan for the narrowed scope.
      - **Keep full plan** — accept the risks.
+
+     Before persistence, resolve the real paths of the canonical plan and repository root. Normalize an absolute in-repository plan path to a privacy-safe repository-relative reference for `source_plan`; never serialize `{plan_file}` verbatim. Reject traversal, symlink escapes and private path components. If the plan is outside the repository or no safe reference exists, keep the finding/evidence in non-persisted current context only; do not write a deferred record or leak the reference in a report. Never persist raw paths, private identifiers or hashes of them in any field. Do not copy or relocate the canonical plan to manufacture a reference; continue independent safe work. Only persist privacy-safe fields, using YAML block scalars, and parse the appended record to verify its values. Preserve all prior entries.
+
      ```markdown
-     - source_plan: `{plan_file}`
-       summary: <one sentence naming the deferred goal>
-       evidence: <why this was split from the current plan>
+     - source_plan: |-
+       <privacy-safe repository-relative canonical reference>
+       summary: |-
+       <one sentence naming the deferred goal>
+       evidence: |-
+       <why this was split from the current plan>
      ```
+
    - **Open Questions.** Ask only repository-unresolvable core intent/scope decisions; block dependent work, continue independent safe work. Record actual human answers as intent decisions; do not treat technical choices or size as approval requirements.
 
 ### CHECKPOINT 1
