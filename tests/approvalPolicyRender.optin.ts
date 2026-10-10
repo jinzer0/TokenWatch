@@ -10,6 +10,7 @@ import {
   realpathSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -39,6 +40,7 @@ interface Manifest {
   inputs: {
     source_sha256: Record<string, string>;
     renderer_sha256: string;
+    config_utils_sha256: string;
     resolved_values: Record<string, unknown>;
   };
   outputs: Record<string, string>;
@@ -105,17 +107,17 @@ function createFixture(skill: Skill): Fixture {
     throw new Error('local-renderer prerequisite blocked: temporary fixture unavailable.');
   const root = realpathSync(mkdtempSync(join(ownedRoot, 'case-')));
   fixtures.add(root);
-  const scripts = join(root, '_bmad/scripts');
+  const scripts = join(root, 'tools/bmad');
   const skillDir = join(root, 'mydocs/skills', skill);
   mkdirSync(scripts, { recursive: true });
   mkdirSync(skillDir, { recursive: true });
-  // Copy only actual required renderer helpers and skill rendering inputs. Never
-  // copy root custom/user settings, wrappers, installer state or user generations.
-  for (const name of ['render_skill.py', 'config_utils.py']) {
-    copyFileSync(join(repository, '_bmad/scripts', name), join(scripts, name));
+  // Copy the tracked closure, never local installer/user state or generations.
+  for (const name of ['render_skill.py', 'config_utils.py', 'config.toml']) {
+    copyFileSync(join(repository, 'tools/bmad', name), join(scripts, name));
   }
   const sourceDir = join(repository, 'mydocs/skills', skill);
   copyFileSync(join(sourceDir, 'customize.toml'), join(skillDir, 'customize.toml'));
+  copyFileSync(join(sourceDir, 'SKILL.md'), join(skillDir, 'SKILL.md'));
   const sourceHashes: Record<string, string> = {};
   for (const name of markdownFiles(sourceDir)) {
     const destination = join(skillDir, name);
@@ -123,28 +125,19 @@ function createFixture(skill: Skill): Fixture {
     copyFileSync(join(sourceDir, name), destination);
     sourceHashes[name] = sha256(readBytes(destination));
   }
-  writeFileSync(
-    join(root, '_bmad/config.toml'),
-    'output_folder = "{project-root}/_bmad-output"\n[core]\nactive_initiative = ""\n'
-  );
   copyFileSync(join(repository, 'AGENTS.md'), join(root, 'AGENTS.md'));
   return { root, renderer: join(scripts, 'render_skill.py'), skillDir, sourceHashes };
 }
-// One existing-runtime recipe, not a fallback: run the unchanged renderer with
-// installed Python/Jinja. The wrapper's PEP723 --script/cache bootstrap path
-// is a separate unverified surface and is not exercised by this suite.
+// Execute the shipped entrypoint recipe with explicit installed Python/Jinja
+// prerequisites. No uv/bootstrap, installer config or network is needed.
 function existingPython(args: string[], cwd: string) {
-  const result = spawnSync(
-    'uv',
-    ['run', '--offline', '--no-python-downloads', '--no-project', '--', 'python3', ...args],
-    {
-      cwd,
-      encoding: 'utf8',
-      timeout: 90_000,
-      maxBuffer: 4 * 1024 * 1024,
-      env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1', UV_NO_PROGRESS: '1' }
-    }
-  );
+  const result = spawnSync('python3', args, {
+    cwd,
+    encoding: 'utf8',
+    timeout: 90_000,
+    maxBuffer: 4 * 1024 * 1024,
+    env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' }
+  });
   if (result.stderr.trim()) {
     console.warn(
       'Existing local Python renderer runtime emitted stderr diagnostics; raw details withheld to preserve host-path/stack privacy.'
@@ -155,7 +148,7 @@ function existingPython(args: string[], cwd: string) {
 function invoke(renderer: string, args: string[], cwd: string) {
   return existingPython([renderer, ...args], cwd);
 }
-function render(f: Fixture, assignments: string[] = []): Snapshot {
+function render(f: Fixture, assignments: string[] = [], overrides?: string): Snapshot {
   const result = invoke(
     f.renderer,
     [
@@ -163,6 +156,7 @@ function render(f: Fixture, assignments: string[] = []): Snapshot {
       f.root,
       '--skill',
       f.skillDir,
+      ...(overrides ? ['--overrides', overrides] : []),
       ...assignments.flatMap((assignment) => ['--set', assignment])
     ],
     f.root
@@ -203,10 +197,12 @@ function render(f: Fixture, assignments: string[] = []): Snapshot {
   expect(manifest.inputs.renderer_sha256, 'actual local renderer hash').toBe(
     sha256(readBytes(f.renderer))
   );
-  expect(
-    manifest.inputs.renderer_sha256,
-    'copied renderer matches current installed renderer'
-  ).toBe(sha256(readBytes(join(repository, '_bmad/scripts/render_skill.py'))));
+  expect(manifest.inputs.config_utils_sha256, 'actual helper identity').toBe(
+    sha256(readBytes(join(dirname(f.renderer), 'config_utils.py')))
+  );
+  expect(manifest.inputs.renderer_sha256, 'copied renderer matches current tracked runtime').toBe(
+    sha256(readBytes(join(repository, 'tools/bmad/render_skill.py')))
+  );
   const originals = join(repository, 'mydocs/skills', manifest.skill);
   for (const [name, hash] of Object.entries(f.sourceHashes)) {
     expect(hash, `current installed source: ${name}`).toBe(
@@ -290,7 +286,7 @@ function safety(snapshot: Snapshot, skill: Skill, route: Route, review: Review):
       if (!hasDeferredBranch) continue;
       assertText(
         text,
-        /resolve the real paths of the canonical plan and repository root/i,
+        /resolve the real paths of the canonical plan(?:,| and) repository root/i,
         `${file}: rendered containment checks`
       );
       assertText(
@@ -561,7 +557,7 @@ function safety(snapshot: Snapshot, skill: Skill, route: Route, review: Review):
         ).toBe(false);
         assertText(
           text.split('## NEXT\n')[1] ?? '',
-          /No successful built\/publication[^\n]*incomplete required review/,
+          /incomplete required review keeps state incomplete and blocks dependent terminal\/publication/,
           'rendered full review blocks missing required review'
         );
       } else {
@@ -681,9 +677,9 @@ function safety(snapshot: Snapshot, skill: Skill, route: Route, review: Review):
 beforeAll(() => {
   try {
     for (const path of [
-      '_bmad/scripts/render_skill.py',
-      '_bmad/scripts/config_utils.py',
-      '_bmad/config.toml',
+      'tools/bmad/render_skill.py',
+      'tools/bmad/config_utils.py',
+      'tools/bmad/config.toml',
       ...skills.flatMap((skill) => [
         `mydocs/skills/${skill}/customize.toml`,
         `mydocs/skills/${skill}/workflow.md`
@@ -692,8 +688,6 @@ beforeAll(() => {
       if (!statSync(join(repository, path)).isFile())
         throw new Error('missing required local file');
     }
-    const version = spawnSync('uv', ['--version'], { encoding: 'utf8', timeout: 10_000 });
-    if (version.error || version.status !== 0) throw new Error('uv unavailable');
     ownedRoot = realpathSync(mkdtempSync(join(tmpdir(), 'approval-render-')));
     const f = fixture('bmad-build');
     // Explicitly validate the existing runtime, without PEP723 dependency
@@ -723,7 +717,7 @@ beforeAll(() => {
     cleanup(f.root);
   } catch {
     throw new Error(
-      'local-renderer prerequisite blocked: required local renderer/helpers/config/customize sources, uv, existing python3 >=3.11 and installed Jinja2 >=3.1 must already be available. No installation or successful skip was performed. Wrapper --script/cache bootstrap is not verified by this suite.'
+      'renderer prerequisite blocked: tracked runtime closure, python3 >=3.11 and installed Jinja2 >=3.1 must be available. No installation or successful skip was performed.'
     );
   }
 }, 120_000);
@@ -746,6 +740,323 @@ afterAll(() => {
 
 describe('explicit actual local renderer contracts (not workflow execution)', () => {
   for (const skill of skills) {
+    it(`${skill} executes the discovered entry command with no installer directory`, () => {
+      const f = fixture(skill);
+      expect(existsSync(join(f.root, '_bmad')), 'checkout has no installer state').toBe(false);
+      const entry = readBytes(join(f.skillDir, 'SKILL.md')).toString('utf8');
+      const command = entry.match(/```bash\n([^\n]+)\n```/)?.[1] ?? '';
+      const args = (command.match(/"[^"]*"|[^\s"]+/g) ?? []).map((token) =>
+        token
+          .replace(/^"|"$/g, '')
+          .replaceAll('{project-root}', f.root)
+          .replaceAll('{skill-root}', f.skillDir)
+      );
+      expect(args[0], 'shipped command runtime').toBe('python3');
+      expect(args.slice(1), 'shipped command binds actual closure and canonical skill').toEqual([
+        f.renderer,
+        '--project-root',
+        f.root,
+        '--skill',
+        f.skillDir
+      ]);
+      const result = existingPython(args.slice(1), f.root);
+      expect(!result.error && result.status === 0, 'actual entry command succeeds').toBe(true);
+      const snapshot = render(f);
+      expect(
+        result.stdout.trim() === `read and follow ${snapshot.entry}`,
+        'entry command uses actual immutable workflow'
+      ).toBe(true);
+      safety(snapshot, skill, 'auto', 'quick');
+      expect(
+        existsSync(join(f.root, '_bmad/config.toml')),
+        'no installer configuration synthesized'
+      ).toBe(false);
+    });
+
+    it(`${skill} honors read-only user configuration precedence`, () => {
+      const f = fixture(skill);
+      const custom = join(f.root, '_bmad/custom');
+      mkdirSync(custom, { recursive: true });
+      const central = '[core]\noutput_folder = "{project-root}/custom-output"\n';
+      const user = '[core]\nactive_initiative = "synthetic-initiative"\n';
+      writeFileSync(join(f.root, '_bmad/config.toml'), central);
+      writeFileSync(join(custom, 'config.user.toml'), user);
+      const snapshot = render(f);
+      expect(
+        snapshot.manifest.inputs.resolved_values['config.core.output_folder'] ===
+          join(f.root, 'custom-output'),
+        'project override beats shipped default'
+      ).toBe(true);
+      expect(snapshot.manifest.inputs.resolved_values['config.core.active_initiative']).toBe(
+        'synthetic-initiative'
+      );
+      expect(
+        readBytes(join(f.root, '_bmad/config.toml')).toString('utf8') === central,
+        'project config unchanged'
+      ).toBe(true);
+      expect(
+        readBytes(join(custom, 'config.user.toml')).toString('utf8') === user,
+        'user config unchanged'
+      ).toBe(true);
+    });
+
+    it(`${skill} changing the helper invalidates generation identity`, () => {
+      const f = fixture(skill);
+      const before = render(f);
+      const helper = join(dirname(f.renderer), 'config_utils.py');
+      writeFileSync(
+        helper,
+        `${readBytes(helper).toString('utf8')}\n# synthetic helper identity change\n`
+      );
+      const after = render(f);
+      expect(after.entry !== before.entry, 'helper changes cannot reuse a generation').toBe(true);
+    });
+
+    it(`${skill} permits a single-ID cross-layer override outside shipped source directories`, () => {
+      const f = fixture(skill);
+      const outside = fixture(skill);
+      const defaults = join(f.skillDir, 'customize.toml');
+      const before = sha256(readBytes(defaults));
+      const overrides = join(outside.root, 'synthetic-override.toml');
+      const candidate =
+        '[[workflow.quick_lenses]]\nid = "quick"\nname = "Synthetic Quick"\ninstruction = "Synthetic cross-layer review witness."\n';
+      writeFileSync(overrides, candidate);
+      const snapshot = render(f, [], overrides);
+      expect(
+        snapshot.manifest.inputs.resolved_values['customization.workflow.quick_lenses']
+      ).toEqual([
+        {
+          id: 'quick',
+          name: 'Synthetic Quick',
+          instruction: 'Synthetic cross-layer review witness.'
+        }
+      ]);
+      assertText(
+        snapshot.outputs['step-04-review.md'],
+        /Synthetic cross-layer review witness\./,
+        'legitimate lens override renders'
+      );
+      expect(sha256(readBytes(defaults)), 'shipped declarations remain unchanged').toBe(before);
+      expect(
+        readBytes(overrides).toString('utf8') === candidate,
+        'external invocation input remains unchanged'
+      ).toBe(true);
+    });
+
+    it(`${skill} ignores valid alternate helper bytecode and hashes executed source bytes`, () => {
+      const f = fixture(skill);
+      const helper = join(dirname(f.renderer), 'config_utils.py');
+      const helperHash = sha256(readBytes(helper));
+      const sentinel = join(f.root, 'synthetic-cache-executed');
+      const alternate = join(f.root, 'synthetic-cache-source.py');
+      writeFileSync(
+        alternate,
+        `${readBytes(helper).toString('utf8')}\nPath(${JSON.stringify(sentinel)}).write_text("synthetic cache executed")\n`
+      );
+      const prepared = existingPython(
+        [
+          '-c',
+          [
+            'import importlib.util, pathlib, py_compile, sys',
+            'cache = importlib.util.cache_from_source(sys.argv[1])',
+            'pathlib.Path(cache).parent.mkdir(parents=True, exist_ok=True)',
+            'py_compile.compile(sys.argv[2], cfile=cache, dfile=sys.argv[1], doraise=True, invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH)',
+            'print(cache)'
+          ].join('\n'),
+          helper,
+          alternate
+        ],
+        f.root
+      );
+      expect(
+        !prepared.error && prepared.status === 0 && prepared.stderr.length === 0,
+        'valid synthetic helper cache prepared'
+      ).toBe(true);
+      const cache = prepared.stdout.trim();
+      expect(
+        isAbsolute(cache) && owned(cache) && relative(f.root, cache).split(/[\\/]/)[0] === 'tools',
+        'cache remains in this synthetic fixture'
+      ).toBe(true);
+      const cacheBytes = readBytes(cache);
+      expect(cacheBytes.readUInt32LE(4), 'cache uses valid unchecked-hash invalidation').toBe(1);
+      const cacheHash = sha256(cacheBytes);
+      const snapshot = render(f);
+      expect(
+        snapshot.manifest.inputs.config_utils_sha256,
+        'manifest binds executed canonical helper bytes'
+      ).toBe(helperHash);
+      expect(existsSync(sentinel), 'alternate cached helper never executes').toBe(false);
+      expect(sha256(readBytes(cache)), 'cached input remains unchanged').toBe(cacheHash);
+      expect(sha256(readBytes(helper)), 'canonical helper source remains unchanged').toBe(
+        helperHash
+      );
+    });
+
+    for (const failure of [
+      'missing-defaults',
+      'malformed-user',
+      'missing-helper',
+      'missing-prompt',
+      'missing-jinja',
+      'foreign-skill',
+      'escaped-source',
+      'escaped-output',
+      'unsafe-template',
+      'empty-entry',
+      'omitted-link',
+      'duplicate-override',
+      'corrupt-generation',
+      'foreign-helper',
+      'escaped-defaults',
+      'escaped-customize',
+      'duplicate-quick-invocation',
+      'duplicate-quick-persistent',
+      'duplicate-quick-defaults',
+      'duplicate-mixed-quick-invocation',
+      'duplicate-mixed-quick-persistent'
+    ] as const) {
+      it(`${skill} fails closed for ${failure} without private error dumps`, () => {
+        const f = fixture(skill);
+        let assignments: string[] = [];
+        let skillDir = f.skillDir;
+        let overrides: string | undefined;
+        let sentinel: string | undefined;
+        const unchanged = new Map<string, string>();
+        if (failure === 'foreign-helper') {
+          const outside = fixture(skill);
+          sentinel = join(outside.root, 'synthetic-helper-executed');
+          const foreign = join(outside.root, 'synthetic-helper.py');
+          writeFileSync(
+            foreign,
+            `from pathlib import Path\nPath(${JSON.stringify(sentinel)}).write_text("synthetic body executed")\n`
+          );
+          const helper = join(dirname(f.renderer), 'config_utils.py');
+          rmSync(helper);
+          symlinkSync(foreign, helper);
+        }
+        if (failure === 'escaped-defaults' || failure === 'escaped-customize') {
+          const outside = fixture(skill);
+          const shipped =
+            failure === 'escaped-defaults'
+              ? join(dirname(f.renderer), 'config.toml')
+              : join(f.skillDir, 'customize.toml');
+          const foreign =
+            failure === 'escaped-defaults'
+              ? join(dirname(outside.renderer), 'config.toml')
+              : join(outside.skillDir, 'customize.toml');
+          unchanged.set(foreign, sha256(readBytes(foreign)));
+          rmSync(shipped);
+          symlinkSync(foreign, shipped);
+        }
+        if (
+          failure === 'duplicate-quick-invocation' ||
+          failure === 'duplicate-quick-persistent' ||
+          failure === 'duplicate-quick-defaults' ||
+          failure === 'duplicate-mixed-quick-invocation' ||
+          failure === 'duplicate-mixed-quick-persistent'
+        ) {
+          const defaults = join(f.skillDir, 'customize.toml');
+          const duplicate =
+            '[[workflow.quick_lenses]]\nid = "quick"\nname = "Synthetic Quick"\ninstruction = "Synthetic duplicate witness."\n';
+          let candidate: string;
+          if (failure === 'duplicate-quick-defaults') {
+            candidate = defaults;
+            writeFileSync(candidate, `${readBytes(defaults).toString('utf8')}\n${duplicate}`);
+          } else {
+            unchanged.set(defaults, sha256(readBytes(defaults)));
+            if (
+              failure === 'duplicate-quick-persistent' ||
+              failure === 'duplicate-mixed-quick-persistent'
+            ) {
+              const custom = join(f.root, '_bmad/custom');
+              mkdirSync(custom, { recursive: true });
+              candidate = join(custom, `${skill}.user.toml`);
+            } else {
+              const outside = fixture(skill);
+              candidate = join(outside.root, 'synthetic-duplicate.toml');
+              overrides = candidate;
+            }
+            const mixed =
+              failure === 'duplicate-mixed-quick-invocation' ||
+              failure === 'duplicate-mixed-quick-persistent';
+            writeFileSync(
+              candidate,
+              mixed
+                ? `${duplicate}code = "synthetic-first"\n${duplicate}code = "synthetic-second"\n`
+                : duplicate + duplicate
+            );
+          }
+          unchanged.set(candidate, sha256(readBytes(candidate)));
+        }
+        if (failure === 'foreign-skill') skillDir = fixture(skill).skillDir;
+        if (failure === 'escaped-output') {
+          const outside = fixture(skill);
+          mkdirSync(join(outside.root, '_bmad'));
+          symlinkSync(join(outside.root, '_bmad'), join(f.root, '_bmad'));
+        }
+        if (failure === 'unsafe-template')
+          writeFileSync(
+            join(f.skillDir, 'workflow.md'),
+            '{{ cycler.__init__.__globals__.os.getcwd() }}\n'
+          );
+        if (failure === 'escaped-source') {
+          const outside = fixture(skill);
+          rmSync(join(f.skillDir, 'workflow.md'));
+          symlinkSync(join(outside.skillDir, 'workflow.md'), join(f.skillDir, 'workflow.md'));
+        }
+        if (failure === 'missing-defaults') rmSync(join(dirname(f.renderer), 'config.toml'));
+        if (failure === 'missing-helper') rmSync(join(dirname(f.renderer), 'config_utils.py'));
+        if (failure === 'missing-prompt')
+          rmSync(join(f.skillDir, 'review-prompts/edge-case-hunter.md'));
+        if (failure === 'malformed-user') {
+          mkdirSync(join(f.root, '_bmad/custom'), { recursive: true });
+          writeFileSync(join(f.root, '_bmad/custom/config.user.toml'), '[broken');
+        }
+        if (failure === 'empty-entry') writeFileSync(join(f.skillDir, 'workflow.md'), '');
+        if (failure === 'omitted-link') {
+          writeFileSync(join(f.skillDir, 'workflow.md'), '{{ rendered("synthetic-empty.md") }}\n');
+          writeFileSync(join(f.skillDir, 'synthetic-empty.md'), '');
+        }
+        if (failure === 'duplicate-override')
+          assignments = ['workflow.route=full', 'workflow.route=oneshot'];
+        if (failure === 'corrupt-generation') {
+          const prior = render(f);
+          writeFileSync(prior.entry, 'synthetic corruption');
+        }
+        const args = [
+          f.renderer,
+          '--project-root',
+          f.root,
+          '--skill',
+          skillDir,
+          ...(overrides ? ['--overrides', overrides] : []),
+          ...assignments.flatMap((value) => ['--set', value])
+        ];
+        const result = existingPython(failure === 'missing-jinja' ? ['-S', ...args] : args, f.root);
+        expect(!result.error && result.status === 1, 'renderer failure is explicit').toBe(true);
+        expect(result.stdout === 'HALT: BMAD rendering failed.\n', 'fixed bounded diagnostic').toBe(
+          true
+        );
+        expect(
+          result.stderr.length === 0 &&
+            !result.stdout.includes(f.root) &&
+            !/Traceback|\[broken/.test(result.stdout),
+          'no paths, raw config or stack leaks'
+        ).toBe(true);
+        if (sentinel)
+          expect(existsSync(sentinel), 'foreign helper body never executes').toBe(false);
+        for (const [path, hash] of unchanged) {
+          expect(
+            sha256(readBytes(path)),
+            'rejection preserves candidate inputs and declarations'
+          ).toBe(hash);
+        }
+        if (failure !== 'corrupt-generation') {
+          expect(existsSync(join(f.root, '_bmad/render')), 'failure does not publish').toBe(false);
+        }
+      });
+    }
+
     it(`${skill} real defaults, current hashes, immutable generation reuse and LOW/full/resume witnesses`, () => {
       const f = fixture(skill);
       expect(existsSync(join(f.root, '_bmad-output')), 'no existing plan/output fixture').toBe(

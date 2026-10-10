@@ -181,6 +181,8 @@ This project uses the **Hyper-Waterfall** methodology. Read these rules carefull
 
 Fixed Hyper-Waterfall procedure points are separated into SKILL files. The source of truth is `mydocs/skills/`. Codex (`.agents/skills`) and Claude Code (`.claude/skills`) read the same content through symbolic links. Details: the "Agent Skills location policy" section in [`document_structure_guide.md`](mydocs/manual/document_structure_guide.md).
 
+명시 `bmad-build`/`bmad-build-auto` entrypoint와 필요한 runtime closure도 Git으로 배포한다. Python 3.11+·설치된 Jinja2 3.1+를 명시 prerequisite로 하며 `tools/bmad/`의 renderer/helper/default config와 두 skill의 customization·review prompt만 사용한다. installer/uv/bootstrap/bmod/lockfile은 채택하지 않는다. non-mutating 요청은 renderer 이전에 종료하고 `_bmad/render/` 생성물·기존 user config는 추적/공개/초기화하지 않는다. default CI는 source/closure 존재를 읽기 전용 검사하며 실제 entry command·render matrix·오류 경계는 별도 opt-in 검증한다.
+
 ### Work Rules
 
 - The task requester decides when work starts and ends. Agents do not propose ending work or impose time limits on their own.
@@ -213,7 +215,7 @@ SOFTWARE.
 
 ### BMAD Attribution and License
 
-다음 선택 source는 [bmad-code-org/BMAD-METHOD](https://github.com/bmad-code-org/BMAD-METHOD/tree/2fe54695d2619b666eb8a32a6cceeec209f66bf3/skills)에서 유래한다. 수정 전 설치본 14개 파일의 Git blob identity가 commit `2fe54695d2619b666eb8a32a6cceeec209f66bf3`의 대응 파일과 각각 일치함을 확인했다. 이는 이 파일들의 내용 provenance이지 전체 설치 버전/나머지 framework의 추적·동일성 보장은 아니다. 아래 notice는 **그 revision의 LICENSE**에서 확인했으며 현재 upstream main을 설치 revision으로 가정하지 않는다. 정책 변경은 TokenWatch 로컬 수정이다. 변경 source만 선택 추적하며 wrapper/renderer/config/TOML/lockfile/전체 installer는 포함하지 않는다.
+다음 선택 source는 [bmad-code-org/BMAD-METHOD](https://github.com/bmad-code-org/BMAD-METHOD/tree/2fe54695d2619b666eb8a32a6cceeec209f66bf3/skills)에서 유래한다. 기존 workflow/step/template 14개 수정 전 파일의 Git blob identity와 추가 채택한 renderer/helper 원본 2개의 identity가 commit `2fe54695d2619b666eb8a32a6cceeec209f66bf3`의 대응 파일과 각각 일치함을 확인했다. entrypoint/customization/review prompt는 아래 동일 upstream 경로의 선택 자산을 TokenWatch 정책에 맞춰 수정한 것이다. 이는 선택 파일의 provenance이지 전체 설치 버전/나머지 framework의 추적·동일성 보장은 아니다. 아래 notice는 **그 revision의 LICENSE**에서 확인했으며 현재 upstream main을 설치 revision으로 가정하지 않는다. 사용자 위임으로 source-only 범위에서 독립 실행에 필요한 최소 closure까지 확장했으며 `tools/bmad/config.toml`은 TokenWatch 기본 설정이다. 전체 installer·bmod·setup helper·lockfile·기존 user config는 포함하지 않는다.
 
 - `mydocs/skills/bmad-build/workflow.md`
 - `mydocs/skills/bmad-build/step-01-clarify-and-route.md`
@@ -229,6 +231,16 @@ SOFTWARE.
 - `mydocs/skills/bmad-build-auto/step-03-implement.md`
 - `mydocs/skills/bmad-build-auto/step-04-review.md`
 - `mydocs/skills/bmad-build-auto/plan-template.md`
+- `mydocs/skills/bmad-build/SKILL.md`
+- `mydocs/skills/bmad-build/customize.toml`
+- `mydocs/skills/bmad-build/review-prompts/edge-case-hunter.md`
+- `mydocs/skills/bmad-build/review-prompts/verification-gap.md`
+- `mydocs/skills/bmad-build-auto/SKILL.md`
+- `mydocs/skills/bmad-build-auto/customize.toml`
+- `mydocs/skills/bmad-build-auto/review-prompts/edge-case-hunter.md`
+- `mydocs/skills/bmad-build-auto/review-prompts/verification-gap.md`
+- `tools/bmad/render_skill.py` (upstream `skills/bmad/scripts/render_skill.py`)
+- `tools/bmad/config_utils.py` (upstream `skills/bmad/scripts/config_utils.py`)
 
 MIT License
 

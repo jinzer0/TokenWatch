@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { lstatSync, readFileSync, readlinkSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -58,13 +58,26 @@ const consumerGuides = [
 const deliveryPaths = Object.entries(bmadFiles).flatMap(([skill, files]) =>
   files.map((file) => `mydocs/skills/${skill}/${file}`)
 );
-// This exact map intentionally excludes wrappers, settings, TOML, locks and _bmad.
+const runtimePaths = [
+  'tools/bmad/render_skill.py',
+  'tools/bmad/config_utils.py',
+  'tools/bmad/config.toml',
+  ...Object.keys(bmadFiles).flatMap((skill) => [
+    `mydocs/skills/${skill}/SKILL.md`,
+    `mydocs/skills/${skill}/customize.toml`,
+    `mydocs/skills/${skill}/review-prompts/edge-case-hunter.md`,
+    `mydocs/skills/${skill}/review-prompts/verification-gap.md`
+  ])
+];
+// Static delivery checks include the explicitly adopted runtime closure;
+// default CI never executes Python or imports the separate renderer suite.
 const inputMap = [
   'AGENTS.md',
   ...hfFiles,
   ...publicationFiles,
   ...consumerGuides,
-  ...deliveryPaths
+  ...deliveryPaths,
+  ...runtimePaths
 ];
 function read(path: string): string {
   try {
@@ -201,6 +214,76 @@ SOFTWARE.`;
 const normalize = (text: string): string => text.replace(/\s+/g, ' ').trim();
 
 describe('risk-based approval delivery source contracts (not native enforcement)', () => {
+  it('P1 discovers both standalone skills without an installer or implicit bootstrap', () => {
+    for (const platform of ['.agents/skills', '.claude/skills']) {
+      expect(lstatSync(resolve(root, platform)).isSymbolicLink()).toBe(true);
+      expect(readlinkSync(resolve(root, platform))).toBe('../mydocs/skills');
+    }
+    for (const skill of Object.keys(bmadFiles)) {
+      const text = read(`mydocs/skills/${skill}/SKILL.md`);
+      has(text, new RegExp(`^name: ${skill}$`, 'm'), `${skill}: discoverable metadata`);
+      has(
+        text,
+        /python3 "\{project-root\}\/tools\/bmad\/render_skill\.py"/,
+        `${skill}: tracked entry command`
+      );
+      has(
+        text,
+        /read-only\/planning-only\/report-only[\s\S]*STOP/,
+        `${skill}: request mode before preparation writes`
+      );
+      expect(text.indexOf('## Request mode') < text.indexOf('## Delegated changes')).toBe(true);
+      lacks(
+        text,
+        /npx skills add|uv run|_bmad\/scripts\/render_skill|run.*setup/,
+        `${skill}: no installer runtime`
+      );
+      has(
+        text,
+        /raw Jinja source[^\n]*직접 실행 지침으로 소비하지 않는다/,
+        `${skill}: no source execution fallback`
+      );
+      const defaults = read(`mydocs/skills/${skill}/customize.toml`);
+      lacks(
+        defaults,
+        /finding floor|find at least N|sole source of truth|do not stop with an empty list/,
+        `${skill}: no authority override or fabricated quota`
+      );
+      has(
+        defaults,
+        /unformatted plan never needs new frontmatter/,
+        `${skill}: actual handoff canonical boundary`
+      );
+      const workflow = read(`mydocs/skills/${skill}/workflow.md`);
+      lacks(
+        workflow,
+        /resolve_config\.py|nearest folder containing `_bmad\/`|uv run/,
+        `${skill}: no implicit activation helper`
+      );
+      has(
+        workflow,
+        /config\.core\.active_initiative/,
+        `${skill}: tracked central config consumption`
+      );
+      const edge = read(`mydocs/skills/${skill}/review-prompts/edge-case-hunter.md`);
+      const gap = read(`mydocs/skills/${skill}/review-prompts/verification-gap.md`);
+      lacks(edge, /references\//, `${skill}: claims/deletion dependencies are embedded`);
+      lacks(
+        gap,
+        /triage trusts|does not re-verify|tests are useless on static source/i,
+        `${skill}: current evidence, not trusted labels`
+      );
+    }
+    const renderer = read('tools/bmad/render_skill.py');
+    lacks(
+      renderer,
+      /setup_check|report_owed_setup/,
+      'standalone renderer never bootstraps installer'
+    );
+    has(read('tools/bmad/config_utils.py'), /config\.toml/, 'tracked central defaults');
+    has(read('.gitignore'), /_bmad\/render\//, 'private generations cannot enter publication');
+  });
+
   it('AC01/12 reads the explicit delivery map without installer prerequisites', () => {
     expect(deliveryPaths).toHaveLength(14);
     for (const path of inputMap) {
@@ -517,7 +600,7 @@ describe('risk-based approval delivery source contracts (not native enforcement)
         );
         has(
           section(review, '## NEXT'),
-          /No successful built\/publication[^\n]*incomplete required review/,
+          /incomplete required review keeps state incomplete and blocks dependent terminal\/publication/,
           'full review cannot finalize missing required review'
         );
       }
@@ -646,7 +729,7 @@ describe('risk-based approval delivery source contracts (not native enforcement)
       );
       has(
         text,
-        /resolve the real paths of the canonical plan and repository root/i,
+        /resolve the real paths of the canonical plan(?:,| and) repository root/i,
         `${file}: symlink-aware containment`
       );
       has(
@@ -671,6 +754,107 @@ describe('risk-based approval delivery source contracts (not native enforcement)
         `${file}: privacy does not create a second plan`
       );
     }
+  });
+
+  it('P1 actual renderer prerequisites never rely on ambient installer state', () => {
+    const suite = read('tests/approvalPolicyRender.optin.ts');
+    const prerequisite = suite.slice(suite.indexOf('beforeAll('), suite.indexOf('afterAll('));
+    expect(prerequisite.length > 0).toBe(true);
+    lacks(
+      prerequisite,
+      /_bmad\/scripts|_bmad\/config\.toml|['"]uv['"]/,
+      'Git-only prerequisite closure'
+    );
+    for (const name of ['render_skill.py', 'config_utils.py', 'config.toml'])
+      has(
+        prerequisite,
+        new RegExp(`tools/bmad/${name.replace('.', '\\.')}`),
+        `tracked prerequisite: ${name}`
+      );
+  });
+
+  it('P1 direct planning and oneshot modes terminate before any mutable branch', () => {
+    for (const file of ['step-02-plan.md', 'step-oneshot.md']) {
+      const text = read(`mydocs/skills/bmad-build/${file}`);
+      const guard = section(text, '### First terminal request-mode guard');
+      for (const mode of ['read-only', 'planning-only', 'report-only'])
+        expect(guard.includes(mode)).toBe(true);
+      has(guard, /STOP/, `${file}: terminal mode`);
+      has(
+        guard,
+        /Do not persist context[^\n]*Finalize[^\n]*publish/,
+        `${file}: no mutable fallthrough`
+      );
+      expect(
+        text.indexOf('### First terminal request-mode guard') <
+          text.indexOf('### State/evidence location')
+      ).toBe(true);
+    }
+  });
+
+  it('P1 split is human-decided and complete deferred examples parse before persistence', () => {
+    const planning = read('mydocs/skills/bmad-build/step-02-plan.md');
+    has(planning, /Keep full plan \(default\)/, 'delegated full scope stays default');
+    has(
+      planning,
+      /Only after an actual recorded human intent\/scope decision[^\n]*may you append/,
+      'split writes require real human scope decision'
+    );
+    for (const file of ['step-02-plan.md', 'step-oneshot.md']) {
+      const text = read(`mydocs/skills/bmad-build/${file}`);
+      const examples = [...text.matchAll(/^[ \t]*```json\n([\s\S]*?)\n[ \t]*```$/gm)];
+      expect(examples.length > 0, `${file}: complete serialization example`).toBe(true);
+      for (const example of examples) {
+        const document = JSON.parse(example[1]) as { deferred: Record<string, unknown>[] };
+        expect(Object.keys(document)).toEqual(['deferred']);
+        expect(document.deferred).toHaveLength(1);
+        expect(Object.keys(document.deferred[0]).sort()).toEqual([
+          'evidence',
+          'id',
+          'source_plan',
+          'summary'
+        ]);
+        for (const value of Object.values(document.deferred[0]))
+          expect(typeof value).toBe('string');
+        expect(JSON.parse(JSON.stringify(document))).toEqual(document);
+      }
+      has(
+        text,
+        /Serialize and parse the WHOLE candidate before any atomic append\/persist/,
+        `${file}: validation before mutation`
+      );
+      has(
+        text,
+        /On any parse, validation or concurrent-change failure, do not mutate/,
+        `${file}: failed candidates preserve prior records`
+      );
+    }
+  });
+
+  it('P1 review completion needs actual successful lanes and marker-free canonical intent', () => {
+    for (const skill of Object.keys(bmadFiles)) {
+      const text = read(`mydocs/skills/${skill}/step-04-review.md`);
+      has(
+        text,
+        /successful execution\/completion of every applicable required native review lane/,
+        `${skill}: all required lanes actually succeed`
+      );
+      has(
+        text,
+        /error-only[^\n]*cancelled[^\n]*inconclusive/,
+        `${skill}: reported failure is not successful execution`
+      );
+      has(
+        text,
+        /otherwise[^\n]*preserved canonical[^\n]*existing context/i,
+        `${skill}: no canonical tag requirement`
+      );
+    }
+    has(
+      read('mydocs/skills/bmad-build/step-oneshot.md'),
+      /otherwise[^\n]*preserved human canonical[^\n]*existing intent context/i,
+      'oneshot marker-free intent'
+    );
   });
 
   it('P2 external review consumers keep safe verification autonomous and risky actions gated', () => {
@@ -815,9 +999,13 @@ describe('risk-based approval delivery source contracts (not native enforcement)
       agents.indexOf('### BMAD Attribution and License') >
         agents.indexOf('### Hyper-Waterfall Attribution and License')
     ).toBe(true);
-    for (const path of deliveryPaths)
+    for (const path of [
+      ...deliveryPaths,
+      ...runtimePaths.filter((path) => path !== 'tools/bmad/config.toml')
+    ])
       expect(bmad.includes(`\`${path}\``), `legal selected source: ${path}`).toBe(true);
-    expect((bmad.match(/^- `mydocs\/skills\//gm) ?? []).length).toBe(14);
+    expect((bmad.match(/^- `mydocs\/skills\//gm) ?? []).length).toBe(22);
+    expect((bmad.match(/^- `tools\/bmad\//gm) ?? []).length).toBe(2);
     expect(bmad.includes('2fe54695d2619b666eb8a32a6cceeec209f66bf3')).toBe(true);
     expect(bmad.includes('Copyright (c) 2025 BMad Code, LLC')).toBe(true);
     expect(

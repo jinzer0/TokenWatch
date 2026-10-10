@@ -24,13 +24,22 @@ For read-only, planning-only or report-only:
 
 Only an invocation that delegates changes may continue to Intent check below, subject to existing scope, ownership, required-plan and HIGH/native permission safeguards.
 
+## Optional ticket capability (before every ticket command)
+
+Ticket integration is optional and is not part of the tracked standalone runtime. Direct intent and canonical-plan work require neither tickets nor `uv` nor installer setup.
+
+- Before **each** `next` or `find` command, including resumed choices and prerequisite lookups, revalidate the request-mode guard, current scope/native permission and any action-specific HIGH authority. Check that the actual helper at `{project-root}/_bmad/method/scripts/tickets.py` and its local runtime/dependencies are available and can execute without installation, dependency synchronization, downloads or bootstrap. A path, plan, static instruction or prior success is not capability or native permission evidence. If this cannot be established safely, do not invoke the helper. Never install or adopt the ticket engine to resolve a request.
+- A genuinely explicit ticket request with unavailable capability or denied authority is **scoped blocked** for ticket-dependent work. Preserve the canonical plan and existing ticket state; continue independent safe analysis only. Do not reinterpret the ticket as ordinary intent, invent its resolution/prerequisites or create a substitute plan.
+- With no explicit ticket intent, unavailable capability skips only the ticket-tree branch; continue safe existing context/artifact inspection or ask for missing intent. Do not offer a ticket choice without actual resolution evidence.
+- On command failure, report only a privacy-safe reason/category and the affected limitation, never raw command output, errors, paths, records or stack traces. Explicit ticket failure blocks its dependent work; discovery failure continues to existing artifacts. Do not fabricate ticket/prerequisite evidence.
+
 ## Intent check (only after the request-mode guard)
 
 Before listing artifacts, resolve existing workflow state in this order. Skip the remaining checks as soon as a branch applies. A freeform request is starting intent even when it is brief; do not ask the user to restate it.
 
 1. Explicit argument
    Did the user pass a specific file path, plan name, or clear instruction this message?
-   - It names a ticket from the tree when it gives a ref such as `1.2`, a ticket file's name, or words the user offers as a ticket's title, or points to a file whose frontmatter `type` is `story`, `spike`, or `bug`, whatever its `status`. Resolve a named ticket's plan, entry, and prerequisites with `uv run {project-root}/_bmad/method/scripts/tickets.py --project-root {project-root} find <ref>`; for a ticket file, pass its folder before its file name. Non-zero exit → show its error and HALT. Otherwise follow **Ticket resolution** (below).
+   - It names a ticket from the tree when the user presents a ref such as `1.2`, a file name or title as a ticket, or points to an existing file whose frontmatter `type` is `story`, `spike`, or `bug`, whatever its `status`. A bare ref/title not presented as a ticket is ordinary intent. Only after **Optional ticket capability** permits this command, resolve the named ticket's plan, entry and prerequisites with the existing local `uv run {project-root}/_bmad/method/scripts/tickets.py --project-root {project-root} find <ref>` without provisioning; for a ticket file, pass its folder before its file name. Unavailable capability, denied authority or non-zero exit → scoped blocked as above, with no routing fallthrough. Otherwise follow **Ticket resolution** (below).
    - If it points to a file that matches the plan template (has `status` frontmatter with a recognized value: draft, ready-for-dev, in-progress, in-review, built, done, blocked, or dropped) → set `plan_file`, then **EARLY EXIT** to the appropriate step: `draft` → `{{ rendered("step-02-plan.md") }}`, {% if workflow.route == "oneshot" %}`ready-for-dev`/`in-progress` → `{{ rendered("step-oneshot.md") }}`{% elif workflow.route == "full" %}`ready-for-dev`/`in-progress` → `{{ rendered("step-03-implement.md") }}`, `in-review`/`built` → `{{ rendered("step-04-review.md") }}`{% else %}`ready-for-dev`/`in-progress` → `{{ rendered("step-03-implement.md") }}` (or `{{ rendered("step-oneshot.md") }}` when `route` is `oneshot`), `in-review`/`built` → `{{ rendered("step-04-review.md") }}`{% endif %}. For `done`, ingest as context and proceed to INSTRUCTIONS — do not resume. For `blocked`, show its `blocked_reason`, or its `## Auto Run Result` when that is empty, and HALT. For `dropped`, say the ticket was dropped and HALT.
    - Anything else (intent files, external docs, planning documents, descriptions) → ingest it and proceed to INSTRUCTIONS. When it is the existing canonical/unformatted plan, set `plan_file` to that same path and reuse it in place with state/evidence in existing context; do not infer status, duplicate it or force template conversion.
 
@@ -39,13 +48,14 @@ Before listing artifacts, resolve existing workflow state in this order. Skip th
    Use the same routing as above.
 
 3. The ticket tree
-   With no argument and no intent from the conversation, run `uv run {project-root}/_bmad/method/scripts/tickets.py --project-root {project-root} next`.
-   - Non-zero exit (no active initiative, a store refusal, a malformed tree) → say in one line that the ticket tree is unavailable and why, then go to 4.
+   With no argument and no intent from the conversation, check **Optional ticket capability**. If unavailable or unauthorized, skip this branch and go to 4 without running a helper. Only when permitted, run the existing local `uv run {project-root}/_bmad/method/scripts/tickets.py --project-root {project-root} next` without provisioning.
+   - Non-zero exit (no active initiative, a store refusal, a malformed tree) → report a privacy-safe tree-unavailable reason/limitation, then go to 4.
    - A row in any group whose `status` is `draft`, `ready-for-dev`, `in-progress`, or `in-review` has a started plan when the file at `find <ref>`'s `plan` exists. When any row has one, or `{{ config.output_folder }}/{active_initiative}/` holds a `plan-*.md` with one of those statuses, go to 4.
    - No `ready_to_start` row → say in one line that nothing in the tree is ready, naming what is ready to refine, in progress, or blocked, then go to 4.
    - Otherwise run `find <ref>` with the first `ready_to_start` row's `ref`, tell the user in one line which entry you are building, and follow **Ticket resolution**.
 
 4. Otherwise — scan artifacts and ask
+   - Inspect only existing permitted context/artifact directories. An absent output/initiative directory is empty context, not a failure; do not create directories or placeholder plans to scan. Reapply the request-mode/scope/native guard before every selected route and **Optional ticket capability** before every `find`, including **Next entry**. If no existing context resolves intent, ask for the missing intent and stop dependent work.
    - Active plans (`draft`, `ready-for-dev`, `in-progress`, `in-review`) among `{{ config.output_folder }}/{active_initiative}/plan-*.md`, or started plans in the tree from branch 3? → List them all and HALT. Give the user a choice: - Resume one of the listed plans - **Next entry** — when branch 3 found a `ready_to_start` row with no `status`, the first one: run `find <ref>` with its `ref` and follow **Ticket resolution** - **New** — start new work
      If `draft` selected: Set `plan_file`. **EARLY EXIT** → `{{ rendered("step-02-plan.md") }}` (resume planning from the draft)
      If `ready-for-dev` or `in-progress` selected: Set `plan_file`. **EARLY EXIT** → {% if workflow.route == "oneshot" %}`{{ rendered("step-oneshot.md") }}`{% elif workflow.route == "full" %}`{{ rendered("step-03-implement.md") }}`{% else %}`{{ rendered("step-03-implement.md") }}` (or `{{ rendered("step-oneshot.md") }}` when `route` is `oneshot`){% endif +%}
@@ -60,6 +70,7 @@ Before listing artifacts, resolve existing workflow state in this order. Skip th
 This runs on the output of `tickets.py find` for one ticket. Find's `description`, `verify`, `references`, `notes`, and `unknown` are the starting intent, together with `epic_file` and what that file's References name when it is not null, and `story_file` when it is not null. Never write to a ticket file, and never run `pull` or `mark`.
 
 - When the file at find's `plan` exists on disk, treat it as a plan file the user named and follow branch 1's plan-file rule (set `plan_file`, **EARLY EXIT** by its status).
+- If that plan is genuinely required for explicit full/resume or existing state, but missing, block dependent execution without recreation; preserve ticket state and continue independent safe analysis.
 - Otherwise set `plan_file` to find's `plan`; the plan's frontmatter carries `ticket` set to find's `id`, or to the stem of find's `story_file` when `id` is null, never its `ref`. Proceed to INSTRUCTIONS, skipping step 5.
 
 ## INSTRUCTIONS
@@ -75,7 +86,7 @@ This runs on the output of `tickets.py find` for one ticket. Find's `description
    - **A ticket from the tree** — when **Ticket resolution** set `plan_file`: the entry, its epic file and what that file's References name, and the story file when there is one are already the intent. For continuity, read the plans beside `plan_file` whose `ticket` is one of find's `after` ids that is a plain number (an entry of the same epic; a ref such as `1.5` is another epic's). Extract each one's **Code Map**, **Design Notes**, **Plan Change Log**, and task list as continuity context for step-02 planning.
    - **Anything else:**
      - No `{active_initiative}`: use existing loose context unless the request genuinely needs an initiative decision. Do not require dummy tracking artifacts.
-     - List `{{ config.output_folder }}/{active_initiative}/`, then `{{ config.output_folder }}/`.
+     - List `{{ config.output_folder }}/{active_initiative}/` only when an active initiative is known and that directory exists, then `{{ config.output_folder }}/` only when it exists. Absent directories are empty existing context; never create directories or placeholder plans merely to scan.
      - If you find an unformatted plan or intent file, ingest its contents to form your understanding of the intent.
      - Planning documents sit in folders by type, main file named after the folder. Typical ones:
        - **PRD** (`prd-*/prd-*.md`) — product requirements and success criteria

@@ -13,12 +13,16 @@ You reach this step from step 2, or from step 1 when resuming a plan whose `rout
 
 - Apply root/nearest-child `AGENTS.md`, native permissions and current request scope. Seed implementation/review/repair handoffs with these rules and task-owned file/hunk boundaries; customized plan-sole-SOT prose is intent only, not authority.
 - Before every next risky action, including resume/repair/followup/present, revalidate scoped HIGH requester authority, targets/actions/impact/recovery_conditions/result/evidence. Reuse matching approval only; missing/denied/changed conditions block that action, not independent safe work. Prior done/status/reset is not new authority.
-- Read-only/planning-only/report-only requests allow safe analysis/context only, not implementation/publication. Verification and acceptance remain mandatory even with route/review `none`.
+- Read-only/planning-only/report-only requests use only existing non-persisted context for the requested analysis, proposal or report, then STOP before routing, writes or handoffs. No review, Finalize, publication or completion-hook fallthrough. Explicit change delegation continues with normal safeguards. Verification and acceptance remain mandatory for delegated changes even with route/review `none`.
 - Do not edit anything inside `<frozen-after-approval>` in `{plan_file}`.
 - Review subagents must use the same model level as this session.
 - Native scheduling and tool permissions prevail: launch independent reviewers with supported tools, then await all results before triage or dependent work. GJC tasks detach by design; do not demand unsupported blocking launches or fabricate completion.
 
 ## INSTRUCTIONS
+
+### First terminal request-mode guard
+
+Before routing, preconditions, baseline/status writes, implementation or temporary diff creation, check the current request mode. For read-only/planning-only/report-only requests, use only existing non-persisted context to provide the requested analysis, proposal or report, then STOP this workflow. Do not persist context, create/modify artifacts, launch execution/review, enter Finalize or publish, or follow On Complete. A request explicitly delegating changes continues below under all RULES; a route or prior status cannot supply that delegation. Reapply this terminal guard if the request mode changes before any later action/handoff.
 
 ### Preconditions
 
@@ -59,7 +63,7 @@ Record `review: '{{ workflow.review }}'` and `review_source: 'pinned'` in that s
 
 Use the separate ownership/pre-edit evidence to write only task-owned file/hunk changes and task-owned new files to a unique system temp `{diff_file}`. Never include all revision differences or unrelated dirty work; NO_VCS still requires ownership evidence. Set `{claims_file}` = `{plan_file}` with current-task claims only; unrelated/historical claims are context, not authority/completion. Seed every lens prompt with RULES safety and ownership boundaries.
 
-Runtime placeholders: `{diff_file}`, `{claims_file}`, and `{plan_file}` are paths, substituted absolute so a lens can read them; a launch prompt never carries diff text. `{verbatim_intent}` is the `## Intent` section of `{plan_file}` (inside `<frozen-after-approval>`), substituted inline as text. Before launching a lens, expand its skill-root placeholder to this skill's absolute installed directory; never leave that placeholder unresolved in a child prompt.
+Runtime placeholders: `{diff_file}`, `{claims_file}`, and `{plan_file}` are paths, substituted absolute so a lens can read them; a launch prompt never carries diff text. Resolve `{verbatim_intent}` from the existing formatted intent block when present (the `## Intent` section within an existing `<frozen-after-approval>` block); otherwise use the verbatim preserved human canonical text/resolved existing intent context, substituted inline as text only within permitted review boundaries. Never invent intent, insert tags/sections, copy or convert the canonical plan to satisfy a placeholder. A genuinely missing required plan or unresolved material intent still blocks dependent work; absent formatting alone does not. Before launching a lens, expand its skill-root placeholder to this skill's absolute installed directory; never leave that placeholder unresolved in a child prompt.
 
 Say which review lenses you are skipping, then start every active lens before reading any results. Run them at the same time when you can. Fill in runtime placeholders first. When a lens tells you to launch a reviewer subagent, launch it with that prompt text. Do not read the reviewer's instruction file yourself. For any other customized instruction, do what it says:
 
@@ -100,20 +104,24 @@ For each group:
 - **repair/replan** — Same-scope complex fixes proceed autonomously. Amend only agent-owned technical planning, preserve human intent/baseline/append logs and KEEP evidence, repair only task-owned changes, then reverify and refresh the bounded diff/review. Any delegated rollback is only identified task-owned hunks against their pre-edit baseline; inseparable overlap blocks it. Ask only for genuine changed intent/scope/HIGH authority, not complexity.
 - **defer** — Old bugs not caused by this change, ideas outside delegated intent, or groups where every member is `maybe-false` and would be `medium` or `high` if true (record that severity marked unverified and what would prove it; if it would only be `low`, reject it). Context/spec changes outside explicit delegated intent require their own scope/authority; an explicitly delegated correction is assessed by actual risk, not deferred solely by filename. Required HIGH/native authority still applies.
 
-  Before persistence, resolve the real paths of the canonical plan and repository root. Normalize an absolute in-repository plan path to a privacy-safe repository-relative reference for `source_plan`; never serialize `{plan_file}` verbatim. Reject traversal, symlink escapes and private path components. If the plan is outside the repository or no safe reference exists, keep the finding/evidence in non-persisted current context only; do not write a deferred record or leak the reference in a report. Never persist raw paths, private identifiers or hashes of them in any field. Do not copy or relocate the canonical plan to manufacture a reference; continue independent safe work.
+  Deferring an already delegated goal or narrowing human scope requires an actual recorded human intent/scope decision; otherwise retain the complete delegated scope. Recording genuinely outside-scope review findings does not itself change delegated scope. Before persistence, resolve the real paths of the canonical plan, repository root and deferred destination (including existing parent paths). Normalize an absolute in-repository plan path to a privacy-safe repository-relative reference for `source_plan`; never serialize `{plan_file}` verbatim. Require repository containment for both references; reject traversal, symlink escapes and private path components. If the plan or destination is outside the repository or no safe reference exists, keep the finding/evidence in non-persisted current context only; do not write a deferred record or leak the reference in a report. Never persist raw paths, private identifiers or hashes of them in any field. Do not copy or relocate the canonical plan to manufacture a reference; continue independent safe work.
 
-  Only after those checks, add one entry to `{{ config.output_folder }}/{active_initiative}/deferred-work.md`, with privacy-safe summary/evidence and YAML block scalars so punctuation remains data:
+  Only after those checks, append a privacy-safe entry to the single `deferred` list in `{{ config.output_folder }}/{active_initiative}/deferred-work.md`. Use a complete serialized document, not a scalar-body snippet. This JSON object is valid YAML serialization; its values are illustrative, not fabricated task evidence:
 
-  ```markdown
-  - source_plan: |-
-    <privacy-safe repository-relative canonical reference>
-    summary: |-
-    <one sentence>
-    evidence: |-
-    <why this is real; for maybe-false, what would prove it>
+  ```json
+  {
+    "deferred": [
+      {
+        "id": "deferred-001",
+        "source_plan": "plans/current-task.md",
+        "summary": "Outside-scope finding retained for later work.",
+        "evidence": "Verified cause is outside delegated intent; unresolved findings state what would prove them."
+      }
+    ]
+  }
   ```
 
-  Preserve old entries without checking for duplicates. Parse the appended record to confirm its fields retain the intended privacy-safe text before continuing.
+  Parse the existing document, preserving every prior list entry without modification or duplicate searches. Build the WHOLE candidate by appending the authorized new entry with all four fields (`id`, `source_plan`, `summary`, `evidence`). Serialize and parse the WHOLE candidate before any atomic append/persist; verify one deferred list, preserved prior entries and exact intended privacy-safe values. Recheck the destination has not changed before atomic persistence. On any parse, validation or concurrent-change failure, do not mutate the deferred file or narrow scope; keep the reason in current context.
   {% endif %}
 
 After any patch or technical replan, rerun required verification/acceptance and proportional review, refresh only the task-owned diff and append all failed/passed evidence. Unresolved failures or nonconvergence remain incomplete with no successful publication.
@@ -149,7 +157,7 @@ Report actual publication or its scoped limitation, never offer a new approval w
 
 Stop and wait for the user.
 
-Workflow terminal: completed only when current requirements are verified; otherwise report incomplete/scoped blocked and its evidence, without fabricated completion.
+Workflow terminal: SourceReport is complete only when current required verification/acceptance and required review are satisfied; otherwise SourceReport is incomplete/scoped blocked with current triage evidence, failed/unavailable checks and publication limitations, without fabricated completion.
 
 ## On Complete
 

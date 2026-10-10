@@ -26,11 +26,20 @@ For read-only, planning-only or report-only:
 
 Only an invocation that delegates changes may continue to Intent check below, subject to existing scope, ownership, required-plan and HIGH/native permission safeguards.
 
+## Optional ticket capability (before every ticket command)
+
+Ticket integration is optional and is not part of the tracked standalone runtime. Direct intent and canonical-plan work require neither tickets nor `uv` nor installer setup.
+
+- Before **each** `find` command, including resumed resolution and prerequisite lookups, revalidate the request-mode guard, current scope/native permission and any action-specific HIGH authority. Check that the actual helper at `{project-root}/_bmad/method/scripts/tickets.py` and its local runtime/dependencies are available and can execute without installation, dependency synchronization, downloads or bootstrap. A path, plan, static instruction or prior success is not capability or native permission evidence. If this cannot be established safely, do not invoke the helper. Never install or adopt the ticket engine to resolve a request.
+- A genuinely explicit ticket request with unavailable capability or denied authority is **scoped blocked** for ticket-dependent work. Preserve the canonical plan and existing ticket state; continue independent safe analysis only. Do not reinterpret the ticket as ordinary intent, invent its resolution/prerequisites or create a substitute plan.
+- Without explicit ticket intent, use safe existing context/artifact inspection or ask for missing intent; do not invoke a ticket helper merely to discover work.
+- On command failure, report only a privacy-safe reason/category and the affected limitation, never raw command output, errors, paths, records or stack traces. Block ticket-dependent work without fabricated ticket/prerequisite evidence.
+
 ## Intent check (only after the request-mode guard)
 
 Use the invocation prompt as the intent.
 
-The invocation prompt names a ticket from the tree when it calls a reference a ticket (such as `ticket 1.2`, a ticket file's name, or a ticket's title), or points to a file whose frontmatter `type` is `story`, `spike`, or `bug`, whatever its `status`. A ref or title it does not present as a ticket is not one. Resolve a named ticket's plan, entry, and prerequisites with `uv run {project-root}/_bmad/method/scripts/tickets.py --project-root {project-root} find <ref>`; for a ticket file, pass its folder before its file name. Non-zero exit → HALT with status `blocked` and blocking condition `ticket not resolved`, with find's error. Otherwise follow **Ticket resolution** (below).
+The invocation prompt names a ticket from the tree when it calls a reference a ticket (such as `ticket 1.2`, a ticket file's name, or a ticket's title), or points to an existing file whose frontmatter `type` is `story`, `spike`, or `bug`, whatever its `status`. A ref or title it does not present as a ticket is not one. Only after **Optional ticket capability** permits this command, resolve the named ticket's plan, entry and prerequisites with the existing local `uv run {project-root}/_bmad/method/scripts/tickets.py --project-root {project-root} find <ref>` without provisioning; for a ticket file, pass its folder before its file name. Unavailable capability, denied authority or non-zero exit → scoped blocked with a privacy-safe `ticket not resolved` reason/limitation, preserving existing state and continuing independent safe analysis only; no routing fallthrough. Otherwise follow **Ticket resolution** (below).
 
 If the invocation prompt explicitly points to an existing plan file with recognized `status` frontmatter, set `plan_file`, then **EARLY EXIT** to the appropriate step:
 
@@ -42,7 +51,7 @@ If the invocation prompt explicitly points to an existing plan file with recogni
 - `built` or `done` → revalidate current scope/ownership/permission and next-risk authority; set `followup_pass` to `true` in runtime context for a fresh review. Reset iteration only in authorized task-owned state, otherwise record it in existing context. Prior completion/reset grants no new authority. **EARLY EXIT** to `{{ rendered("step-04-review.md") }}` for safe in-scope review.
 
 Otherwise, treat the invocation prompt as starting intent. Reuse a selected canonical/unformatted plan at its original `plan_file` path/content with state/evidence in existing context; do not infer status, copy or force-convert it. An explicitly required missing plan blocks execution, but absence of a plan for LOW does not.
-If the invocation prompt does not contain enough intent to identify what to implement, HALT with status `blocked` and blocking condition `unclear intent`.
+If the invocation prompt and existing safe context do not contain enough intent to identify what to implement, ask for the missing intent and HALT dependent execution with status `blocked` and blocking condition `unclear intent`; do not run a ticket helper to fill the gap.
 
 One ticket per invocation: never read another entry, and never advance to a different ticket regardless of outcome.
 
@@ -51,6 +60,7 @@ One ticket per invocation: never read another entry, and never advance to a diff
 This runs on the output of `tickets.py find` for one ticket. Set `ticket_args` to the arguments find resolved it with. Find's `description`, `verify`, `references`, `notes`, and `unknown` are the intent, together with `epic_file` and what that file's References name when it is not null, and `story_file` when it is not null. Never write to a ticket file or run `pull`/`mark` to manufacture workflow artifacts or authority.
 
 - When the file at find's `plan` exists on disk, treat it as a plan file the invocation prompt pointed to and route it by its `status` (above).
+- If that plan is genuinely required for explicit full/resume or existing state, but missing, block dependent execution without recreation; preserve ticket state and continue independent safe analysis.
 - Otherwise set `plan_file` to find's `plan`; the plan's frontmatter carries `ticket` set to find's `id`, or to the stem of find's `story_file` when `id` is null, never its `ref`. Continue to INSTRUCTIONS, skipping item 5.
 
 ## INSTRUCTIONS
@@ -66,7 +76,7 @@ This runs on the output of `tickets.py find` for one ticket. Set `ticket_args` t
 1. Load context.
    - **A ticket from the tree** — when **Ticket resolution** set `plan_file`: the entry, its epic file and what that file's References name, and the story file when there is one are already the intent. For continuity, read the plans beside `plan_file` whose `ticket` is one of find's `after` ids that is a plain number (an entry of the same epic; a ref such as `1.5` is another epic's). Carry forward each one's **Code Map**, **Design Notes**, **Implementation Notes**, **Plan Change Log**, and **Tasks & Acceptance**, where present, as continuity context for step-02.
    - **Anything else:**
-     - List `{{ config.output_folder }}/{active_initiative}/`, then `{{ config.output_folder }}/`.
+     - List `{{ config.output_folder }}/{active_initiative}/` only when an active initiative is known and that directory exists, then `{{ config.output_folder }}/` only when it exists. Absent directories are empty existing context; never create directories or placeholder plans merely to scan. If existing safe context/artifacts cannot resolve intent, ask for the missing intent and stop dependent work.
      - If the invocation prompt points to an unformatted plan or intent file, ingest that file. Do not scan for unrelated intent files.
      - Planning documents sit in folders by type, main file named after the folder. Typical ones:
        - **PRD** (`prd-*/prd-*.md`) — product requirements and success criteria

@@ -225,6 +225,12 @@ External contributor PR review uses `mydocs/pr/`, not the internal task folders.
 
 Agent Skills are stored in `mydocs/skills/{skill-name}/SKILL.md`.
 
+`bmad-build`와 `bmad-build-auto`도 이 위치의 추적된 entrypoint로 발견한다. Git-only checkout은 `tools/bmad/render_skill.py`, `config_utils.py`, `config.toml`과 각 skill의 `customize.toml`, `review-prompts/`를 사용한다. Python 3.11+·설치된 Jinja2 3.1+는 명시 runtime prerequisite이며 uv/installer/setup/bmod 또는 machine-local artifact는 필요하지 않다. 자동 dependency 설치나 설정 초기화는 하지 않는다. root/child/native와 실제 요청 권한은 entrypoint에서도 우선하며 read-only/planning-only/report-only는 renderer 전에 종료한다.
+
+tracked `[core]` 기본 설정 위에 존재하는 `_bmad/config.toml`, `_bmad/custom/config.toml`, `config.user.toml`과 skill override를 읽기만 한다. malformed 설정은 차단하며 무시·덮어쓰지 않는다. `_bmad/render/`는 local-only immutable 생성물로 Git/PR/export에서 제외한다. static source 검증은 default CI에서, 실제 entry command·render matrix·strict 실패/기존 설정 보존 검증은 `corepack pnpm exec vitest run --config vitest.approval-render.config.ts`로 명시 실행한다. 이 검증은 renderer/entry 실행과 지침 계약을 증명하며 LLM의 실제 모든 분기 준수나 native 승인 강제를 증명하지 않는다.
+
+독립 실행 범위는 직접 위임한 intent·기존 canonical 계획의 oneshot/full 및 review 분기다. 큰 ticket-tree engine은 포함하지 않는 선택 capability다. 명시 ticket 요청은 실제 helper/runtime/native 권한이 없으면 해당 ticket resolution만 scoped blocked로 기록하며 ticket·prerequisite를 꾸미거나 설치하지 않는다. 일반/no-intent 흐름은 ticket capability 부재로 중단하지 않고 안전한 기존 context·필요한 intent 확인으로 진행한다. 없는 artifact 폴더는 빈 context로 취급하며 scan을 위해 dummy 폴더/계획을 만들지 않는다.
+
 - Source of truth: `mydocs/skills/`
 - Codex discovery path: `.agents/skills -> mydocs/skills`
 - Claude Code discovery path: `.claude/skills -> mydocs/skills`
