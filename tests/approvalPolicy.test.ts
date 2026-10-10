@@ -293,6 +293,42 @@ describe('risk-based approval delivery source contracts (not native enforcement)
 
   for (const skill of Object.keys(bmadFiles)) {
     const source = (file: string): string => read(`mydocs/skills/${skill}/${file}`);
+    it(`D01/P1 ${skill} stops non-mutating resumes before status routing`, () => {
+      const step = source('step-01-clarify-and-route.md');
+      const start = step.indexOf('## Request-mode guard');
+      const routing = step.indexOf('## Intent check');
+      expect(start >= 0 && routing > start, `${skill}: terminal guard before routing`).toBe(true);
+      const guard = step.slice(start, routing);
+      for (const mode of ['read-only', 'planning-only', 'report-only']) {
+        has(guard, new RegExp(mode), `${skill}: ${mode} stops before resume`);
+      }
+      for (const status of [
+        'draft',
+        'ready-for-dev',
+        'in-progress',
+        'in-review',
+        'built',
+        'done',
+        'blocked',
+        'dropped'
+      ]) {
+        has(guard, new RegExp(`\`${status}\``), `${skill}: ${status} grants no mode override`);
+      }
+      has(
+        guard,
+        /Do not write or create a plan, frontmatter, ticket, source/i,
+        `${skill}: no writes`
+      );
+      has(guard, /do not reset iteration|do not[^\n]*reset iteration/i, `${skill}: no reset`);
+      has(guard, /STOP this workflow here/i, `${skill}: terminal non-mutating exit`);
+      has(guard, /no status-based EARLY EXIT/i, `${skill}: no resume bypass`);
+      has(
+        guard,
+        /Only an invocation that delegates changes may continue/i,
+        `${skill}: delegated execution remains`
+      );
+    });
+
     it(`AC02/D01 ${skill} has pre-plan LOW entry, verified exit and request-mode negatives`, () => {
       const step = source('step-01-clarify-and-route.md');
       const lowStart = step.search(/(?:###?[^\n]*LOW|\d+\.\s*\*\*LOW)/i);

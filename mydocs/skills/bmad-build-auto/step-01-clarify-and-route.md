@@ -14,7 +14,19 @@ followup_pass: '' # set at runtime when a `built` or `done` plan is re-dispatche
 - Explicit required plan/state-based full/resume with a missing path blocks without recreation. Wrapper invocation or pinned route alone does not require a plan for LOW. Read-only/planning-only/report-only means safe context evidence only, mutation/publication zero.
 - **EARLY EXIT** means: stop this step immediately, then read and follow the target file. Return here only if a later step explicitly says to loop back.
 
-## Intent check (do this first)
+## Request-mode guard (before any routing)
+
+Resolve the current invocation's request mode before ticket resolution, status-based routing, artifact scans, plan creation or follow-up/reset. A plan's status or prior approval never changes this mode.
+
+For read-only, planning-only or report-only:
+
+- Read only the relevant existing canonical context, regardless of plan status: `draft`, `ready-for-dev`, `in-progress`, `in-review`, `built`, `done`, `blocked` or `dropped`. Return the requested analysis, planning proposal or report with actual limitations, not a build/resume result.
+- Do not write or create a plan, frontmatter, ticket, source or workflow/result artifact; do not reset iteration, dispatch implementation/repair or perform commit/push/PR. Do not run ticket commands or downstream workflow steps.
+- **STOP this workflow here — no status-based EARLY EXIT, ticket routing, step-02, implementation, review/repair or Finalize fallthrough.**
+
+Only an invocation that delegates changes may continue to Intent check below, subject to existing scope, ownership, required-plan and HIGH/native permission safeguards.
+
+## Intent check (only after the request-mode guard)
 
 Use the invocation prompt as the intent.
 

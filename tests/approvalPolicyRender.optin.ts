@@ -241,6 +241,45 @@ function render(f: Fixture, assignments: string[] = []): Snapshot {
 function safety(snapshot: Snapshot, skill: Skill, route: Route, review: Review): void {
   const files = snapshot.outputs;
   const step = files['step-01-clarify-and-route.md'];
+  const guardStart = step.indexOf('## Request-mode guard');
+  const routingStart = step.indexOf('## Intent check');
+  expect(
+    guardStart >= 0 && routingStart > guardStart,
+    `${skill}/${route}/${review}: terminal mode guard precedes status routing`
+  ).toBe(true);
+  const guard = step.slice(guardStart, routingStart);
+  for (const mode of ['read-only', 'planning-only', 'report-only']) {
+    assertText(guard, new RegExp(mode), `${skill}: rendered ${mode} stop`);
+  }
+  for (const status of [
+    'draft',
+    'ready-for-dev',
+    'in-progress',
+    'in-review',
+    'built',
+    'done',
+    'blocked',
+    'dropped'
+  ]) {
+    assertText(
+      guard,
+      new RegExp(`\`${status}\``),
+      `${skill}: rendered ${status} cannot bypass mode`
+    );
+  }
+  assertText(
+    guard,
+    /Do not write or create a plan, frontmatter, ticket, source/i,
+    `${skill}: no writes`
+  );
+  assertText(guard, /do not[^\n]*reset iteration/i, `${skill}: no followup reset`);
+  assertText(guard, /STOP this workflow here/i, `${skill}: rendered terminal mode exit`);
+  assertText(guard, /no status-based EARLY EXIT/i, `${skill}: rendered no resume bypass`);
+  assertText(
+    guard,
+    /Only an invocation that delegates changes may continue/i,
+    `${skill}: rendered delegated path preserved`
+  );
   const lowStart = step.search(/(?:###?[^\n]*LOW|\d+\.\s*\*\*LOW)/i);
   expect(
     lowStart >= 0 && lowStart < step.indexOf('5. Set the plan file'),
