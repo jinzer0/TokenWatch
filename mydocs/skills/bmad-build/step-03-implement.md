@@ -18,15 +18,19 @@ This is plan-required execution; never recreate a missing required plan or route
 
 ## INSTRUCTIONS
 
+### State/evidence location
+
+Only an existing BMAD-format plan with authorized task-owned metadata may use its frontmatter and workflow sections. Otherwise keep the unformatted canonical plan's content/path unchanged and use existing context. Reuse that same location for all state/evidence reads and writes: `baseline_revision`, route, status, risk, review, lenses, triage logs and implementation notes. Never add frontmatter, force-convert, copy or replace an existing human plan to store workflow state.
+
 ### Baseline
 
-Capture `baseline_revision` (current HEAD, or `NO_VCS` if version control is unavailable) into `{plan_file}` frontmatter before making any changes. If `baseline_revision` already holds a value (resumed run), preserve it — never overwrite it.
+Record `baseline_revision` (current HEAD, or `NO_VCS` if version control is unavailable) in the resolved state/evidence location before making any changes. If it already holds a value there (resumed run), preserve it — never overwrite it. Use authorized BMAD frontmatter only for a supported plan; an unformatted canonical plan uses existing context without any plan write.
 
 Separately capture task-owned files/hunks and their pre-edit content versus unrelated dirty/untracked baselines. Changes since a revision are not ownership. Preserve userwork; inseparable overlap blocks only that target. Carry this ownership evidence into implementation, review, repair and publication.
 
 ### Implement
 
-Change `{plan_file}` status to `in-progress` in the frontmatter before starting implementation.
+Record status `in-progress` in that same state/evidence location before starting implementation, never in an unformatted human plan.
 
 Seed the implementation dispatch with root/nearest-child/native safety, current scope/request mode, task-owned file/hunk boundaries and HIGH revalidation requirements above. Then substitute runtime placeholders into the handoff below and follow it only within those boundaries.
 

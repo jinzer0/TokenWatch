@@ -24,20 +24,24 @@ You reach this step from step 2, or from step 1 when resuming a plan whose `rout
 
 Re-read `{plan_file}`: a non-empty existing required path is mandatory; if missing, block without recreating it. LOW context-only exits never enter here. Preserve blocked/dropped safeguards, human intent, original baseline and append-only evidence. For canonical/unformatted plans keep content/path intact and record state in existing context rather than forcing frontmatter conversion.
 
+### State/evidence location
+
+Only an existing BMAD-format plan with authorized task-owned metadata may use its frontmatter and workflow sections. Otherwise keep the unformatted canonical plan's content/path unchanged and use existing context. Reuse that same location for all state/evidence reads and writes: `baseline_revision`, route, status, risk, review, lenses, triage logs and implementation notes. Never add frontmatter, force-convert, copy or replace an existing human plan to store workflow state.
+
 ### Implement
 
 Resolve repository-answerable questions autonomously. A genuine material intent gap blocks dependent work only; ask the human and record actual answers without inventing intent. Continue independent safe work.
 
-Capture `baseline_revision` (current HEAD, or `NO_VCS` if version control is unavailable) into `{plan_file}` frontmatter before making any changes. If `baseline_revision` already holds a value (resumed run), preserve it.
+Record `baseline_revision` (current HEAD, or `NO_VCS` if version control is unavailable) in the resolved state/evidence location before making any changes. If it already holds a value there (resumed run), preserve it — never overwrite it. Use authorized BMAD frontmatter only for a supported plan; an unformatted canonical plan uses existing context without any plan write.
 
 Separately capture task-owned files/hunks and pre-edit baselines versus unrelated dirty/untracked/staged changes. Revision differences do not establish ownership. Never overwrite/revert/include userwork; inseparable ownership blocks that target.
 
-Build the change from `{plan_file}`. The Intent section is what you implement. As you work, add notes to `## Implementation Notes`: decisions you made, files you changed, surprises.
+Build the change from `{plan_file}`. Its human intent is what you implement. As you work, append Implementation Notes in the resolved state/evidence location: decisions you made, files you changed, surprises.
 
 {% if workflow.route == "oneshot" %}
-**When to stop.** Stop coding if the request left out something the user would notice in the result. Write the gap in `## Implementation Notes`, then ask the human — do not guess.
+**When to stop.** Stop coding if the request left out something the user would notice in the result. Record the gap in those Implementation Notes, then ask the human — do not guess.
 {% else %}
-**When to stop and replan.** Stop coding if the request left out something the user would notice in the result. Write the gap in `## Implementation Notes`. Then update `{plan_file}`: add back `## Code Map` (filled in from what you learned while implementing) and `## Open Questions` (one question per gap), set `route: 'full'` and `status: 'draft'`. Go back to `{{ rendered("step-02-plan.md") }}` step 6.
+**When to stop and replan.** Stop coding if the request left out something the user would notice in the result. Record the gap in those Implementation Notes. In the same state/evidence location record Code Map (what you learned), Open Questions (one per gap), `route: 'full'` and `status: 'draft'`, without rewriting an unformatted canonical plan. Go back to `{{ rendered("step-02-plan.md") }}` step 6.
 {% endif %}
 
 ### Review
@@ -45,11 +49,11 @@ Build the change from `{plan_file}`. The Intent section is what you implement. A
 Run required verification and acceptance checks; preserve failed results as incomplete. Repair same-scope failures/complex defects autonomously, revalidating authority before risky actions, then reverify. Repeated nonconvergence or unresolved failure records scoped blocked/incomplete, not built or successful publication.
 
 {% if workflow.review == "none" %}
-Write `review: 'none'`, `review_source: 'pinned'`, and `lenses_ran: []` to `{plan_file}` frontmatter.
+Record `review: 'none'`, `review_source: 'pinned'`, and `lenses_ran: []` in that state/evidence location.
 {% elif workflow.review == "auto" %}
-Write `review: 'quick'` and `review_source: 'auto'` to `{plan_file}` frontmatter.
+Record `review: 'quick'` and `review_source: 'auto'` in that state/evidence location.
 {% else %}
-Write `review: '{{ workflow.review }}'` and `review_source: 'pinned'` to `{plan_file}` frontmatter.
+Record `review: '{{ workflow.review }}'` and `review_source: 'pinned'` in that state/evidence location.
 {% endif %}
 {% if review != "none" %}
 
@@ -67,7 +71,7 @@ Say which review lenses you are skipping, then start every active lens before re
 
 If a required reviewer capability is unavailable, record the affected lens and missing capability as scoped blocked/limitation in existing context, preserving the canonical/unformatted plan and prior evidence. Continue independent safe work and await all available launched reviewers before handling their results. Do not create prompt artifacts, inline private context or file contents for export, request cross-session transfer, or fabricate reviewer results. Required review remains incomplete: no successful completion or publication until the required review is done. Native permissions, current authority and task-owned boundaries still apply; review `none` never waives required verification or acceptance.
 
-Write `lenses_ran` — the ids launched, in launch order — to `{plan_file}` frontmatter.
+Record `lenses_ran` — the ids launched, in launch order — in that same state/evidence location.
 
 ### Classify
 
@@ -111,7 +115,7 @@ After any patch or technical replan, rerun required verification/acceptance and 
 
 Re-read current intent, ownership, authority and verification after repairs/review. Failure/unmet acceptance or incomplete required review remains incomplete with scoped blocked reasons where applicable; do not mark built. Neither review `none` nor prior status waives verification.
 
-Update `{plan_file}`:
+Update only the resolved state/evidence location, never an unformatted canonical plan:
 
 1. Set `status: 'built'` only with current required verification/acceptance satisfied and required review done, or record the truthful incomplete/scoped blocked result in existing context.
 2. Append review evidence without replacing existing logs: one line per finding, verdict and evidence. For `false`, the disproof. For `maybe-false`, what would settle it. For rejected `low`, why it was not worth fixing.

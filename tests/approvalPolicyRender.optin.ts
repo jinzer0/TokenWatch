@@ -241,6 +241,42 @@ function render(f: Fixture, assignments: string[] = []): Snapshot {
 function safety(snapshot: Snapshot, skill: Skill, route: Route, review: Review): void {
   const files = snapshot.outputs;
   const step = files['step-01-clarify-and-route.md'];
+  for (const file of [
+    'step-02-plan.md',
+    'step-03-implement.md',
+    'step-04-review.md',
+    'step-oneshot.md'
+  ]) {
+    if (!(file in files)) continue;
+    const text = files[file];
+    const storage = text.split('### State/evidence location\n')[1]?.split(/\n#{1,3} /)[0] ?? '';
+    assertText(
+      storage,
+      /Only an existing BMAD-format plan with authorized task-owned metadata/i,
+      `${skill}/${file}: rendered format and authority`
+    );
+    assertText(
+      storage,
+      /Otherwise[\s\S]*unformatted[\s\S]*unchanged[\s\S]*existing context/i,
+      `${skill}/${file}: rendered canonical context`
+    );
+    assertText(
+      storage,
+      /all state\/evidence reads and writes/i,
+      `${skill}/${file}: rendered resume reads same state`
+    );
+    assertText(
+      storage,
+      /baseline_revision[\s\S]*status[\s\S]*review[\s\S]*notes/i,
+      `${skill}/${file}: rendered metadata coverage`
+    );
+    expect(
+      /Capture `baseline_revision`[^\n]*into `\{plan_file\}` frontmatter|Change `\{plan_file\}` status to[^\n]*frontmatter|^Write [^\n]*to `\{plan_file\}` frontmatter/m.test(
+        text
+      ),
+      `${skill}/${file}: no unconditional canonical mutation`
+    ).toBe(false);
+  }
   const guardStart = step.indexOf('## Request-mode guard');
   const routingStart = step.indexOf('## Intent check');
   expect(

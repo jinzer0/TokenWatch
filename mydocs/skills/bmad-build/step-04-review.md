@@ -18,14 +18,18 @@
 
 ## INSTRUCTIONS
 
-Change `{plan_file}` status to `in-review` in the frontmatter before continuing.
+### State/evidence location
+
+Only an existing BMAD-format plan with authorized task-owned metadata may use its frontmatter and workflow sections. Otherwise keep the unformatted canonical plan's content/path unchanged and use existing context. Reuse that same location for all state/evidence reads and writes: `baseline_revision`, route, status, risk, review, lenses, triage logs and implementation notes. Never add frontmatter, force-convert, copy or replace an existing human plan to store workflow state.
+
+Record status `in-review` in that same state/evidence location before continuing, never in an unformatted human plan.
 
 {% if workflow.review == "none" %}
-Write `review: 'none'`, `review_source: 'pinned'`, and `lenses_ran: []` to `{plan_file}` frontmatter.
+Record `review: 'none'`, `review_source: 'pinned'`, and `lenses_ran: []` in that state/evidence location.
 {% elif workflow.review == "auto" %}
-Write `review: 'thorough'` and `review_source: 'auto'` to `{plan_file}` frontmatter.
+Record `review: 'thorough'` and `review_source: 'auto'` in that state/evidence location.
 {% else %}
-Write `review: '{{ workflow.review }}'` and `review_source: 'pinned'` to `{plan_file}` frontmatter.
+Record `review: '{{ workflow.review }}'` and `review_source: 'pinned'` in that state/evidence location.
 {% endif %}
 {% if review != "none" %}
 
@@ -51,7 +55,7 @@ Announce skipped lenses first, then launch every active lens before handling any
 
 If a required reviewer capability is unavailable, record the affected lens and missing capability as scoped blocked/limitation in existing context, preserving the canonical/unformatted plan and prior evidence. Continue independent safe work and await all available launched reviewers before handling their results. Do not create prompt artifacts, inline private context or file contents for export, request cross-session transfer, or fabricate reviewer results. Required review remains incomplete: no successful completion or publication until the required review is done. Native permissions, current authority and task-owned boundaries still apply; review `none` never waives required verification or acceptance.
 
-Write `lenses_ran` — the ids launched, in launch order — to `{plan_file}` frontmatter.
+Record `lenses_ran` — the ids launched, in launch order — in that same state/evidence location.
 
 ### Classify
 

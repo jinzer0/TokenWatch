@@ -47,11 +47,22 @@ const publicationFiles = [
   'mydocs/skills/external-pr-review/SKILL.md',
   '.github/pull_request_template.md'
 ] as const;
+const consumerGuides = [
+  'mydocs/manual/external_pr_review_guide.md',
+  'mydocs/plans/README.md',
+  'mydocs/working/README.md'
+] as const;
 const deliveryPaths = Object.entries(bmadFiles).flatMap(([skill, files]) =>
   files.map((file) => `mydocs/skills/${skill}/${file}`)
 );
 // This exact map intentionally excludes wrappers, settings, TOML, locks and _bmad.
-const inputMap = ['AGENTS.md', ...hfFiles, ...publicationFiles, ...deliveryPaths];
+const inputMap = [
+  'AGENTS.md',
+  ...hfFiles,
+  ...publicationFiles,
+  ...consumerGuides,
+  ...deliveryPaths
+];
 function read(path: string): string {
   try {
     return readFileSync(resolve(root, path), 'utf8');
@@ -293,6 +304,53 @@ describe('risk-based approval delivery source contracts (not native enforcement)
 
   for (const skill of Object.keys(bmadFiles)) {
     const source = (file: string): string => read(`mydocs/skills/${skill}/${file}`);
+    it(`AC05/P1 ${skill} routes metadata to existing context for unformatted plans`, () => {
+      for (const file of [
+        'step-02-plan.md',
+        'step-03-implement.md',
+        'step-04-review.md',
+        ...(skill === 'bmad-build' ? ['step-oneshot.md'] : [])
+      ]) {
+        const text = source(file);
+        const storage = section(text, '### State/evidence location');
+        has(
+          storage,
+          /Only an existing BMAD-format plan with authorized task-owned metadata/i,
+          `${skill}/${file}: supported format and authority`
+        );
+        has(
+          storage,
+          /Otherwise[\s\S]*unformatted[\s\S]*unchanged[\s\S]*existing context/i,
+          `${skill}/${file}: context without conversion`
+        );
+        has(
+          storage,
+          /all state\/evidence reads and writes/i,
+          `${skill}/${file}: same storage on resume`
+        );
+        has(
+          storage,
+          /baseline_revision[\s\S]*status[\s\S]*review[\s\S]*notes/i,
+          `${skill}/${file}: all metadata consumers`
+        );
+        lacks(
+          text,
+          /Capture `baseline_revision`[^\n]*into `\{plan_file\}` frontmatter/i,
+          `${skill}/${file}: no unconditional baseline write`
+        );
+        lacks(
+          text,
+          /Change `\{plan_file\}` status to[^\n]*frontmatter/i,
+          `${skill}/${file}: no unconditional status write`
+        );
+        lacks(
+          text,
+          /^Write [^\n]*to `\{plan_file\}` frontmatter/m,
+          `${skill}/${file}: no unconditional review write`
+        );
+      }
+    });
+
     it(`D01/P1 ${skill} stops non-mutating resumes before status routing`, () => {
       const step = source('step-01-clarify-and-route.md');
       const start = step.indexOf('## Request-mode guard');
@@ -520,6 +578,46 @@ describe('risk-based approval delivery source contracts (not native enforcement)
         );
       }
     }
+  });
+
+  it('AC03/05 linked guides do not restore mandatory Issues, duplicate plans or stage approvals', () => {
+    const external = read('mydocs/manual/external_pr_review_guide.md');
+    lacks(
+      external,
+      /record the basis[^\n]*create a separate GitHub Issue/i,
+      'external followup: no forced Issue'
+    );
+    has(
+      external,
+      /LOW[^\n]*기존 context[^\n]*새 Issue를 강제하지 않는다/,
+      'external LOW uses existing context'
+    );
+    has(external, /Issue[^\n]*별도 생성 권한/, 'Issue creation retains actual authority');
+    has(
+      external,
+      /untrusted 외부 코드 실행[^\n]*승인되지 않는다/,
+      'untrusted execution is not review authority'
+    );
+    for (const path of ['mydocs/plans/README.md', 'mydocs/working/README.md']) {
+      const text = read(path);
+      lacks(
+        text,
+        /after task plan approval|request approval to enter the next Stage|^- Approval request$/im,
+        `${path}: no recurring approval gate`
+      );
+      has(text, /기존 context/, `${path}: proportional existing tracking`);
+      has(text, /HIGH/, `${path}: risky decisions still bounded`);
+      has(text, /native\/tool permission/, `${path}: native boundary preserved`);
+    }
+    const plans = read('mydocs/plans/README.md');
+    has(plans, /별도 `_impl` 계획을 강제하지 않는다/, 'folder: no second plan original');
+    has(plans, /unformatted[^\n]*원래 경로·내용을 유지/, 'folder: canonical human plan preserved');
+    has(plans, /기존 `_impl`[^\n]*보존·참조/, 'folder: existing implementation plans retained');
+    has(
+      read('mydocs/working/README.md'),
+      /실패·미실행·blocked[^\n]*완료로 표시하지 않는다/,
+      'folder: failed checkpoints cannot imply completion'
+    );
   });
 
   it('AC03–08 HF skills/templates consume canonical, proportional tracking and preserved gates', () => {

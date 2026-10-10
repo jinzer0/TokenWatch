@@ -12,6 +12,10 @@
 
 0. Request-mode guard: for read-only/planning-only/report-only, analyze the intent and relevant existing evidence safely, record findings/verification proposals in existing context, then STOP without plan/source/state mutation or publication. No later template/readiness write applies to this branch. An explicit halt-after-planning change request may prepare its authorized plan, but never proceeds to implementation/publication.
 
+### State/evidence location
+
+Only an existing BMAD-format plan with authorized task-owned metadata may use its frontmatter and workflow sections. Otherwise keep the unformatted canonical plan's content/path unchanged and use existing context. Reuse that same location for all state/evidence reads and writes: `baseline_revision`, route, status, risk, review, lenses, triage logs and implementation notes. Never add frontmatter, force-convert, copy or replace an existing human plan to store workflow state. A genuinely needed new BMAD plan may use the template; never create one to replace an existing canonical plan.
+
 1. Re-read the canonical plan on resume; required missing paths block without recreation. Preserve human intent/baseline/append evidence. Capture any existing `<intent-contract>...</intent-contract>` verbatim as `preserved_intent_contract`; unformatted human intent remains intact in place.
 2. Investigate codebase. Read narrow tasks directly; use supported native subagent launches for deep exploration, then the leader uses native await before dependent work (GJC tasks launch detached by design). Request distilled summaries with paths/symbols/reuse/exclusions for Code Map/context. Do not block a narrow path for unused subagents.
 

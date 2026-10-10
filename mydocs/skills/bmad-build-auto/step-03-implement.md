@@ -20,23 +20,27 @@ Never recreate missing required paths or send LOW context-only exits here. Keep 
 
 For read-only/planning-only/report-only, perform only permitted safe analysis/context evidence and terminate without baseline/status/source writes or publication; no implementation instruction below applies. Resolve required-path/blocked/dropped conditions without recreating or modifying the human plan.
 
+### State/evidence location
+
+Only an existing BMAD-format plan with authorized task-owned metadata may use its frontmatter and workflow sections. Otherwise keep the unformatted canonical plan's content/path unchanged and use existing context. Reuse that same location for all state/evidence reads and writes: `baseline_revision`, route, status, risk, review, lenses, triage logs and implementation notes. Never add frontmatter, force-convert, copy or replace an existing human plan to store workflow state.
+
 ### Baseline
 
-Capture `baseline_revision` (current HEAD, or `NO_VCS` if version control is unavailable) into `{plan_file}` frontmatter before making any changes. When `baseline_revision` already holds a value (resuming or repairing this run), preserve it.
+Record `baseline_revision` (current HEAD, or `NO_VCS` if version control is unavailable) in the resolved state/evidence location before making any changes. If it already holds a value there (resumed run), preserve it — never overwrite it. Use authorized BMAD frontmatter only for a supported plan; an unformatted canonical plan uses existing context without any plan write.
 
 Separately identify task-owned files/hunks and captured pre-edit user baselines versus unrelated staged/dirty/untracked content. Revision differences are not ownership. Preserve userwork; inseparable overlap blocks only the affected target. Carry ownership evidence into review/repair/Finalize.
 
 ### Implement
 
-Change `{plan_file}` status to `in-progress` in the frontmatter before starting implementation. Execute only the matching route below, then continue with Both routes.
+Record status `in-progress` in that same state/evidence location before starting implementation, never in an unformatted human plan. Execute only the matching route below, then continue with Both routes.
 
 {% if workflow.route != "full" %}
 
 #### Oneshot (`route: oneshot`)
 
-Implement in this main session from the plan's Intent and working notes. Do not launch an implementing subagent or execute the full-route handoff. Append decisions, files touched, and surprises to `## Implementation Notes`.
+Implement in this main session from the plan's Intent and working notes. Do not launch an implementing subagent or execute the full-route handoff. Append decisions, files touched, and surprises as Implementation Notes in the resolved state/evidence location.
 
-Stop if the intent left out something the user would notice in the result. Record the gap in `## Implementation Notes`, then HALT with status `blocked` and blocking condition `intent gap` — do not guess.
+Stop if the intent left out something the user would notice in the result. Record the gap in those Implementation Notes, then HALT with status `blocked` and blocking condition `intent gap` — do not guess.
 
 {% endif %}
 {% if workflow.route != "oneshot" %}

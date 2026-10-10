@@ -21,18 +21,22 @@
 
 First re-read the required nonempty existing plan and capture current scope/mode/ownership. Missing required paths or blocked/dropped plans preserve their safeguards without recreation. For read-only/planning-only/report-only, use safe read-only review and existing-context evidence only: skip every plan/frontmatter/source write and repair below, then apply Finalize's zero-publication reporting branch. Equivalent state/triage/deferred evidence for unformatted plans belongs in existing context, not forced conversion.
 
-Change `{plan_file}` status to `in-review` in the frontmatter before continuing.
+### State/evidence location
+
+Only an existing BMAD-format plan with authorized task-owned metadata may use its frontmatter and workflow sections. Otherwise keep the unformatted canonical plan's content/path unchanged and use existing context. Reuse that same location for all state/evidence reads and writes: `baseline_revision`, route, status, risk, review, lenses, triage logs and implementation notes. Never add frontmatter, force-convert, copy or replace an existing human plan to store workflow state.
+
+Record status `in-review` in that same state/evidence location before continuing, never in an unformatted human plan.
 
 {% if workflow.review == "none" %}
-Write `review: 'none'`, `review_source: 'pinned'`, and `lenses_ran: []` to `{plan_file}` frontmatter.
+Record `review: 'none'`, `review_source: 'pinned'`, and `lenses_ran: []` in that state/evidence location.
 {% elif workflow.review == "quick" or workflow.review == "thorough" %}
-Write `review: '{{ workflow.review }}'` and `review_source: 'pinned'` to `{plan_file}` frontmatter.
+Record `review: '{{ workflow.review }}'` and `review_source: 'pinned'` in that state/evidence location.
 {% elif workflow.route == "oneshot" %}
-Write `review: 'quick'` and `review_source: 'auto'` to `{plan_file}` frontmatter.
+Record `review: 'quick'` and `review_source: 'auto'` in that state/evidence location.
 {% elif workflow.route == "full" %}
-Write `review: 'thorough'` and `review_source: 'auto'` to `{plan_file}` frontmatter.
+Record `review: 'thorough'` and `review_source: 'auto'` in that state/evidence location.
 {% else %}
-Write `review` to `{plan_file}` frontmatter from its `route`: `quick` when `route` is `oneshot`, `thorough` when `full`; `review_source: 'auto'`.
+Read `route` from the resolved state/evidence location and record `review`: `quick` when `route` is `oneshot`, `thorough` when `full`; `review_source: 'auto'`.
 {% endif %}
 {% if review != "none" %}
 
@@ -55,7 +59,7 @@ Launch independent active lenses after substituting placeholders and seeding saf
 {% elif review == "thorough" %}
 {{ workflow.thorough_lenses }}
 {% else %}
-The launch paragraph above applies to the set the mapping selects: read `route` from `{plan_file}` frontmatter — the quick set when it is `oneshot`, the thorough set when it is `full`. Launch only that set.
+The launch paragraph above applies to the set the mapping selects: read `route` from the resolved state/evidence location — the quick set when it is `oneshot`, the thorough set when it is `full`. Launch only that set.
 
 **Quick set**
 
@@ -66,7 +70,7 @@ The launch paragraph above applies to the set the mapping selects: read `route` 
 {{ workflow.thorough_lenses }}
 {% endif %}
 
-Write `lenses_ran` — the ids launched, in launch order — to `{plan_file}` frontmatter.
+Record `lenses_ran` — the ids launched, in launch order — in that same state/evidence location.
 
 ### Classify
 
@@ -101,7 +105,7 @@ Write `lenses_ran` — the ids launched, in launch order — to `{plan_file}` fr
     - **patch** — caused by the change; its smallest fix is trivial, adds no public surface, and guards no state you did not demonstrate. Just part of the diff. A finding whose smallest fix fails any of those conditions routes to intent_gap when the plan does not settle that fix, otherwise to bad_plan.
     - **defer** — pre-existing issue not caused by this change; or an entry whose members are all `maybe-false` and the claim, if true, would be `medium` or `high` — record that severity marked unverified, plus what would settle it (if it would only be `low`, reject it with the same note). Agent-context changes outside explicit delegated intent require their own scope/authority. Assess an explicitly delegated context correction by actual risk rather than filename; required HIGH/native authority still gates the next risky action.
 
-4.  Append a new entry to the `## Review Triage Log` section in `{plan_file}`, in this format:
+4.  Append a new Review Triage Log entry in the resolved state/evidence location, in this format; never add a section to an unformatted canonical plan:
 
     ```markdown
     ### {date} — Review pass

@@ -11,6 +11,10 @@
 
 ## INSTRUCTIONS
 
+### State/evidence location
+
+Only an existing BMAD-format plan with authorized task-owned metadata may use its frontmatter and workflow sections. Otherwise keep the unformatted canonical plan's content/path unchanged and use existing context. Reuse that same location for all state/evidence reads and writes: `baseline_revision`, route, status, risk, review, lenses, triage logs and implementation notes. Never add frontmatter, force-convert, copy or replace an existing human plan to store workflow state. A genuinely needed new BMAD plan may use the template; never create one to replace an existing canonical plan.
+
 1. Resume/canonical check. Re-read the existing plan from disk before acting; missing required resume plans block without recreation. Preserve its human intent, baseline and append-only evidence. If it has a `<frozen-after-approval>...</frozen-after-approval>` block, capture it verbatim as `preserved_intent`; otherwise preserve its human intent in place. Only the human renegotiates intent, not a technical replan.
 2. Investigate the codebase. When you can, send deep searches to subagents and wait for them in this turn. Tell them to return short summaries only, so this session does not fill up with their notes. Keep only what the work needs: the specific files, symbols or lines, what to reuse, and what not to change. Write that into the Code Map. Do not retell the investigation when implementation starts — the plan already has it.
 
