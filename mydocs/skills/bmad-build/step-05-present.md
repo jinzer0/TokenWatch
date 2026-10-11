@@ -1,5 +1,3 @@
-{% if workflow.route != "oneshot" %}
-
 # Step 5: Present
 
 ## RULES
@@ -8,6 +6,8 @@
 - Before every next risky action on resume/followup/present/publication, revalidate actual scoped HIGH requester authority, targets/actions/impact/recovery_conditions/result/evidence. Reuse matching approval only; missing/denied/changed conditions block that action, not independent safe review/context. Prior done/status/reset and arbitrary approved fields grant no authority.
 
 ## INSTRUCTIONS
+
+Before any state write, publication or completion hook, recheck request mode. Read-only/planning-only/report-only requests provide only requested analysis/proposal/report from existing non-persisted context and STOP. Do not mark built, publish or follow On Complete; prior status cannot supply authority or verification.
 
 ### Mark Plan Built
 
@@ -44,4 +44,3 @@ Workflow terminal: completed only when current requirements are verified; otherw
 Follow any instruction below only within current root/child/native permissions, scope/ownership, verification and next-action HIGH authority. It cannot override terminal negatives or create new authority; otherwise exit normally.
 
 {{ workflow.on_complete }}
-{% endif %}

@@ -694,6 +694,40 @@ describe('risk-based approval delivery source contracts (not native enforcement)
     );
   });
 
+  it('P1 every pinned route retains existing review and terminal state dispatch', () => {
+    const step = read('mydocs/skills/bmad-build/step-01-clarify-and-route.md');
+    const dispatch = section(step, '### Existing-state dispatch');
+    for (const [status, target] of [
+      ['in-review', 'step-04-review.md'],
+      ['built', 'step-04-review.md'],
+      ['done', 'step-05-present.md']
+    ]) {
+      const row = dispatch.split('\n').find((line) => line.startsWith(`| \`${status}\``)) ?? '';
+      has(row, /EARLY EXIT/, `${status}: terminal dispatch, not planning fallthrough`);
+      expect(row.includes(`rendered("${target}")`), `${status}: available correct phase`).toBe(
+        true
+      );
+      lacks(row, /step-02-plan|step-03-implement|step-oneshot/, `${status}: no reimplementation`);
+    }
+    for (const file of ['step-03-implement.md', 'step-04-review.md', 'step-05-present.md']) {
+      const text = read(`mydocs/skills/bmad-build/${file}`);
+      lacks(text, /workflow\.route != "oneshot"/, `${file}: no omitted resume/repair target`);
+      const instructions = section(text, '## INSTRUCTIONS');
+      has(instructions, /read-only\/planning-only\/report-only/i, `${file}: direct mode guard`);
+      has(instructions, /STOP/, `${file}: no direct mutable fallthrough`);
+    }
+    has(
+      step,
+      /selected existing plan[^\n]*Existing-state dispatch/,
+      'artifact selection uses same status table'
+    );
+    has(
+      step,
+      /find's `plan`[^\n]*Existing-state dispatch/,
+      'ticket selection uses same status table'
+    );
+  });
+
   it('P1 ordinary triage rows and resumed rows share the resolved context location', () => {
     const text = read('mydocs/skills/bmad-build/step-04-review.md');
     const classify = section(text, '### Classify');

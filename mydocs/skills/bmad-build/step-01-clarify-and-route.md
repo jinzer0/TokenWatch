@@ -40,7 +40,7 @@ Before listing artifacts, resolve existing workflow state in this order. Skip th
 1. Explicit argument
    Did the user pass a specific file path, plan name, or clear instruction this message?
    - It names a ticket from the tree when the user presents a ref such as `1.2`, a file name or title as a ticket, or points to an existing file whose frontmatter `type` is `story`, `spike`, or `bug`, whatever its `status`. A bare ref/title not presented as a ticket is ordinary intent. Only after **Optional ticket capability** permits this command, resolve the named ticket's plan, entry and prerequisites with the existing local `uv run {project-root}/_bmad/method/scripts/tickets.py --project-root {project-root} find <ref>` without provisioning; for a ticket file, pass its folder before its file name. Unavailable capability, denied authority or non-zero exit → scoped blocked as above, with no routing fallthrough. Otherwise follow **Ticket resolution** (below).
-   - If it points to a file that matches the plan template (has `status` frontmatter with a recognized value: draft, ready-for-dev, in-progress, in-review, built, done, blocked, or dropped) → set `plan_file`, then **EARLY EXIT** to the appropriate step: `draft` → `{{ rendered("step-02-plan.md") }}`, {% if workflow.route == "oneshot" %}`ready-for-dev`/`in-progress` → `{{ rendered("step-oneshot.md") }}`{% elif workflow.route == "full" %}`ready-for-dev`/`in-progress` → `{{ rendered("step-03-implement.md") }}`, `in-review`/`built` → `{{ rendered("step-04-review.md") }}`{% else %}`ready-for-dev`/`in-progress` → `{{ rendered("step-03-implement.md") }}` (or `{{ rendered("step-oneshot.md") }}` when `route` is `oneshot`), `in-review`/`built` → `{{ rendered("step-04-review.md") }}`{% endif %}. For `done`, ingest as context and proceed to INSTRUCTIONS — do not resume. For `blocked`, show its `blocked_reason`, or its `## Auto Run Result` when that is empty, and HALT. For `dropped`, say the ticket was dropped and HALT.
+   - If it points to an existing plan with a recognized status, set `plan_file` and follow **Existing-state dispatch** below. Every recognized status ends with EARLY EXIT or HALT; never fall through to planning or reset status merely because the route is pinned. Read the resolved state/evidence from existing context for an unformatted canonical plan; do not infer a state from its formatting or add frontmatter.
    - Anything else (intent files, external docs, planning documents, descriptions) → ingest it and proceed to INSTRUCTIONS. When it is the existing canonical/unformatted plan, set `plan_file` to that same path and reuse it in place with state/evidence in existing context; do not infer status, duplicate it or force template conversion.
 
 2. Recent conversation
@@ -57,19 +57,32 @@ Before listing artifacts, resolve existing workflow state in this order. Skip th
 4. Otherwise — scan artifacts and ask
    - Inspect only existing permitted context/artifact directories. An absent output/initiative directory is empty context, not a failure; do not create directories or placeholder plans to scan. Reapply the request-mode/scope/native guard before every selected route and **Optional ticket capability** before every `find`, including **Next entry**. If no existing context resolves intent, ask for the missing intent and stop dependent work.
    - Active plans (`draft`, `ready-for-dev`, `in-progress`, `in-review`) among `{{ config.output_folder }}/{active_initiative}/plan-*.md`, or started plans in the tree from branch 3? → List them all and HALT. Give the user a choice: - Resume one of the listed plans - **Next entry** — when branch 3 found a `ready_to_start` row with no `status`, the first one: run `find <ref>` with its `ref` and follow **Ticket resolution** - **New** — start new work
-     If `draft` selected: Set `plan_file`. **EARLY EXIT** → `{{ rendered("step-02-plan.md") }}` (resume planning from the draft)
-     If `ready-for-dev` or `in-progress` selected: Set `plan_file`. **EARLY EXIT** → {% if workflow.route == "oneshot" %}`{{ rendered("step-oneshot.md") }}`{% elif workflow.route == "full" %}`{{ rendered("step-03-implement.md") }}`{% else %}`{{ rendered("step-03-implement.md") }}` (or `{{ rendered("step-oneshot.md") }}` when `route` is `oneshot`){% endif +%}
-     {% if workflow.route != "oneshot" %}
-     If `in-review` selected: Set `plan_file`. **EARLY EXIT** → `{{ rendered("step-04-review.md") }}`
-     {% endif %}
+     For any selected existing plan: set `plan_file` and follow **Existing-state dispatch** without route-specific fallthrough.
      If the user chooses **New**: proceed to INSTRUCTIONS
    - Unformatted plan or intent file lacking `status` frontmatter? → When it is the canonical plan, set `plan_file` to its existing path, reuse the content and record state in existing context. Do NOT infer a frontmatter state or force conversion.
+
+### Existing-state dispatch
+
+This single table applies to explicit plan files, recent conversation, selected artifacts and resolved ticket plans, on auto/full/oneshot routes. Re-read the required existing plan/context and apply the request-mode, ownership, native and next-action HIGH guards before dispatch. Missing required plans block without recreation. Keep the canonical content/path, original baseline and prior logs; do not reset iteration or status just to choose a route.
+
+| Status          | Terminal dispatch                                                                                                                                                                                                   |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `draft`         | **EARLY EXIT** → `{{ rendered("step-02-plan.md") }}`                                                                                                                                                                |
+| `ready-for-dev` | **EARLY EXIT** → {% if workflow.route == "oneshot" %}`{{ rendered("step-oneshot.md") }}`{% else %}`{{ rendered("step-03-implement.md") }}`{% endif %}                                                               |
+| `in-progress`   | **EARLY EXIT** → {% if workflow.route == "oneshot" %}`{{ rendered("step-oneshot.md") }}`{% else %}`{{ rendered("step-03-implement.md") }}`{% endif %}                                                               |
+| `in-review`     | **EARLY EXIT** → `{{ rendered("step-04-review.md") }}`                                                                                                                                                              |
+| `built`         | Revalidate current scope and evidence; **EARLY EXIT** → `{{ rendered("step-04-review.md") }}` for fresh required review, never reimplementation.                                                                    |
+| `done`          | **EARLY EXIT** → `{{ rendered("step-05-present.md") }}` for evidence/authority revalidation and truthful terminal reporting, never new planning or implementation. New scope requires a separate actual delegation. |
+| `blocked`       | **HALT** dependent execution; report only the privacy-safe blocking category, not raw stored reason/result dumps.                                                                                                   |
+| `dropped`       | **HALT** dependent execution; preserve the dropped plan.                                                                                                                                                            |
+
+The review and presentation targets are included even on pinned oneshot. Their required-review/verification and publication negatives still apply; an available target or prior status is not successful evidence or authority.
 
 ### Ticket resolution
 
 This runs on the output of `tickets.py find` for one ticket. Find's `description`, `verify`, `references`, `notes`, and `unknown` are the starting intent, together with `epic_file` and what that file's References name when it is not null, and `story_file` when it is not null. Never write to a ticket file, and never run `pull` or `mark`.
 
-- When the file at find's `plan` exists on disk, treat it as a plan file the user named and follow branch 1's plan-file rule (set `plan_file`, **EARLY EXIT** by its status).
+- When the file at find's `plan` exists on disk, set `plan_file` and follow **Existing-state dispatch**, exactly as for an explicit plan. Never restart implementation for a review/terminal state.
 - If that plan is genuinely required for explicit full/resume or existing state, but missing, block dependent execution without recreation; preserve ticket state and continue independent safe analysis.
 - Otherwise set `plan_file` to find's `plan`; the plan's frontmatter carries `ticket` set to find's `id`, or to the stem of find's `story_file` when `id` is null, never its `ref`. Proceed to INSTRUCTIONS, skipping step 5.
 

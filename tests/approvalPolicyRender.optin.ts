@@ -478,11 +478,12 @@ function safety(snapshot: Snapshot, skill: Skill, route: Route, review: Review):
   }
   assertText(plan, /planning-only|read-only/i, `${skill}: planning mode cannot implement`);
   if (skill === 'bmad-build') {
-    expect('step-03-implement.md' in files, 'full/auto implementation output').toBe(
-      route !== 'oneshot'
-    );
-    expect('step-04-review.md' in files, 'full/auto review output').toBe(route !== 'oneshot');
-    expect('step-05-present.md' in files, 'full/auto terminal output').toBe(route !== 'oneshot');
+    expect(
+      'step-03-implement.md' in files,
+      'every route retains authorized review repair target'
+    ).toBe(true);
+    expect('step-04-review.md' in files, 'every route can resume required review').toBe(true);
+    expect('step-05-present.md' in files, 'every route can resume terminal reporting').toBe(true);
     expect('step-oneshot.md' in files, 'oneshot/auto implementation output').toBe(route !== 'full');
     const implementation = files[route === 'oneshot' ? 'step-oneshot.md' : 'step-03-implement.md'];
     const precondition =
@@ -739,6 +740,63 @@ afterAll(() => {
 });
 
 describe('explicit actual local renderer contracts (not workflow execution)', () => {
+  for (const route of ['auto', 'full', 'oneshot'] as const) {
+    for (const review of ['auto', 'none', 'quick', 'thorough'] as const) {
+      it(`normal ${route}/${review}: every existing state dispatches to an available phase without replanning`, () => {
+        const f = fixture('bmad-build');
+        const snapshot = render(f, [`workflow.route=${route}`, `workflow.review=${review}`]);
+        const step = snapshot.outputs['step-01-clarify-and-route.md'];
+        const rows = [...step.matchAll(/^\|[ \t]+`([^`]+)`[ \t]+\|[ \t]+(.+?)[ \t]+\|$/gm)];
+        expect(rows.map((row) => row[1])).toEqual([
+          'draft',
+          'ready-for-dev',
+          'in-progress',
+          'in-review',
+          'built',
+          'done',
+          'blocked',
+          'dropped'
+        ]);
+        const targets: Record<string, string> = {
+          draft: 'step-02-plan.md',
+          'ready-for-dev': route === 'oneshot' ? 'step-oneshot.md' : 'step-03-implement.md',
+          'in-progress': route === 'oneshot' ? 'step-oneshot.md' : 'step-03-implement.md',
+          'in-review': 'step-04-review.md',
+          built: 'step-04-review.md',
+          done: 'step-05-present.md'
+        };
+        for (const row of rows) {
+          if (row[1] === 'blocked' || row[1] === 'dropped') {
+            expect(row[2].includes('**HALT**')).toBe(true);
+            expect(/step-\d/.test(row[2])).toBe(false);
+          } else {
+            const target = targets[row[1]];
+            expect(row[2].includes('**EARLY EXIT**')).toBe(true);
+            expect(row[2].includes(join(snapshot.generation, target))).toBe(true);
+            expect(target in snapshot.outputs).toBe(true);
+            if (['in-review', 'built', 'done'].includes(row[1]))
+              expect(/step-02-plan|step-03-implement|step-oneshot/.test(row[2])).toBe(false);
+          }
+        }
+        expect(
+          snapshot.outputs['step-04-review.md'].includes(
+            join(snapshot.generation, 'step-05-present.md')
+          )
+        ).toBe(true);
+        expect(
+          step.includes(
+            'For any selected existing plan: set `plan_file` and follow **Existing-state dispatch**'
+          )
+        ).toBe(true);
+        expect(
+          step.includes(
+            'set `plan_file` and follow **Existing-state dispatch**, exactly as for an explicit plan'
+          )
+        ).toBe(true);
+        safety(snapshot, 'bmad-build', route, review);
+      });
+    }
+  }
   for (const skill of skills) {
     it(`${skill} executes the discovered entry command with no installer directory`, () => {
       const f = fixture(skill);

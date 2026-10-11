@@ -1,5 +1,3 @@
-{% if workflow.route != "oneshot" %}
-
 # Step 3: Implement
 
 ## RULES
@@ -17,6 +15,8 @@ Verify `{plan_file}` resolves to a non-empty path and the file exists on disk. I
 This is plan-required execution; never recreate a missing required plan or route the LOW context-only exit here. For canonical/unformatted plans keep intent/content in place and record state/evidence in existing context instead of forced frontmatter conversion. Preserve blocked/dropped safeguards.
 
 ## INSTRUCTIONS
+
+Before any state/baseline writes or implementation handoff, recheck request mode. Read-only/planning-only/report-only requests use existing non-persisted context for the requested analysis/proposal/report and STOP, without implementation, review, publication or NEXT fallthrough. This phase is available for authorized technical repair on every route, not permission to restart implementation when resuming in-review/built/done.
 
 ### State/evidence location
 
@@ -57,4 +57,3 @@ If the canonical intent contains an I/O & Edge-Case Matrix, verify every row has
 ## NEXT
 
 Read fully and follow `{{ rendered("step-04-review.md") }}`
-{% endif %}

@@ -1,4 +1,3 @@
-{% if workflow.route != "oneshot" %}
 {% if workflow.review == "auto" %}
 {% set review = "thorough" %}
 {% else %}
@@ -17,6 +16,8 @@
 - Native scheduling and tool permissions prevail: GJC task launches detach by design, then the leader uses native await for all results before triage or dependent work. Launch independent reviewers together when supported; never demand unsupported blocking launches or fabricate completion.
 
 ## INSTRUCTIONS
+
+Before any state/iteration write, diff artifact, reviewer/repair dispatch or NEXT, recheck request mode. For read-only/planning-only/report-only, provide only requested analysis/proposal/report from existing non-persisted context and STOP. Do not record in-review, create artifacts, launch review/implementation, finalize or publish; prior status and a pinned route do not change this guard.
 
 ### State/evidence location
 
@@ -117,4 +118,3 @@ For initial review and every loopback/resume/follow-up, retain each applicable r
 For initial completion and every loopback/resume/follow-up, establish current required verification/AC and successful execution/completion of every applicable required native review lane before built/done/commit/push/PR. An explicitly chosen review `none` requires no optional lenses, never waives verification/AC. Failure/unmet acceptance or incomplete required review keeps state incomplete and blocks dependent terminal/publication actions. Record current scope/ownership/authority and limitations; safe independent context work may continue while the affected action is blocked. Carry this condition into presentation; findings and advisory follow-up recommendations still follow the existing triage rules.
 
 Read fully and follow `{{ rendered("step-05-present.md") }}`
-{% endif %}
