@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import os
+import posixpath
 import re
 import shutil
 import sys
@@ -236,12 +237,61 @@ def _load_sources(skill_dir: Path) -> dict[str, str]:
 
 def _resolve_config_value(value: Any, label: str, project_root: Path) -> str:
     text = _require_string(value, label, allow_empty=label == "config.core.active_initiative")
-    if "{project-root}" not in text:
-        return text
-    resolved = text.replace("{project-root}", project_root.as_posix())
-    if not Path(resolved).is_absolute():
-        raise RenderError(f"{label} must resolve to an absolute path: {resolved}")
-    return resolved
+    expanded = text.replace("{project-root}", project_root.as_posix())
+    portable = expanded.replace("\\", "/")
+    if Path(portable).is_absolute():
+        path = Path(portable).resolve()
+        if not path.is_relative_to(project_root):
+            raise RenderError("consumed config path is outside repository")
+        return path.relative_to(project_root).as_posix()
+    return _relative_text(expanded, project_root)
+
+
+def _relative_text(text: str, project_root: Path) -> str:
+    """Normalize recognized checkout path tokens, never arbitrary prose or foreign paths."""
+    root = project_root.as_posix()
+
+    def reference(match: re.Match[str]) -> str:
+        original = match.group()
+        portable = original.replace("\\", "/")
+        normalized = posixpath.normpath(portable)
+        # normpath preserves a POSIX double leading slash; checkout references do not.
+        normalized = "/" + normalized.lstrip("/") if normalized.startswith("/") else normalized
+        physical = Path(portable).resolve()
+        if normalized == root or normalized.startswith(root + "/"):
+            if re.search(r"[A-Za-z][A-Za-z0-9+.-]*:$", text[:match.start()]) is not None:
+                raise RenderError("unsupported checkout URI")
+            # Dot traversal through a symlink must not silently change target meaning.
+            if physical.as_posix() != normalized:
+                raise RenderError("ambiguous checkout reference")
+            suffix = normalized[len(root):]
+            return "." + suffix
+        if physical.is_relative_to(project_root):
+            raise RenderError("noncanonical checkout alias")
+        if root in portable or (project_root.name in portable.split("/") and ".." in portable.split("/")):
+            raise RenderError("unsafe checkout reference")
+        return original
+
+    result = re.sub(r"(?<![\w/\\])(?:[A-Za-z]:)?[/\\][^\s`\"'<>\[\](){};,]*", reference, text)
+    separators = r"[/\\]+(?:\.[/\\]+)*"
+    root_pattern = separators.join(re.escape(part) for part in root.strip("/").split("/"))
+    if root.startswith("/"):
+        root_pattern = separators + root_pattern
+    # A checkout spelling split by prose delimiters (for example spaces in a
+    # directory name) is not a safely recognizable token: reject, do not guess.
+    if re.search(root_pattern, result) is not None:
+        raise RenderError("unrepresentable checkout reference")
+    return result
+
+
+def _relative_values(value: Any, project_root: Path) -> Any:
+    if isinstance(value, str):
+        return _relative_text(value, project_root)
+    if isinstance(value, list):
+        return [_relative_values(item, project_root) for item in value]
+    if isinstance(value, dict):
+        return {key: _relative_values(item, project_root) for key, item in value.items()}
+    return value
 
 
 def _find_config_values(data: Any, key: str, prefix: str = "") -> list[tuple[str, Any]]:
@@ -422,7 +472,7 @@ class _CustomizationTable(_Table):
             if not isinstance(value, dict):
                 raise RenderError(f"{label} must be a table, got {type(value).__name__}")
             return _CustomizationTable(default, value, path, self._ctx)
-        resolved = _resolve_customization_value(value, default, label)
+        resolved = _relative_values(_resolve_customization_value(value, default, label), self._ctx.project_root)
         self._ctx.inputs[label] = resolved
         return _bind_customization(resolved, label, self._ctx.destination)
 
@@ -441,7 +491,7 @@ class _RenderContext:
         destination: Path,
     ) -> None:
         self.project_root = project_root
-        self.destination = destination
+        self.destination = destination.relative_to(project_root)
         self.inputs: dict[str, Any] = {}
         self.links: dict[str, set[str]] = {}
         self._source_names = source_names
@@ -499,7 +549,11 @@ def _render_sources(sources: dict[str, str], skill_dir: Path, context: _RenderCo
     """Render every source as a Jinja2 template against the context; return the non-empty outputs."""
     # Skill sources name their bundled non-Markdown files (scripts, assets)
     # through {skill-root}; those stay in the installed skill directory.
-    bound = {name: content.replace("{skill-root}", skill_dir.as_posix()) for name, content in sources.items()}
+    skill_reference = skill_dir.relative_to(context.project_root).as_posix()
+    bound = {
+        name: content.replace("{skill-root}", skill_reference)
+        for name, content in sources.items()
+    }
     environment = SandboxedEnvironment(
         loader=_SourceLoader(bound),
         undefined=jinja2.StrictUndefined,
@@ -602,6 +656,9 @@ def render(
     repository_root = Path(__file__).resolve(strict=True).parents[2]
     if project_root != repository_root:
         raise RenderError("project root is not this runtime's repository")
+    caller_cwd = Path.cwd().resolve(strict=True)
+    if not caller_cwd.is_relative_to(project_root):
+        raise RenderError("caller working directory is outside repository")
     allowed_skills = {
         project_root / "mydocs" / "skills" / name
         for name in ("bmad-build", "bmad-build-auto")
@@ -617,7 +674,7 @@ def render(
     ):
         raise RenderError("skill is not a canonical BMAD directory")
 
-    sources = _load_sources(skill_dir)
+    sources = {name: _relative_text(content, project_root) for name, content in _load_sources(skill_dir).items()}
     for prompt in ("review-prompts/edge-case-hunter.md", "review-prompts/verification-gap.md"):
         if prompt not in sources or not sources[prompt].strip():
             raise RenderError("required review prompt is missing or empty")
@@ -630,11 +687,10 @@ def render(
     customization = structural_merge(structural_merge(customization, file_layer), command_layer)
     supplied = _leaf_paths(file_layer) | _leaf_paths(command_layer)
 
-    source_hashes = {name: _hash_bytes(content.encode("utf-8")) for name, content in sources.items()}
-    root_hash = _hash_bytes(str(project_root).encode("utf-8"))[:12]
-    slug = re.sub(r"[^a-z0-9]+", "-", project_root.name.lower()).strip("-") or "project"
-    slug = slug[:80].rstrip("-") or "project"
-    namespace = project_root / "_bmad" / "render" / skill_dir.name / f"{slug}-{root_hash}"
+    # Bind public identity to the effective templates, before destination binding;
+    # raw source hashes would fingerprint literal checkout references in inputs.
+    template_hashes = {name: _hash_bytes(content.encode("utf-8")) for name, content in sources.items()}
+    namespace = project_root / "_bmad" / "render" / skill_dir.name
 
     def render_pass(destination: Path) -> tuple[_RenderContext, dict[str, str]]:
         context = _RenderContext(
@@ -659,13 +715,13 @@ def render(
     input_values = json.loads(_canonical_json(probe.inputs))
     renderer_hash = _hash_bytes(Path(__file__).read_bytes())
     identity = {
-        "project_root": str(project_root),
-        "skill_root": str(skill_dir),
+        "project_root": ".",
+        "skill_root": skill_dir.relative_to(project_root).as_posix(),
         "renderer_sha256": renderer_hash,
         "config_utils_sha256": _hash_bytes(_helper_bytes),
         "jinja2_version": jinja2.__version__,
         "resolved_values": input_values,
-        "source_sha256": source_hashes,
+        "template_sha256": template_hashes,
     }
     generation_hash = _hash_bytes(_canonical_json(identity))[:20]
     destination = namespace / generation_hash
@@ -676,17 +732,21 @@ def render(
     outputs = {name: content.encode("utf-8") for name, content in rendered.items()}
     output_hashes = {name: _hash_bytes(content) for name, content in outputs.items()}
     manifest = {
-        "schema_version": 1,
+        "schema_version": 3,
         "skill": skill_dir.name,
-        "project_root": str(project_root),
-        "project_slug": slug,
-        "root_hash": root_hash,
+        "project_root": ".",
+        "skill_root": skill_dir.relative_to(project_root).as_posix(),
         "generation_hash": generation_hash,
         "inputs": identity,
         "outputs": output_hashes,
     }
+    entry = Path(os.path.relpath(destination / "workflow.md", caller_cwd))
+    root_bytes = project_root.as_posix().encode("utf-8")
+    public_bytes = [*outputs.values(), _canonical_json(manifest), f"read and follow {entry}\n".encode("utf-8")]
+    if any(root_bytes in content or _relative_text(content.decode("utf-8"), project_root).encode("utf-8") != content for content in public_bytes):
+        raise RenderError("checkout location remains in rendered snapshot")
     _publish(destination, outputs, manifest)
-    return destination / "workflow.md"
+    return entry
 
 
 def main() -> int:

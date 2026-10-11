@@ -14,7 +14,7 @@ import {
   writeFileSync
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
@@ -32,13 +32,18 @@ interface Fixture {
   renderer: string;
   skillDir: string;
   sourceHashes: Record<string, string>;
+  templateHashes: Record<string, string>;
 }
 interface Manifest {
   schema_version: number;
   skill: string;
+  project_root: string;
+  skill_root: string;
   generation_hash: string;
   inputs: {
-    source_sha256: Record<string, string>;
+    project_root: string;
+    skill_root: string;
+    template_sha256: Record<string, string>;
     renderer_sha256: string;
     config_utils_sha256: string;
     resolved_values: Record<string, unknown>;
@@ -47,6 +52,8 @@ interface Manifest {
 }
 interface Snapshot {
   entry: string;
+  instruction: string;
+  reference: string;
   generation: string;
   manifest: Manifest;
   outputs: Record<string, string>;
@@ -93,19 +100,19 @@ function markdownFiles(directory: string, prefix = ''): string[] {
     })
     .sort();
 }
-function fixture(skill: Skill): Fixture {
+function fixture(skill: Skill, prefix = 'case-'): Fixture {
   try {
-    return createFixture(skill);
+    return createFixture(skill, prefix);
   } catch {
     throw new Error(
       'local-renderer prerequisite blocked: owned synthetic fixture or required local skill sources unavailable; host paths omitted.'
     );
   }
 }
-function createFixture(skill: Skill): Fixture {
+function createFixture(skill: Skill, prefix: string): Fixture {
   if (!ownedRoot)
     throw new Error('local-renderer prerequisite blocked: temporary fixture unavailable.');
-  const root = realpathSync(mkdtempSync(join(ownedRoot, 'case-')));
+  const root = realpathSync(mkdtempSync(join(ownedRoot, prefix)));
   fixtures.add(root);
   const scripts = join(root, 'tools/bmad');
   const skillDir = join(root, 'mydocs/skills', skill);
@@ -119,14 +126,22 @@ function createFixture(skill: Skill): Fixture {
   copyFileSync(join(sourceDir, 'customize.toml'), join(skillDir, 'customize.toml'));
   copyFileSync(join(sourceDir, 'SKILL.md'), join(skillDir, 'SKILL.md'));
   const sourceHashes: Record<string, string> = {};
+  const templateHashes: Record<string, string> = {};
   for (const name of markdownFiles(sourceDir)) {
     const destination = join(skillDir, name);
     mkdirSync(dirname(destination), { recursive: true });
     copyFileSync(join(sourceDir, name), destination);
     sourceHashes[name] = sha256(readBytes(destination));
+    templateHashes[name] = sha256(readBytes(destination).toString('utf8').replaceAll(root, '.'));
   }
   copyFileSync(join(repository, 'AGENTS.md'), join(root, 'AGENTS.md'));
-  return { root, renderer: join(scripts, 'render_skill.py'), skillDir, sourceHashes };
+  return {
+    root,
+    renderer: join(scripts, 'render_skill.py'),
+    skillDir,
+    sourceHashes,
+    templateHashes
+  };
 }
 // Execute the shipped entrypoint recipe with explicit installed Python/Jinja
 // prerequisites. No uv/bootstrap, installer config or network is needed.
@@ -148,7 +163,12 @@ function existingPython(args: string[], cwd: string) {
 function invoke(renderer: string, args: string[], cwd: string) {
   return existingPython([renderer, ...args], cwd);
 }
-function render(f: Fixture, assignments: string[] = [], overrides?: string): Snapshot {
+function render(
+  f: Fixture,
+  assignments: string[] = [],
+  overrides?: string,
+  cwd = f.root
+): Snapshot {
   const result = invoke(
     f.renderer,
     [
@@ -159,7 +179,7 @@ function render(f: Fixture, assignments: string[] = [], overrides?: string): Sna
       ...(overrides ? ['--overrides', overrides] : []),
       ...assignments.flatMap((assignment) => ['--set', assignment])
     ],
-    f.root
+    cwd
   );
   expect(
     !result.error && result.status === 0,
@@ -170,10 +190,12 @@ function render(f: Fixture, assignments: string[] = [], overrides?: string): Sna
     /^read and follow [^\n]+\/workflow\.md$/.test(line),
     'Renderer stdout is the workflow instruction, not a metadata report.'
   ).toBe(true);
-  const entry = line.slice('read and follow '.length);
-  expect(isAbsolute(entry) && owned(entry), 'Workflow must resolve inside the owned fixture.').toBe(
-    true
-  );
+  const instruction = line.slice('read and follow '.length);
+  const entry = resolve(cwd, instruction);
+  expect(
+    !isAbsolute(instruction) && owned(entry),
+    'Workflow must resolve inside the owned fixture.'
+  ).toBe(true);
   const generation = dirname(entry);
   expect(
     relative(join(f.root, '_bmad/render'), generation).startsWith('..'),
@@ -187,13 +209,32 @@ function render(f: Fixture, assignments: string[] = [], overrides?: string): Sna
   } catch {
     throw new Error('Actual renderer manifest is missing or invalid; private paths omitted.');
   }
-  expect(manifest.schema_version, 'manifest schema').toBe(1);
+  expect(manifest.schema_version, 'manifest schema').toBe(3);
+  expect(
+    manifest.project_root === '.' && manifest.inputs.project_root === '.',
+    'relative project identity'
+  ).toBe(true);
+  expect(
+    manifest.skill_root === `mydocs/skills/${manifest.skill}` &&
+      manifest.inputs.skill_root === manifest.skill_root,
+    'relative skill identity'
+  ).toBe(true);
+  expect(
+    'project_slug' in manifest ||
+      'root_hash' in manifest ||
+      'project_slug' in manifest.inputs ||
+      'root_hash' in manifest.inputs,
+    'no checkout fingerprint fields'
+  ).toBe(false);
   expect(manifest.skill, 'manifest skill').toBe(f.skillDir.split(/[\\/]/).at(-1));
   expect(/^[a-f0-9]{20}$/.test(manifest.generation_hash), 'generation identity').toBe(true);
   expect(generation.endsWith(manifest.generation_hash), 'stdout uses immutable generation').toBe(
     true
   );
-  expect(manifest.inputs.source_sha256, 'public current source hashes').toEqual(f.sourceHashes);
+  expect(manifest.inputs.template_sha256, 'effective privacy-normalized template hashes').toEqual(
+    f.templateHashes
+  );
+  expect('source_sha256' in manifest.inputs, 'no raw source hash compatibility alias').toBe(false);
   expect(manifest.inputs.renderer_sha256, 'actual local renderer hash').toBe(
     sha256(readBytes(f.renderer))
   );
@@ -203,10 +244,9 @@ function render(f: Fixture, assignments: string[] = [], overrides?: string): Sna
   expect(manifest.inputs.renderer_sha256, 'copied renderer matches current tracked runtime').toBe(
     sha256(readBytes(join(repository, 'tools/bmad/render_skill.py')))
   );
-  const originals = join(repository, 'mydocs/skills', manifest.skill);
   for (const [name, hash] of Object.entries(f.sourceHashes)) {
     expect(hash, `current installed source: ${name}`).toBe(
-      sha256(readBytes(join(originals, name)))
+      sha256(readBytes(join(f.skillDir, name)))
     );
   }
   const outputs: Record<string, string> = {};
@@ -221,18 +261,40 @@ function render(f: Fixture, assignments: string[] = [], overrides?: string): Sna
     outputs[name] = bytes.toString('utf8');
   }
   expect('workflow.md' in outputs, 'workflow output exists').toBe(true);
+  const reference = relative(f.root, generation).split('\\').join('/');
+  expect(
+    reference === `_bmad/render/${manifest.skill}/${manifest.generation_hash}`,
+    'location-independent namespace'
+  ).toBe(true);
+  const publicBytes = [
+    result.stdout,
+    readBytes(join(generation, 'manifest.json')).toString('utf8'),
+    ...Object.values(outputs)
+  ];
+  for (const text of publicBytes) {
+    expect(
+      [f.root, basename(f.root), sha256(f.root).slice(0, 12)].some((value) => text.includes(value)),
+      'all public bytes omit checkout location and fingerprints'
+    ).toBe(false);
+  }
+  expect(result.stderr.length === 0, 'successful renderer has empty stderr').toBe(true);
   for (const [name, text] of Object.entries(outputs)) {
     expect(/\{[{%]/.test(text), `${name}: no unresolved Jinja`).toBe(false);
-    const escaped = generation.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escaped = reference.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const links = [...text.matchAll(new RegExp(`${escaped}/([A-Za-z0-9_./-]+\\.md)`, 'g'))];
-    for (const link of links)
+    for (const link of links) {
       expect(link[1] in outputs, `${name}: rendered sibling link exists`).toBe(true);
+      expect(
+        existsSync(resolve(f.root, `${reference}/${link[1]}`)),
+        `${name}: repository-relative link resolves`
+      ).toBe(true);
+    }
   }
   expect(
-    outputs['workflow.md'].includes(join(generation, 'step-01-clarify-and-route.md')),
+    outputs['workflow.md'].includes(`${reference}/step-01-clarify-and-route.md`),
     'workflow reaches rendered step01'
   ).toBe(true);
-  return { entry, generation, manifest, outputs };
+  return { entry, instruction, reference, generation, manifest, outputs };
 }
 function safety(snapshot: Snapshot, skill: Skill, route: Route, review: Review): void {
   const files = snapshot.outputs;
@@ -772,16 +834,14 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
           } else {
             const target = targets[row[1]];
             expect(row[2].includes('**EARLY EXIT**')).toBe(true);
-            expect(row[2].includes(join(snapshot.generation, target))).toBe(true);
+            expect(row[2].includes(`${snapshot.reference}/${target}`)).toBe(true);
             expect(target in snapshot.outputs).toBe(true);
             if (['in-review', 'built', 'done'].includes(row[1]))
               expect(/step-02-plan|step-03-implement|step-oneshot/.test(row[2])).toBe(false);
           }
         }
         expect(
-          snapshot.outputs['step-04-review.md'].includes(
-            join(snapshot.generation, 'step-05-present.md')
-          )
+          snapshot.outputs['step-04-review.md'].includes(`${snapshot.reference}/step-05-present.md`)
         ).toBe(true);
         expect(
           step.includes(
@@ -798,6 +858,354 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
     }
   }
   for (const skill of skills) {
+    it(`${skill} checkout spaces preserve safe default and absolute config paths`, () => {
+      const f = fixture(skill, 'case with spaces-');
+      render(f);
+      mkdirSync(join(f.root, '_bmad'), { recursive: true });
+      const config = join(f.root, '_bmad/config.toml');
+      const contents = `[core]\noutput_folder = ${JSON.stringify(join(f.root, 'output with spaces'))}\n`;
+      writeFileSync(config, contents);
+      const snapshot = render(f);
+      expect(JSON.stringify(snapshot.manifest).includes(f.root)).toBe(false);
+      expect(Object.values(snapshot.outputs).some((text) => text.includes(f.root))).toBe(false);
+      expect(readBytes(config).toString('utf8')).toBe(contents);
+    });
+    for (const spelling of ['redundant-separators', 'backslashes', 'dot-segments'] as const) {
+      it(`${skill} ${spelling} source/config/instruction references normalize across relocated roots`, () => {
+        const checkouts = [fixture(skill), fixture(skill)];
+        const snapshots = checkouts.map((f) => {
+          const canonical = `${f.root}/AGENTS.md`;
+          const reference =
+            spelling === 'redundant-separators'
+              ? canonical.replaceAll('/', '//')
+              : spelling === 'backslashes'
+                ? canonical.replaceAll('/', '\\')
+                : `${f.root.replaceAll('/', '/./')}/mydocs/../AGENTS.md`;
+          const path = join(f.skillDir, 'plan-template.md');
+          const original = readBytes(path).toString('utf8');
+          const source = `${original}\nSynthetic reference: ${reference}\n`;
+          const effective = `${original}\nSynthetic reference: ./AGENTS.md\n`;
+          writeFileSync(path, source);
+          f.sourceHashes['plan-template.md'] = sha256(source);
+          f.templateHashes['plan-template.md'] = sha256(effective);
+          mkdirSync(join(f.root, '_bmad'));
+          const configPath = join(f.root, '_bmad/config.toml');
+          const config = `[core]\noutput_folder = ${JSON.stringify(reference)}\n`;
+          writeFileSync(configPath, config);
+          const instruction = `Read ${reference} and {skill-root}/review-prompts/edge-case-hunter.md`;
+          const snapshot = render(f, [
+            `workflow.quick_lenses=[{id="quick", name="Synthetic Quick", instruction=${JSON.stringify(instruction)}}]`
+          ]);
+          expect(
+            snapshot.outputs['plan-template.md'].includes('Synthetic reference: ./AGENTS.md'),
+            'recognized source reference retains its repository target'
+          ).toBe(true);
+          expect(
+            snapshot.outputs['step-04-review.md'].includes('Read ./AGENTS.md and '),
+            'recognized instruction reference retains its repository target'
+          ).toBe(true);
+          expect(
+            snapshot.manifest.inputs.resolved_values['config.core.output_folder'] === 'AGENTS.md',
+            'config reference retains its repository target'
+          ).toBe(true);
+          expect(
+            [
+              snapshot.instruction,
+              JSON.stringify(snapshot.manifest),
+              ...Object.values(snapshot.outputs)
+            ].some(
+              (text) =>
+                text.includes(reference) || text.includes(JSON.stringify(reference).slice(1, -1))
+            ),
+            'original path spelling is absent from public bytes'
+          ).toBe(false);
+          expect(
+            readBytes(path).toString('utf8') === source &&
+              readBytes(configPath).toString('utf8') === config,
+            'normalization preserves both input byte streams'
+          ).toBe(true);
+          expect(
+            snapshot.manifest.inputs.template_sha256['plan-template.md'] === sha256(effective),
+            'hash binds effective template before skill-root binding'
+          ).toBe(true);
+          return snapshot;
+        });
+        expect(
+          snapshots[0].instruction === snapshots[1].instruction &&
+            snapshots[0].manifest.generation_hash === snapshots[1].manifest.generation_hash,
+          'equivalent relocated references share stdout and generation identity'
+        ).toBe(true);
+        expect(
+          readBytes(join(snapshots[0].generation, 'manifest.json')).equals(
+            readBytes(join(snapshots[1].generation, 'manifest.json'))
+          ) && JSON.stringify(snapshots[0].outputs) === JSON.stringify(snapshots[1].outputs),
+          'equivalent relocated references share all persistent public bytes'
+        ).toBe(true);
+      });
+    }
+
+    for (const form of ['external-alias', 'file-uri'] as const) {
+      it(`${skill} rejects ${form} source and instruction references without altering prior snapshots`, () => {
+        for (const surface of ['source', 'instruction'] as const) {
+          const f = fixture(skill);
+          const prior = render(f);
+          const beforeManifest = readBytes(join(prior.generation, 'manifest.json'));
+          const aliasFixture = fixture(skill);
+          const alias = join(aliasFixture.root, 'checkout-alias');
+          symlinkSync(f.root, alias);
+          const reference =
+            form === 'external-alias' ? `${alias}/AGENTS.md` : `file://${f.root}/AGENTS.md`;
+          const path = join(f.skillDir, 'plan-template.md');
+          if (surface === 'source')
+            writeFileSync(
+              path,
+              `${readBytes(path).toString('utf8')}\nSynthetic reference: ${reference}\n`
+            );
+          const before = sha256(readBytes(path));
+          const generations = readdirSync(dirname(prior.generation));
+          const assignments =
+            surface === 'instruction'
+              ? [
+                  '--set',
+                  `workflow.quick_lenses=[{id="quick", name="Synthetic Quick", instruction=${JSON.stringify(`Read ${reference}`)}}]`
+                ]
+              : [];
+          const result = invoke(
+            f.renderer,
+            ['--project-root', f.root, '--skill', f.skillDir, ...assignments],
+            f.root
+          );
+          expect(
+            !result.error &&
+              result.status === 1 &&
+              result.stdout === 'HALT: BMAD rendering failed.\n' &&
+              result.stderr === ''
+          ).toBe(true);
+          expect(readdirSync(dirname(prior.generation))).toEqual(generations);
+          expect(readBytes(join(prior.generation, 'manifest.json')).equals(beforeManifest)).toBe(
+            true
+          );
+          expect(sha256(readBytes(path))).toBe(before);
+        }
+      });
+    }
+
+    it(`${skill} refuses ambiguous symlink dot traversal in source and instruction without publication`, () => {
+      for (const surface of ['source', 'instruction'] as const) {
+        const f = fixture(skill);
+        const outside = fixture(skill);
+        symlinkSync(outside.root, join(f.root, 'synthetic-link'));
+        const reference = `${f.root}/synthetic-link/../AGENTS.md`;
+        const path = join(f.skillDir, 'plan-template.md');
+        const source = `${readBytes(path).toString('utf8')}\nSynthetic ambiguous reference: ${reference}\n`;
+        if (surface === 'source') writeFileSync(path, source);
+        const before = sha256(readBytes(path));
+        const assignments =
+          surface === 'instruction'
+            ? [
+                '--set',
+                `workflow.quick_lenses=[{id="quick", name="Synthetic Quick", instruction=${JSON.stringify(`Read ${reference}`)}}]`
+              ]
+            : [];
+        const result = invoke(
+          f.renderer,
+          ['--project-root', f.root, '--skill', f.skillDir, ...assignments],
+          f.root
+        );
+        expect(
+          !result.error &&
+            result.status === 1 &&
+            result.stdout === 'HALT: BMAD rendering failed.\n' &&
+            result.stderr === '',
+          'ambiguous traversal has fixed private failure'
+        ).toBe(true);
+        expect(
+          existsSync(join(f.root, '_bmad/render')),
+          'ambiguous traversal publishes nothing'
+        ).toBe(false);
+        expect(
+          sha256(readBytes(path)) === before,
+          'ambiguous traversal preserves source bytes'
+        ).toBe(true);
+      }
+    });
+
+    it(`${skill} resolves stdout against root and nested caller cwd without changing public bytes`, () => {
+      const f = fixture(skill);
+      const root = render(f);
+      const cwd = join(f.root, 'synthetic/nested');
+      mkdirSync(cwd, { recursive: true });
+      const nested = render(f, [], undefined, cwd);
+      expect(
+        root.instruction === `${root.reference}/workflow.md`,
+        'root caller relative instruction'
+      ).toBe(true);
+      expect(
+        nested.instruction === `../../${root.reference}/workflow.md`,
+        'nested caller relative instruction'
+      ).toBe(true);
+      expect(
+        nested.entry === root.entry && existsSync(nested.entry),
+        'both instructions reach the same real workflow'
+      ).toBe(true);
+      expect(
+        JSON.stringify(nested.manifest) === JSON.stringify(root.manifest) &&
+          JSON.stringify(nested.outputs) === JSON.stringify(root.outputs),
+        'cwd never changes persistent bytes'
+      ).toBe(true);
+    });
+
+    it(`${skill} rejects outside caller cwd before any publication`, () => {
+      const f = fixture(skill);
+      const outside = fixture(skill);
+      const sources = Object.fromEntries(
+        markdownFiles(f.skillDir).map((name) => [name, sha256(readBytes(join(f.skillDir, name)))])
+      );
+      const result = invoke(
+        f.renderer,
+        ['--project-root', f.root, '--skill', f.skillDir],
+        outside.root
+      );
+      expect(
+        !result.error &&
+          result.status === 1 &&
+          result.stdout === 'HALT: BMAD rendering failed.\n' &&
+          result.stderr === '',
+        'outside cwd has fixed private failure'
+      ).toBe(true);
+      expect(existsSync(join(f.root, '_bmad/render')), 'outside cwd publishes nothing').toBe(false);
+      expect(
+        Object.entries(sources).every(
+          ([name, hash]) => sha256(readBytes(join(f.skillDir, name))) === hash
+        ),
+        'failure preserves all sources'
+      ).toBe(true);
+    });
+
+    it(`${skill} converts concrete contained absolute config without changing input`, () => {
+      const f = fixture(skill);
+      mkdirSync(join(f.root, '_bmad'));
+      const path = join(f.root, '_bmad/config.toml');
+      const config = `[core]\noutput_folder = ${JSON.stringify(join(f.root, 'synthetic-output'))}\n`;
+      writeFileSync(path, config);
+      const snapshot = render(f);
+      expect(
+        snapshot.manifest.inputs.resolved_values['config.core.output_folder'] ===
+          'synthetic-output',
+        'absolute contained config becomes repository-relative'
+      ).toBe(true);
+      expect(readBytes(path).toString('utf8') === config, 'config remains read-only').toBe(true);
+    });
+
+    it(`${skill} rejects concrete outside-root absolute consumed config without disclosure`, () => {
+      const f = fixture(skill);
+      const outside = fixture(skill);
+      mkdirSync(join(f.root, '_bmad'));
+      const path = join(f.root, '_bmad/config.toml');
+      const config = `[core]\noutput_folder = ${JSON.stringify(join(outside.root, 'synthetic-output'))}\n`;
+      writeFileSync(path, config);
+      const result = invoke(f.renderer, ['--project-root', f.root, '--skill', f.skillDir], f.root);
+      expect(
+        !result.error &&
+          result.status === 1 &&
+          result.stdout === 'HALT: BMAD rendering failed.\n' &&
+          result.stderr === '',
+        'outside config path has fixed private failure'
+      ).toBe(true);
+      expect(existsSync(join(f.root, '_bmad/render')), 'outside config publishes nothing').toBe(
+        false
+      );
+      expect(readBytes(path).toString('utf8') === config, 'rejected config remains read-only').toBe(
+        true
+      );
+      expect(
+        Object.entries(f.sourceHashes).every(
+          ([name, hash]) => sha256(readBytes(join(f.skillDir, name))) === hash
+        ),
+        'failure preserves sources'
+      ).toBe(true);
+    });
+
+    it(`${skill} normalizes source templates and custom bound instructions before persistence`, () => {
+      const f = fixture(skill);
+      const name = 'plan-template.md';
+      const path = join(f.skillDir, name);
+      const source = `${readBytes(path).toString('utf8')}\nSynthetic source reference: ${f.root}/AGENTS.md\nSynthetic installed skill: {skill-root}/workflow.md\n`;
+      writeFileSync(path, source);
+      f.sourceHashes[name] = sha256(source);
+      f.templateHashes[name] = sha256(source.replaceAll(f.root, '.'));
+      const snapshot = render(f, [
+        `workflow.quick_lenses=[{id="quick", name="Synthetic Quick", instruction="Read ${f.root}/AGENTS.md and {skill-root}/review-prompts/edge-case-hunter.md"}]`
+      ]);
+      expect(
+        snapshot.outputs[name].includes('./AGENTS.md') &&
+          snapshot.outputs[name].includes(`mydocs/skills/${skill}/workflow.md`),
+        'source references normalized and bound'
+      ).toBe(true);
+      expect(
+        snapshot.outputs['step-04-review.md'].includes(
+          `${snapshot.reference}/review-prompts/edge-case-hunter.md`
+        ),
+        'custom instruction binds repository-relative generation'
+      ).toBe(true);
+      expect(
+        snapshot.manifest.inputs.template_sha256[name] === sha256(source.replaceAll(f.root, '.')) &&
+          snapshot.manifest.inputs.template_sha256[name] !== sha256(source),
+        'template hash binds effective private-location-free representation, not raw input'
+      ).toBe(true);
+      expect(
+        readBytes(path).toString('utf8') === source,
+        'source normalization never mutates input'
+      ).toBe(true);
+    });
+
+    it(`${skill} identical consumed fields in relocated owned checkouts have identical public bytes`, () => {
+      const first = fixture(skill);
+      const second = fixture(skill);
+      const snapshots = [first, second].map((f) => {
+        mkdirSync(join(f.root, '_bmad'));
+        const path = join(f.root, '_bmad/config.toml');
+        const config = `[core]\noutput_folder = ${JSON.stringify(join(f.root, 'synthetic-output'))}\n`;
+        writeFileSync(path, config);
+        const sourcePath = join(f.skillDir, 'plan-template.md');
+        const source = `${readBytes(sourcePath).toString('utf8')}\nSynthetic source root: ${f.root}/AGENTS.md\n`;
+        writeFileSync(sourcePath, source);
+        f.sourceHashes['plan-template.md'] = sha256(source);
+        f.templateHashes['plan-template.md'] = sha256(source.replaceAll(f.root, '.'));
+        const snapshot = render(f, [
+          `workflow.quick_lenses=[{id="quick", name="Synthetic Quick", instruction="Read ${f.root}/AGENTS.md and {skill-root}/review-prompts/edge-case-hunter.md"}]`
+        ]);
+        expect(
+          readBytes(path).toString('utf8') === config,
+          'relocated config stays read-only'
+        ).toBe(true);
+        expect(
+          readBytes(sourcePath).toString('utf8') === source,
+          'relocated root-bearing source stays unchanged'
+        ).toBe(true);
+        return snapshot;
+      });
+      expect(
+        snapshots[0].instruction === snapshots[1].instruction,
+        'stdout has no location fingerprint'
+      ).toBe(true);
+      expect(
+        readBytes(join(snapshots[0].generation, 'manifest.json')).equals(
+          readBytes(join(snapshots[1].generation, 'manifest.json'))
+        ),
+        'manifest bytes and generation identity are relocation invariant'
+      ).toBe(true);
+      expect(
+        JSON.stringify(snapshots[0].outputs) === JSON.stringify(snapshots[1].outputs),
+        'all rendered bytes are relocation invariant'
+      ).toBe(true);
+      expect(
+        JSON.stringify(snapshots[0].manifest.inputs.template_sha256) ===
+          JSON.stringify(snapshots[1].manifest.inputs.template_sha256),
+        'root-bearing source public template hashes are relocation invariant'
+      ).toBe(true);
+    });
+
     it(`${skill} executes the discovered entry command with no installer directory`, () => {
       const f = fixture(skill);
       expect(existsSync(join(f.root, '_bmad')), 'checkout has no installer state').toBe(false);
@@ -821,7 +1229,7 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
       expect(!result.error && result.status === 0, 'actual entry command succeeds').toBe(true);
       const snapshot = render(f);
       expect(
-        result.stdout.trim() === `read and follow ${snapshot.entry}`,
+        result.stdout === `read and follow ${snapshot.instruction}\n`,
         'entry command uses actual immutable workflow'
       ).toBe(true);
       safety(snapshot, skill, 'auto', 'quick');
@@ -841,8 +1249,7 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
       writeFileSync(join(custom, 'config.user.toml'), user);
       const snapshot = render(f);
       expect(
-        snapshot.manifest.inputs.resolved_values['config.core.output_folder'] ===
-          join(f.root, 'custom-output'),
+        snapshot.manifest.inputs.resolved_values['config.core.output_folder'] === 'custom-output',
         'project override beats shipped default'
       ).toBe(true);
       expect(snapshot.manifest.inputs.resolved_values['config.core.active_initiative']).toBe(
@@ -862,12 +1269,19 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
       const f = fixture(skill);
       const before = render(f);
       const helper = join(dirname(f.renderer), 'config_utils.py');
+      const priorManifest = sha256(readBytes(join(before.generation, 'manifest.json')));
+      const priorEntry = sha256(readBytes(before.entry));
       writeFileSync(
         helper,
         `${readBytes(helper).toString('utf8')}\n# synthetic helper identity change\n`
       );
       const after = render(f);
       expect(after.entry !== before.entry, 'helper changes cannot reuse a generation').toBe(true);
+      expect(
+        sha256(readBytes(join(before.generation, 'manifest.json'))) === priorManifest &&
+          sha256(readBytes(before.entry)) === priorEntry,
+        'new identity preserves the prior generation unchanged'
+      ).toBe(true);
     });
 
     it(`${skill} permits a single-ID cross-layer override outside shipped source directories`, () => {
@@ -880,6 +1294,14 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
         '[[workflow.quick_lenses]]\nid = "quick"\nname = "Synthetic Quick"\ninstruction = "Synthetic cross-layer review witness."\n';
       writeFileSync(overrides, candidate);
       const snapshot = render(f, [], overrides);
+      expect(
+        [
+          snapshot.instruction,
+          JSON.stringify(snapshot.manifest),
+          ...Object.values(snapshot.outputs)
+        ].some((text) => text.includes(outside.root) || text.includes(basename(overrides))),
+        'authorized external override filename is never persisted or printed'
+      ).toBe(false);
       expect(
         snapshot.manifest.inputs.resolved_values['customization.workflow.quick_lenses']
       ).toEqual([

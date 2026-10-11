@@ -694,6 +694,44 @@ describe('risk-based approval delivery source contracts (not native enforcement)
     );
   });
 
+  it('P1 renderer and entrypoints never treat local artifacts as a raw-path privacy exception', () => {
+    const renderer = read('tools/bmad/render_skill.py');
+    lacks(
+      renderer,
+      /["']project_root["']\s*:\s*str\(project_root\)/,
+      'no absolute root manifest identity'
+    );
+    lacks(
+      renderer,
+      /["']skill_root["']\s*:\s*str\(skill_dir\)/,
+      'no absolute skill manifest identity'
+    );
+    lacks(
+      renderer,
+      /project_slug|root_hash/,
+      'no checkout basename or pathname-derived namespace fingerprint'
+    );
+    for (const skill of Object.keys(bmadFiles)) {
+      const entry = read(`mydocs/skills/${skill}/SKILL.md`);
+      has(entry, /현재 working directory 기준 상대 reference/, `${skill}: stdout is cwd-relative`);
+      has(
+        entry,
+        /repository root 기준 상대 reference/,
+        `${skill}: snapshot links resolve against repository`
+      );
+      has(
+        entry,
+        /절대 checkout 경로나 그 경로의 hash[^\n]*저장\/출력하지 않는다/,
+        `${skill}: privacy includes private artifacts`
+      );
+    }
+    has(
+      read('mydocs/manual/document_structure_guide.md'),
+      /local-only도 raw path privacy 예외가 아니다/,
+      'no local-only privacy bypass'
+    );
+  });
+
   it('P1 every pinned route retains existing review and terminal state dispatch', () => {
     const step = read('mydocs/skills/bmad-build/step-01-clarify-and-route.md');
     const dispatch = section(step, '### Existing-state dispatch');

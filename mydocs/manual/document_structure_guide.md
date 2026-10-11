@@ -229,6 +229,10 @@ Agent Skills are stored in `mydocs/skills/{skill-name}/SKILL.md`.
 
 tracked `[core]` 기본 설정 위에 존재하는 `_bmad/config.toml`, `_bmad/custom/config.toml`, `config.user.toml`과 skill override를 읽기만 한다. malformed 설정은 차단하며 무시·덮어쓰지 않는다. `_bmad/render/`는 local-only immutable 생성물로 Git/PR/export에서 제외한다. static source 검증은 default CI에서, 실제 entry command·render matrix·strict 실패/기존 설정 보존 검증은 `corepack pnpm exec vitest run --config vitest.approval-render.config.ts`로 명시 실행한다. 이 검증은 renderer/entry 실행과 지침 계약을 증명하며 LLM의 실제 모든 분기 준수나 native 승인 강제를 증명하지 않는다.
 
+local-only도 raw path privacy 예외가 아니다. manifest의 project/skill 식별자와 snapshot의 step/prompt/output reference는 repository-relative이며, stdout의 loading reference는 변경하지 않은 caller cwd 기준 상대 경로다. caller cwd는 승인된 checkout 안이어야 한다. checkout basename·절대 경로·그 경로 hash를 생성물에 남기지 않는다. root 안의 absolute 설정 경로는 상대 경로로 정규화하며, 안전하게 표현할 수 없는 root 밖 consumed absolute 설정은 fixed privacy-safe HALT로 차단한다. 기존 설정·이전 generation을 덮어쓰거나 삭제해 처리하지 않는다.
+
+manifest schema 3의 `template_sha256`는 경로 privacy 정규화 후 실제 rendering에 쓰는 effective template를 식별한다. raw source의 checkout 경로를 hash로 남기지 않으며, source/config 파일 bytes는 변경하지 않는다. executable renderer와 실제 한 번 읽어 실행한 helper의 hash는 실행 bytes에 계속 결합한다. 동일 입력을 다른 checkout으로 옮겨도 public generation/manifest/snapshot bytes가 같아야 한다. 중복/native separator와 dot segment reference는 안전하게 정규화하고 symlink traversal·해석 불가능한 표현은 출력 전에 HALT한다.
+
 독립 실행 범위는 직접 위임한 intent·기존 canonical 계획의 oneshot/full 및 review 분기다. 큰 ticket-tree engine은 포함하지 않는 선택 capability다. 명시 ticket 요청은 실제 helper/runtime/native 권한이 없으면 해당 ticket resolution만 scoped blocked로 기록하며 ticket·prerequisite를 꾸미거나 설치하지 않는다. 일반/no-intent 흐름은 ticket capability 부재로 중단하지 않고 안전한 기존 context·필요한 intent 확인으로 진행한다. 없는 artifact 폴더는 빈 context로 취급하며 scan을 위해 dummy 폴더/계획을 만들지 않는다.
 
 - Source of truth: `mydocs/skills/`

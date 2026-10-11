@@ -13,7 +13,7 @@ read-only/planning-only/report-only 요청이면 기존 context와 필요한 sou
 
 ## Delegated changes
 
-변경을 실제로 위임한 호출만 아래 command를 한 번 실행한다. 현재 working directory를 바꾸지 않는다. `{project-root}`는 현재 승인된 Git checkout root, `{skill-root}`는 그 안의 `mydocs/skills/bmad-build`이다. runtime prerequisite는 Python 3.11+와 이미 설치된 Jinja2 3.1+이다. global package 설치·network bootstrap·installer 실행·user config 초기화는 하지 않는다.
+변경을 실제로 위임한 호출만 아래 command를 한 번 실행한다. 현재 working directory는 승인된 Git checkout 안이어야 하며 바꾸지 않는다. `{project-root}`는 현재 승인된 Git checkout root, `{skill-root}`는 그 안의 `mydocs/skills/bmad-build`이다. runtime prerequisite는 Python 3.11+와 이미 설치된 Jinja2 3.1+이다. global package 설치·network bootstrap·installer 실행·user config 초기화는 하지 않는다.
 
 ```bash
 python3 "{project-root}/tools/bmad/render_skill.py" --project-root "{project-root}" --skill "{skill-root}"
@@ -21,7 +21,7 @@ python3 "{project-root}/tools/bmad/render_skill.py" --project-root "{project-roo
 
 - 명시 route는 `--set workflow.route=oneshot` 또는 `--set workflow.route=full`로 전달한다.
 - 명시 review는 `--set workflow.review=none`, `quick`, `thorough` 중 하나로 전달한다. "skip review"/"no review"는 `none`이다. review `none`도 verification/acceptance를 생략하지 않는다.
-- 성공한 경우 stdout의 `read and follow <workflow.md>`가 가리키는 immutable snapshot을 읽고 따른다. raw source 또는 이전 snapshot으로 대신 실행하지 않는다.
+- 성공한 경우 stdout의 `read and follow <workflow.md>`는 현재 working directory 기준 상대 reference다. 이 reference를 변경하지 않은 caller cwd에서 해석해 immutable snapshot을 읽고 따른다. snapshot 안의 step/prompt/output references는 승인된 repository root 기준 상대 reference로 해석한다. 절대 checkout 경로나 그 경로의 hash를 manifest·snapshot·stdout에 저장/출력하지 않는다. raw source 또는 이전 snapshot으로 대신 실행하지 않는다.
 - runtime/required source/config/validation/integrity 실패는 해당 BMAD 실행을 scoped blocked로 보고한다. raw errors, traceback, config 값이나 host paths를 보고/공개하지 않는다. 자동 설치·실패를 성공 처리·repair 명목의 generation 삭제 없이 STOP하며 별도의 안전한 분석은 계속할 수 있다.
 - tracked `tools/bmad/config.toml`이 기본값이다. 존재하는 `_bmad/config.toml`, `_bmad/custom/config.toml`, `config.user.toml`과 해당 skill override는 읽기만 하며 malformed 설정은 무시하지 않는다. skill의 `customize.toml`과 `review-prompts/`가 실행 closure이며 bmod/installer/setup helper는 필요하지 않다.
 - `_bmad/render/`는 local-only 생성물이다. 내용을 commit/export/PR evidence dump로 공개하지 않는다. fresh checkout에서도 실행은 이 tracked closure와 명시 runtime prerequisite만 사용한다.
