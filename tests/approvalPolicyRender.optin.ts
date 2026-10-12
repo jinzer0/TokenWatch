@@ -27,6 +27,8 @@ const reviews = ['auto', 'none', 'quick', 'thorough'] as const;
 type Skill = (typeof skills)[number];
 type Route = (typeof routes)[number];
 type Review = (typeof reviews)[number];
+const proseSurfaces = ['source', 'instruction', 'persistent', 'overrides'] as const;
+type ProseSurface = (typeof proseSurfaces)[number];
 interface Fixture {
   root: string;
   renderer: string;
@@ -162,6 +164,38 @@ function existingPython(args: string[], cwd: string) {
 }
 function invoke(renderer: string, args: string[], cwd: string) {
   return existingPython([renderer, ...args], cwd);
+}
+function privacyProse(f: Fixture, skill: Skill, surface: ProseSurface, prose: string) {
+  const assignments: string[] = [];
+  let overrides: string | undefined;
+  let input = join(f.skillDir, 'plan-template.md');
+  if (surface === 'source') {
+    const source = `${readBytes(input).toString('utf8')}\n${prose}\n`;
+    writeFileSync(input, source);
+    f.sourceHashes['plan-template.md'] = sha256(source);
+    f.templateHashes['plan-template.md'] = sha256(source.replaceAll(f.root, '.'));
+  } else {
+    const instruction = JSON.stringify(prose);
+    if (surface === 'instruction') {
+      assignments.push(
+        `workflow.quick_lenses=[{id="quick", name="Synthetic Quick", instruction=${instruction}}]`
+      );
+    } else {
+      if (surface === 'persistent') {
+        const custom = join(f.root, '_bmad/custom');
+        mkdirSync(custom, { recursive: true });
+        input = join(custom, `${skill}.user.toml`);
+      } else {
+        input = join(fixture(skill).root, 'synthetic-prose-override.toml');
+        overrides = input;
+      }
+      writeFileSync(
+        input,
+        `[[workflow.quick_lenses]]\nid = "quick"\nname = "Synthetic Quick"\ninstruction = ${instruction}\n`
+      );
+    }
+  }
+  return { assignments, overrides, input };
 }
 function render(
   f: Fixture,
@@ -299,6 +333,53 @@ function render(
 function safety(snapshot: Snapshot, skill: Skill, route: Route, review: Review): void {
   const files = snapshot.outputs;
   const step = files['step-01-clarify-and-route.md'];
+  const selector =
+    step
+      .split('## Canonical state/evidence selection (only after the request-mode guard)\n')[1]
+      ?.split('\n## Intent check')[0] ?? '';
+  assertText(
+    selector,
+    /exact selected canonical path AND task/,
+    `${skill}: contextual state cannot borrow another plan`
+  );
+  assertText(
+    selector,
+    /BEFORE testing any status, ordinary-intent fallback, LOW entry, slug assignment or NEXT/,
+    `${skill}: contextual dispatch precedes fallback and resets`
+  );
+  assertText(
+    selector,
+    /No plan\/state mutation precedes dispatch/,
+    `${skill}: status selection is not implementation`
+  );
+  assertText(
+    selector,
+    /Only genuinely absent recorded status permits ordinary-intent routing/,
+    `${skill}: invalid or terminal state cannot become new intent`
+  );
+  for (const origin of [
+    'explicit file',
+    'recent conversation',
+    'artifacts',
+    'ticket resolution',
+    'existing-path collision',
+    'markerless-plan fallback'
+  ])
+    expect(selector.includes(origin)).toBe(true);
+  for (const writer of [
+    'step-01-clarify-and-route.md',
+    'step-02-plan.md',
+    'step-04-review.md',
+    'step-oneshot.md'
+  ]) {
+    if (skill !== 'bmad-build' || !(writer in files)) continue;
+    for (const example of files[writer].matchAll(/^[ \t]*```json\n([\s\S]*?)\n[ \t]*```$/gm)) {
+      const document = JSON.parse(example[1]) as { deferred: Record<string, unknown>[] };
+      expect(Object.keys(document)).toEqual(['deferred']);
+      for (const entry of document.deferred)
+        expect(Object.keys(entry).sort()).toEqual(['evidence', 'id', 'source_plan', 'summary']);
+    }
+  }
   for (const file of [
     'step-02-plan.md',
     'step-03-implement.md',
@@ -379,23 +460,33 @@ function safety(snapshot: Snapshot, skill: Skill, route: Route, review: Review):
       present.split('### Mark Plan Built\n')[1]?.split('\n### Commit and Complete')[0] ?? '';
     assertText(
       built,
-      /explicitly record `status: 'built'` in the resolved state\/evidence location before publication/i,
-      'rendered full route records built'
+      /Other eligible incoming states[\s\S]*may explicitly record `status: 'built'`[\s\S]*before authorized publication/i,
+      'rendered eligible completion may record built without downgrading done'
     );
     assertText(
       built,
-      /authorized existing BMAD frontmatter[\s\S]*otherwise[\s\S]*existing context/i,
+      /supported existing BMAD plan[\s\S]*otherwise[\s\S]*existing context/i,
       'rendered built supports both canonical formats'
     );
     assertText(
       built,
-      /without modifying an unformatted canonical plan/i,
+      /never borrow another plan's context or add frontmatter/i,
       'rendered built preserves canonical content'
     );
     assertText(
       built,
       /read-only\/planning-only\/report-only[\s\S]*incomplete required review[\s\S]*do not write `built`/i,
       'rendered terminal rejects unauthorized or failed success'
+    );
+    assertText(
+      built,
+      /preserve incoming `done` as `done`[\s\S]*do not rewrite it to `built`/,
+      'rendered done terminal is preserved'
+    );
+    assertText(
+      built,
+      /Historical completion never substitutes for current evidence/,
+      'rendered done still needs current verified evidence'
     );
   }
   const ordinaryReview =
@@ -843,21 +934,190 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
         expect(
           snapshot.outputs['step-04-review.md'].includes(`${snapshot.reference}/step-05-present.md`)
         ).toBe(true);
-        expect(
-          step.includes(
-            'For any selected existing plan: set `plan_file` and follow **Existing-state dispatch**'
-          )
-        ).toBe(true);
-        expect(
-          step.includes(
-            'set `plan_file` and follow **Existing-state dispatch**, exactly as for an explicit plan'
-          )
-        ).toBe(true);
+        assertText(
+          step,
+          /For any selected existing plan[^\n]*Canonical state\/evidence selection/,
+          'artifact choices select associated context first'
+        );
+        assertText(
+          step,
+          /find's `plan`[^\n]*Canonical state\/evidence selection[^\n]*before testing status or fallback/,
+          'ticket choices select associated context first'
+        );
         safety(snapshot, 'bmad-build', route, review);
       });
     }
   }
   for (const skill of skills) {
+    // 29 spellings x four publication inputs x two skills = 232 negatives.
+    // Paths are invented sentinels, never actual machine/user locations.
+    for (const [form, prose] of [
+      ['posix', 'Read /synthetic-private-machine/work/file.md'],
+      ['windows-drive', 'Read Z:\\synthetic-private-machine\\work\\file.md'],
+      ['windows-forward', 'Read Z:/synthetic-private-machine/work/file.md'],
+      ['drive-relative', 'Read Z:synthetic-private-machine\\file.md'],
+      ['unc', 'Read \\\\synthetic-private-host\\synthetic-share\\file.md'],
+      ['unc-forward', 'Read //synthetic-private-host/synthetic-share/file.md'],
+      ['backslash-root', 'Read \\synthetic-private-machine\\file.md'],
+      ['home', 'Read ~/synthetic-private-machine/file.md'],
+      ['named-home', 'Read ~synthetic-private-user/work/file.md'],
+      ['home-backslash', 'Read ~\\synthetic-private-machine\\file.md'],
+      ['quoted-spaces', 'Read "/synthetic private machine/work file.md"; keep private.'],
+      ['quoted-inroot-spaces', 'Synthetic owned-root path assembled below.'],
+      ['delimiters', 'Read [/synthetic-private-machine/work], (/synthetic-private-machine/file).'],
+      ['file-uri', 'Read file:///synthetic-private-machine/work/file.md'],
+      ['unknown-uri', 'Read synthetic+private://synthetic-private-host/work/file.md'],
+      ['malformed-web', 'Read https:\\synthetic-private-machine\\work\\file.md'],
+      ['bold-path', 'Read **/synthetic-private-machine/work/file.md**'],
+      ['italic-path', 'Read */synthetic-private-machine/work/file.md*'],
+      ['underscore-path', 'Read _/synthetic-private-machine/work/file.md_'],
+      ['double-underscore-path', 'Read __/synthetic-private-machine/work/file.md__'],
+      ['code-path', 'Read `/synthetic-private-machine/work/file.md`'],
+      ['link-path', 'Read [private](/synthetic-private-machine/work/file.md)'],
+      ['incomplete-bold-path', 'Read **/synthetic-private-machine/work/file.md'],
+      ['incomplete-home-var', 'Read **$HOME/synthetic-private-machine/work/file.md'],
+      ['incomplete-braced-home-var', 'Read **${HOME}/synthetic-private-machine/work/file.md'],
+      ['incomplete-userprofile-var', 'Read **%USERPROFILE%/synthetic-private-machine/work/file.md'],
+      ['incomplete-homepath-var', 'Read **%HOMEPATH%/synthetic-private-machine/work/file.md'],
+      ['bold-file-uri', 'Read **file:///synthetic-private-machine/work/file.md**'],
+      ['bold-credential-uri', 'Read **https://synthetic-user:synthetic-secret@example.com/work**']
+    ] as const) {
+      for (const surface of proseSurfaces) {
+        it(`${skill} rejects foreign ${form} on ${surface} before publication`, () => {
+          const f = fixture(skill);
+          const prior = render(f);
+          const priorBytes = new Map(
+            ['manifest.json', ...Object.keys(prior.outputs)].map((name) => [
+              name,
+              readBytes(join(prior.generation, name))
+            ])
+          );
+          const generations = readdirSync(dirname(prior.generation));
+          const candidateProse =
+            form === 'quoted-inroot-spaces' ? `Read "${f.root}/synthetic path/file.md"` : prose;
+          const { assignments, overrides, input } = privacyProse(f, skill, surface, candidateProse);
+          const readonlyInputs = new Map(
+            [
+              ...markdownFiles(f.skillDir).map((name) => join(f.skillDir, name)),
+              join(f.skillDir, 'customize.toml'),
+              join(dirname(f.renderer), 'config.toml'),
+              input
+            ].map((path) => [path, readBytes(path)])
+          );
+          const result = invoke(
+            f.renderer,
+            [
+              '--project-root',
+              f.root,
+              '--skill',
+              f.skillDir,
+              ...(overrides ? ['--overrides', overrides] : []),
+              ...assignments.flatMap((assignment) => ['--set', assignment])
+            ],
+            f.root
+          );
+          expect(
+            !result.error &&
+              result.status === 1 &&
+              result.stdout === 'HALT: BMAD rendering failed.\n' &&
+              result.stderr === '',
+            'fixed private rejection; subprocess diagnostics never dumped'
+          ).toBe(true);
+          expect(
+            JSON.stringify(readdirSync(dirname(prior.generation))) === JSON.stringify(generations),
+            'no generation or staging publication'
+          ).toBe(true);
+          expect(
+            [...readonlyInputs].every(([path, bytes]) => readBytes(path).equals(bytes)),
+            'all source/config/customization inputs remain byte-identical'
+          ).toBe(true);
+          expect(
+            [...priorBytes].every(([name, bytes]) =>
+              readBytes(join(prior.generation, name)).equals(bytes)
+            ),
+            'all prior snapshot and manifest bytes remain unchanged'
+          ).toBe(true);
+          const priorPublic = [
+            JSON.stringify(prior.manifest),
+            ...Object.values(prior.outputs)
+          ].join('\n');
+          expect(
+            priorPublic.includes(candidateProse) || priorPublic.includes(sha256(candidateProse)),
+            'rejected foreign prose and its hash never enter prior public identity'
+          ).toBe(false);
+        });
+      }
+    }
+    for (const surface of proseSurfaces) {
+      it(`${skill} preserves HTTP/HTTPS and repo-relative prose on ${surface}`, () => {
+        const f = fixture(skill);
+        const prose =
+          'Read [public](https://example.com/docs/reference?mode=public#section), ' +
+          '<http://example.org/docs/reference> and [local](mydocs/skills/reference.md), ' +
+          '[IPv6](https://[2001:db8::1]/docs/reference), ' +
+          '[relative](./AGENTS.md), ../shared/reference.md and {skill-root}/review-prompts/edge-case-hunter.md. ' +
+          '<intent-contract>synthetic intent</intent-contract> ' +
+          '<frozen-after-approval>synthetic scope</frozen-after-approval> ' +
+          '`route: oneshot` **MANDATORY: preserve ordinary marked prose** ' +
+          'Read prd-*/prd-*.md, architecture-*/architecture-*.md, synthetic-file-/reference.md ' +
+          'and synthetic-?.md/reference.md. ' +
+          '**https://example.com/bold** *http://example.org/italic* ' +
+          '_https://example.com/underscore_ __http://example.org/strong__ ' +
+          '`https://example.com/code` **prd-*/prd-*.md** ' +
+          'Read **https://example.com/docs is the public reference** ' +
+          'and **http://example.org/docs is the public reference** ' +
+          `**${f.root}/AGENTS.md** _${f.root}/AGENTS.md_`;
+        const { assignments, overrides, input } = privacyProse(f, skill, surface, prose);
+        const before = readBytes(input);
+        const defaults = readBytes(join(f.skillDir, 'customize.toml'));
+        const snapshot = render(f, assignments, overrides);
+        const output =
+          snapshot.outputs[surface === 'source' ? 'plan-template.md' : 'step-04-review.md'];
+        expect(
+          output.includes('https://example.com/docs/reference?mode=public#section') &&
+            output.includes('http://example.org/docs/reference') &&
+            output.includes('https://[2001:db8::1]/docs/reference') &&
+            output.includes('mydocs/skills/reference.md') &&
+            output.includes('./AGENTS.md') &&
+            output.includes('../shared/reference.md') &&
+            output.includes('<intent-contract>synthetic intent</intent-contract>') &&
+            output.includes('<frozen-after-approval>synthetic scope</frozen-after-approval>') &&
+            output.includes('prd-*/prd-*.md') &&
+            output.includes('architecture-*/architecture-*.md') &&
+            output.includes('synthetic-file-/reference.md') &&
+            output.includes('synthetic-?.md/reference.md') &&
+            output.includes('**https://example.com/bold**') &&
+            output.includes('*http://example.org/italic*') &&
+            output.includes('_https://example.com/underscore_') &&
+            output.includes('__http://example.org/strong__') &&
+            output.includes('`https://example.com/code`') &&
+            output.includes('**https://example.com/docs is the public reference**') &&
+            output.includes('**http://example.org/docs is the public reference**') &&
+            output.includes('**prd-*/prd-*.md**') &&
+            output.includes('**./AGENTS.md** _./AGENTS.md_'),
+          'public schemes, XML markup and relative filenames/globs survive unchanged'
+        ).toBe(true);
+        const boundRoot = surface === 'source' ? `mydocs/skills/${skill}` : snapshot.reference;
+        expect(
+          output.includes(`${boundRoot}/review-prompts/edge-case-hunter.md`),
+          'relative binding survives classification beside whitespace-separated emphasis'
+        ).toBe(true);
+        if (surface !== 'source') {
+          const resolved = snapshot.manifest.inputs.resolved_values[
+            'customization.workflow.quick_lenses'
+          ] as { instruction: string }[];
+          expect(
+            resolved[0].instruction === prose.replaceAll(f.root, '.'),
+            'manifest retains normalized unbound prose across repeated render passes'
+          ).toBe(true);
+        }
+        expect(
+          readBytes(input).equals(before) &&
+            readBytes(join(f.skillDir, 'customize.toml')).equals(defaults),
+          'legitimate prose and declarations stay read-only'
+        ).toBe(true);
+      });
+    }
     it(`${skill} checkout spaces preserve safe default and absolute config paths`, () => {
       const f = fixture(skill, 'case with spaces-');
       render(f);

@@ -231,6 +231,8 @@ tracked `[core]` 기본 설정 위에 존재하는 `_bmad/config.toml`, `_bmad/c
 
 local-only도 raw path privacy 예외가 아니다. manifest의 project/skill 식별자와 snapshot의 step/prompt/output reference는 repository-relative이며, stdout의 loading reference는 변경하지 않은 caller cwd 기준 상대 경로다. caller cwd는 승인된 checkout 안이어야 한다. checkout basename·절대 경로·그 경로 hash를 생성물에 남기지 않는다. root 안의 absolute 설정 경로는 상대 경로로 정규화하며, 안전하게 표현할 수 없는 root 밖 consumed absolute 설정은 fixed privacy-safe HALT로 차단한다. 기존 설정·이전 generation을 덮어쓰거나 삭제해 처리하지 않는다.
 
+foreign absolute filesystem reference도 source/customization/설정 prose에서 snapshot·manifest에 복사하지 않고 publication 전 fixed HALT로 차단한다. 외부 override 파일의 명시 read 권한은 그 filename이나 내용 속 raw machine path를 저장할 권한이 아니다. 공개 HTTP(S) URL과 repository-relative reference는 filesystem absolute path와 구분해 유지한다.
+
 manifest schema 3의 `template_sha256`는 경로 privacy 정규화 후 실제 rendering에 쓰는 effective template를 식별한다. raw source의 checkout 경로를 hash로 남기지 않으며, source/config 파일 bytes는 변경하지 않는다. executable renderer와 실제 한 번 읽어 실행한 helper의 hash는 실행 bytes에 계속 결합한다. 동일 입력을 다른 checkout으로 옮겨도 public generation/manifest/snapshot bytes가 같아야 한다. 중복/native separator와 dot segment reference는 안전하게 정규화하고 symlink traversal·해석 불가능한 표현은 출력 전에 HALT한다.
 
 독립 실행 범위는 직접 위임한 intent·기존 canonical 계획의 oneshot/full 및 review 분기다. 큰 ticket-tree engine은 포함하지 않는 선택 capability다. 명시 ticket 요청은 실제 helper/runtime/native 권한이 없으면 해당 ticket resolution만 scoped blocked로 기록하며 ticket·prerequisite를 꾸미거나 설치하지 않는다. 일반/no-intent 흐름은 ticket capability 부재로 중단하지 않고 안전한 기존 context·필요한 intent 확인으로 진행한다. 없는 artifact 폴더는 빈 context로 취급하며 scan을 위해 dummy 폴더/계획을 만들지 않는다.

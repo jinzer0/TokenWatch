@@ -11,11 +11,13 @@ Before any state write, publication or completion hook, recheck request mode. Re
 
 ### Mark Plan Built
 
+Capture the incoming status from the SAME selected state/evidence location for this exact canonical path/task before any state write. Use the location carried from routing/implementation/review: authorized task-owned metadata of a supported existing BMAD plan, otherwise its associated existing context. Unknown/conflicting or ambiguously associated state blocks dependent writes/publication rather than guessing; never borrow another plan's context or add frontmatter. Preserve the human body/path, original baseline and prior logs.
+
 Revalidate current ownership, required verification/acceptance and review evidence, even for review `none`. Only satisfied current evidence permits `built`. Failures/unmet acceptance remain incomplete; unresolved actions record scoped blocked reasons without successful publication. Preserve historical evidence and report limitations truthfully.
 
-When current required verification/acceptance and required review are satisfied and the request authorizes state writes, explicitly record `status: 'built'` in the resolved state/evidence location before publication. Reuse the same location selected during implementation/review: authorized existing BMAD frontmatter for a supported plan; otherwise existing context, without modifying an unformatted canonical plan or creating frontmatter. Preserve the original baseline and all prior logs.
+When current required verification/acceptance and required review are satisfied and the request authorizes state writes, preserve incoming `done` as `done` — do not rewrite it to `built` merely for terminal resume/presentation. Other eligible incoming states, such as verified `in-review`, may explicitly record `status: 'built'` in that same location before authorized publication; blocked/dropped safeguards remain intact. Append current evidence without replacing historical logs. A terminal status grants no mutation authority: actual new scope or implementation requires actual current delegation and the appropriate planning/implementation/review phase, not a done-resume shortcut.
 
-For read-only/planning-only/report-only, failed verification, unmet acceptance or incomplete required review, do not write `built` or report successful completion/publication. Retain the actual state and report truthful incomplete/scoped blocked evidence or permitted read-only analysis instead.
+For read-only/planning-only/report-only, failed verification, unmet acceptance or incomplete required review, do not write `built` or promote/write `done`, or report successful completion/publication. Retain truthful incomplete states; if historical incoming `done` is retained, explicitly record/report the current incomplete/scoped blocked verification result separately in the same location when authorized. Historical completion never substitutes for current evidence. Read-only modes permit only non-persisted analysis.
 
 ### Commit and Complete
 

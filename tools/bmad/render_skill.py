@@ -29,6 +29,7 @@ import tomllib
 from datetime import date, time
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 # Runtime sources are not a location for interpreter caches.
 sys.dont_write_bytecode = True
@@ -248,11 +249,53 @@ def _resolve_config_value(value: Any, label: str, project_root: Path) -> str:
 
 
 def _relative_text(text: str, project_root: Path) -> str:
-    """Normalize recognized checkout path tokens, never arbitrary prose or foreign paths."""
+    """Normalize canonical checkout tokens; reject machine paths, preserve public web links."""
     root = project_root.as_posix()
+    home_prefix = r"(?:\$HOME|\$\{HOME\}|%USERPROFILE%|%HOMEPATH%)[/\\]"
 
     def reference(match: re.Match[str]) -> str:
         original = match.group()
+        marker = match.group("marker")
+        if marker is not None:
+            # Classify complete emphasis/code contents, not a slash after a
+            # glob-like delimiter. Keep markup and normalize only its contents.
+            # A wrapper cannot span whitespace-separated references: otherwise
+            # the literal `_bmad/` binding can capture a later emphasis marker.
+            return marker + _relative_text(match.group("wrapped"), project_root) + marker
+        if match.group("incomplete") is not None:
+            marked_uri = match.group("marked_uri")
+            if marked_uri is not None:
+                # Multiword emphasis still contains a complete URI token. Run
+                # the ordinary URI policy, including credential rejection,
+                # without interpreting later words as part of its location.
+                return match.group("incomplete") + _relative_text(marked_uri, project_root)
+            raise RenderError("unrepresentable marked reference")
+        # Consume actual XML closing tags as markup, not their leading slash.
+        # This exact grammar cannot exempt an angle-delimited filesystem path
+        # containing directory separators, drives, whitespace or backslashes.
+        if re.fullmatch(r"</[A-Za-z_][A-Za-z0-9_.:-]*\s*>", original):
+            return original
+        # A lone slash is punctuation (or a placeholder separator), not a
+        # machine location. Templates also describe "no leading `/`" literally.
+        if original == "/":
+            return original
+        scheme = re.match(r"([A-Za-z][A-Za-z0-9+.-]*):", original)
+        if scheme is not None and len(scheme[1]) != 1:
+            # Consume the complete URI, not just its slashes. Only public web
+            # references are prose, never file/unknown schemes or credentials.
+            uri = urlsplit(original)
+            if (
+                uri.scheme.lower() not in {"http", "https"}
+                or not uri.netloc
+                or not uri.hostname
+                or uri.username is not None
+                or uri.password is not None
+                or "\\" in original
+            ):
+                raise RenderError("unsupported URI reference")
+            return original
+        if original.startswith(("~", "$HOME", "${HOME}", "%USERPROFILE%", "%HOMEPATH%")):
+            raise RenderError("home-relative machine reference")
         portable = original.replace("\\", "/")
         normalized = posixpath.normpath(portable)
         # normpath preserves a POSIX double leading slash; checkout references do not.
@@ -261,6 +304,12 @@ def _relative_text(text: str, project_root: Path) -> str:
         if normalized == root or normalized.startswith(root + "/"):
             if re.search(r"[A-Za-z][A-Za-z0-9+.-]*:$", text[:match.start()]) is not None:
                 raise RenderError("unsupported checkout URI")
+            opening = text[match.start() - 1] if match.start() else ""
+            closing = {"\"": "\"", "'": "'", "`": "`", "(": ")", "[": "]", "<": ">"}.get(opening)
+            if closing is not None and text[match.end():match.end() + 1].isspace():
+                end = text.find(closing, match.end())
+                if end < 0 or text[match.end():end].strip():
+                    raise RenderError("unrepresentable checkout reference")
             # Dot traversal through a symlink must not silently change target meaning.
             if physical.as_posix() != normalized:
                 raise RenderError("ambiguous checkout reference")
@@ -270,9 +319,26 @@ def _relative_text(text: str, project_root: Path) -> str:
             raise RenderError("noncanonical checkout alias")
         if root in portable or (project_root.name in portable.split("/") and ".." in portable.split("/")):
             raise RenderError("unsafe checkout reference")
-        return original
+        raise RenderError("foreign machine reference")
 
-    result = re.sub(r"(?<![\w/\\])(?:[A-Za-z]:)?[/\\][^\s`\"'<>\[\](){};,]*", reference, text)
+    # Relative repository links (including placeholder-bound links) remain
+    # usable. Absolute/home/drive tokens cannot fall through as arbitrary prose.
+    # A delimiter-split foreign path rejects at its first fragment, before any
+    # template/input identity or generation can be published.
+    result = re.sub(
+        r"</[A-Za-z_][A-Za-z0-9_.:-]*\s*>|"
+        r"(?<![\w/\\}.*?+%-])(?P<marker>\*\*|__|\*|_|`+)"
+        r"(?P<wrapped>[^\s]+?)(?P=marker)(?!\w)|"
+        r"(?<![\w/\\}.*?+%-])(?P<incomplete>[*_`]+)"
+        r"(?:(?P<marked_uri>[A-Za-z][A-Za-z0-9+.-]+:[/\\][^\s`\"'<>]*)|"
+        rf"(?=[/\\~]|[A-Za-z]:|{home_prefix}))|"
+        r"(?<![\w/\\}.*?+%-])(?:[A-Za-z][A-Za-z0-9+.-]+:[/\\][^\s`\"'<>]*|"
+        r"(?:[A-Za-z]:|"
+        rf"~[^\s/\\`\"'<>\[\](){{}};,]*[/\\]|{home_prefix}|"
+        r"[/\\])[^\s`\"'<>\[\](){};,]*)",
+        reference,
+        text,
+    )
     separators = r"[/\\]+(?:\.[/\\]+)*"
     root_pattern = separators.join(re.escape(part) for part in root.strip("/").split("/"))
     if root.startswith("/"):
@@ -742,8 +808,15 @@ def render(
     }
     entry = Path(os.path.relpath(destination / "workflow.md", caller_cwd))
     root_bytes = project_root.as_posix().encode("utf-8")
-    public_bytes = [*outputs.values(), _canonical_json(manifest), f"read and follow {entry}\n".encode("utf-8")]
-    if any(root_bytes in content or _relative_text(content.decode("utf-8"), project_root).encode("utf-8") != content for content in public_bytes):
+    public_text = [*rendered.values(), f"read and follow {entry}\n"]
+    public_bytes = [*(text.encode("utf-8") for text in public_text), _canonical_json(manifest)]
+    # Validate manifest strings before JSON encoding: its escaped newlines are
+    # serialization, not native backslash filesystem references.
+    if (
+        any(root_bytes in content for content in public_bytes)
+        or any(_relative_text(text, project_root) != text for text in public_text)
+        or _relative_values(manifest, project_root) != manifest
+    ):
         raise RenderError("checkout location remains in rendered snapshot")
     _publish(destination, outputs, manifest)
     return entry

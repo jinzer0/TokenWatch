@@ -25,7 +25,9 @@ First re-read the required nonempty existing plan and capture current scope/mode
 
 Only an existing BMAD-format plan with authorized task-owned metadata may use its frontmatter and workflow sections. Otherwise keep the unformatted canonical plan's content/path unchanged and use existing context. Reuse that same location for all state/evidence reads and writes: `baseline_revision`, route, status, risk, review, lenses, triage logs and implementation notes. Never add frontmatter, force-convert, copy or replace an existing human plan to store workflow state.
 
-Record status `in-review` in that same state/evidence location before continuing, never in an unformatted human plan.
+Before any status write, capture `resume_incoming_status` in non-persisted runtime context from the SAME selected state/evidence location associated with this exact canonical path/task. Carry it through this review's loopbacks; do not replace it with the intermediate `in-review` value. Missing/conflicting association blocks dependent writes rather than borrowing another plan's status. A previously `done` plan remains a terminal follow-up, not authority to restart implementation. Preserve iteration, original baseline and all prior logs.
+
+Record status `in-review` in that same state/evidence location only for authorized active review, never in an unformatted human plan. Use the captured `resume_incoming_status` at Finalize to restore verified terminal continuity.
 
 {% if workflow.review == "none" %}
 Record `review: 'none'`, `review_source: 'pinned'`, and `lenses_ran: []` in that state/evidence location.
@@ -171,7 +173,7 @@ Set authorized BMAD frontmatter `followup_review_recommended` from the computati
 Record `followup_review_recommended: false` in authorized BMAD state or existing context, never read-only/unformatted human content.
 {% endif %}
 
-Only current satisfied verification/AC **and successful execution/completion of every applicable required native review lane** permit final status `built`, or `done` for a verified follow-up of a previously done plan. Apply this condition on initial runs and every loopback/resume/follow-up; launch ids, all lanes reporting (including errors), source/render checks, other lanes' success and prior completion cannot satisfy it. An explicitly chosen review `none` requires no optional lenses, never waives verification/AC. Otherwise retain incomplete state with scoped blocked reasons, never successful status/publication; independent safe work may continue. Advisory findings/follow-up recommendations are not additional blockers and remain subject to existing triage. Update state only with actual authority; read-only/planning-only/report-only has mutation/commit/push/PR zero. Safe review/context evidence may still be reported.
+Only current satisfied verification/AC **and successful execution/completion of every applicable required native review lane** permit final status `built`, or `done` for a verified follow-up when the captured `resume_incoming_status` was `done`. Do not infer that original status from the intermediate `in-review` write or another plan's context. Apply this condition on initial runs and every loopback/resume/follow-up; launch ids, all lanes reporting (including errors), source/render checks, other lanes' success and prior completion cannot satisfy it. An explicitly chosen review `none` requires no optional lenses, never waives verification/AC. Otherwise retain incomplete state with scoped blocked reasons, never successful status/publication; independent safe work may continue. Advisory findings/follow-up recommendations are not additional blockers and remain subject to existing triage. Update state only with actual authority; read-only/planning-only/report-only has mutation/commit/push/PR zero. Safe review/context evidence may still be reported.
 
 Perform delegated publication **here in this same Finalize**, with no secondary HF handoff:
 

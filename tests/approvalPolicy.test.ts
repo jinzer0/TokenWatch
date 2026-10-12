@@ -671,17 +671,17 @@ describe('risk-based approval delivery source contracts (not native enforcement)
     const built = section(text, '### Mark Plan Built');
     has(
       built,
-      /explicitly record `status: 'built'` in the resolved state\/evidence location before publication/i,
-      'full completion writes actual built state'
+      /Other eligible incoming states[\s\S]*may explicitly record `status: 'built'`[\s\S]*before authorized publication/i,
+      'only eligible non-done completion writes built state'
     );
     has(
       built,
-      /authorized existing BMAD frontmatter[\s\S]*otherwise[\s\S]*existing context/i,
+      /supported existing BMAD plan[\s\S]*otherwise[\s\S]*existing context/i,
       'built state supports both canonical formats'
     );
     has(
       built,
-      /without modifying an unformatted canonical plan/i,
+      /never borrow another plan's context or add frontmatter/i,
       'built state leaves human plan intact'
     );
     has(
@@ -691,6 +691,103 @@ describe('risk-based approval delivery source contracts (not native enforcement)
     );
     expect(text.indexOf('### Mark Plan Built') < text.indexOf('### Commit and Complete')).toBe(
       true
+    );
+  });
+
+  it('P1 both canonical formats resolve exact associated state before fallback or dispatch', () => {
+    for (const skill of Object.keys(bmadFiles)) {
+      const text = read(`mydocs/skills/${skill}/step-01-clarify-and-route.md`);
+      const selection = section(
+        text,
+        '## Canonical state/evidence selection (only after the request-mode guard)'
+      );
+      has(
+        selection,
+        /BEFORE testing any status, ordinary-intent fallback, LOW entry, slug assignment or NEXT/,
+        `${skill}: selector precedes mutable entry decisions`
+      );
+      has(
+        selection,
+        /exact selected canonical path AND task/,
+        `${skill}: no foreign state association`
+      );
+      has(
+        selection,
+        /Ignore stale context for another plan\/task/,
+        `${skill}: stale context isn't a resume`
+      );
+      has(
+        selection,
+        /Unknown recorded status[\s\S]*scoped blocked/,
+        `${skill}: unknown state doesn't restart implementation`
+      );
+      has(
+        selection,
+        /Only genuinely absent recorded status permits ordinary-intent routing/,
+        `${skill}: absent isn't terminal or invalid`
+      );
+      has(
+        selection,
+        /No plan\/state mutation precedes dispatch/,
+        `${skill}: no reset on selection`
+      );
+      expect(
+        text.indexOf('## Request-mode guard') <
+          text.indexOf('## Canonical state/evidence selection')
+      ).toBe(true);
+      expect(
+        text.indexOf('## Canonical state/evidence selection') < text.indexOf('## Intent check')
+      ).toBe(true);
+      for (const origin of [
+        'explicit file',
+        'recent conversation',
+        'artifacts',
+        'ticket resolution',
+        'existing-path collision',
+        'markerless-plan fallback'
+      ])
+        expect(selection.includes(origin)).toBe(true);
+      has(
+        section(text, '### Ticket resolution'),
+        /Canonical state\/evidence selection[\s\S]*before testing status or fallback/,
+        `${skill}: ticket paths use same state resolver`
+      );
+    }
+  });
+
+  it('P2 presentation and auto finalize retain original done without granting current success', () => {
+    const normal = section(
+      read('mydocs/skills/bmad-build/step-05-present.md'),
+      '### Mark Plan Built'
+    );
+    has(
+      normal,
+      /Capture the incoming status[\s\S]*before any state write/,
+      'capture before mutation'
+    );
+    has(
+      normal,
+      /preserve incoming `done` as `done`[\s\S]*do not rewrite it to `built`/,
+      'terminal state is monotonic on presentation'
+    );
+    has(
+      normal,
+      /Historical completion never substitutes for current evidence/,
+      'done does not waive current failure'
+    );
+    const auto = read('mydocs/skills/bmad-build-auto/step-04-review.md');
+    expect(
+      auto.indexOf('capture `resume_incoming_status`') < auto.indexOf('Record status `in-review`')
+    ).toBe(true);
+    has(
+      section(auto, '## Finalize'),
+      /captured `resume_incoming_status` was `done`/,
+      'auto followup preserves actual original status'
+    );
+    has(
+      section(auto, '## Finalize'),
+      /Do not infer that original status from the intermediate `in-review`/,
+      'no intermediate or foreign status substitute'
     );
   });
 
@@ -729,6 +826,32 @@ describe('risk-based approval delivery source contracts (not native enforcement)
       read('mydocs/manual/document_structure_guide.md'),
       /local-only도 raw path privacy 예외가 아니다/,
       'no local-only privacy bypass'
+    );
+  });
+
+  it('P1 machine path rejection includes foreign source and customization values', () => {
+    const renderer = read('tools/bmad/render_skill.py');
+    const normalization =
+      renderer.split('def _relative_text(')[1]?.split('def _relative_values(')[0] ?? '';
+    has(
+      normalization,
+      /raise RenderError\("foreign machine reference"\)/,
+      'foreign paths fail closed rather than persisting unchanged'
+    );
+    has(
+      normalization,
+      /uri\.scheme\.lower\(\) not in \{"http", "https"\}/,
+      'only complete public web references are eligible'
+    );
+    has(
+      normalization,
+      /uri\.username is not None[\s\S]*uri\.password is not None/,
+      'credential-bearing URI is not a public-path bypass'
+    );
+    has(
+      read('mydocs/manual/document_structure_guide.md'),
+      /foreign absolute filesystem reference[\s\S]*publication 전 fixed HALT/,
+      'private artifacts have no foreign-path exception'
     );
   });
 
@@ -872,7 +995,12 @@ describe('risk-based approval delivery source contracts (not native enforcement)
       /Only after an actual recorded human intent\/scope decision[^\n]*may you append/,
       'split writes require real human scope decision'
     );
-    for (const file of ['step-02-plan.md', 'step-oneshot.md']) {
+    for (const file of [
+      'step-01-clarify-and-route.md',
+      'step-02-plan.md',
+      'step-04-review.md',
+      'step-oneshot.md'
+    ]) {
       const text = read(`mydocs/skills/bmad-build/${file}`);
       const examples = [...text.matchAll(/^[ \t]*```json\n([\s\S]*?)\n[ \t]*```$/gm)];
       expect(examples.length > 0, `${file}: complete serialization example`).toBe(true);
@@ -892,12 +1020,12 @@ describe('risk-based approval delivery source contracts (not native enforcement)
       }
       has(
         text,
-        /Serialize and parse the WHOLE candidate before any atomic append\/persist/,
+        /Serialize and parse the WHOLE candidate before any atomic append\/persist|Parse and round-trip the WHOLE serialized candidate before publication/,
         `${file}: validation before mutation`
       );
       has(
         text,
-        /On any parse, validation or concurrent-change failure, do not mutate/,
+        /On any parse, validation or concurrent-change failure, do not mutate|Parse, round-trip, validation, privacy or concurrent-change failure means zero file\/scope changes/,
         `${file}: failed candidates preserve prior records`
       );
     }

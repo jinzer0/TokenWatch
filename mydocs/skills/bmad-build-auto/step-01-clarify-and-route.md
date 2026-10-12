@@ -35,22 +35,34 @@ Ticket integration is optional and is not part of the tracked standalone runtime
 - Without explicit ticket intent, use safe existing context/artifact inspection or ask for missing intent; do not invoke a ticket helper merely to discover work.
 - On command failure, report only a privacy-safe reason/category and the affected limitation, never raw command output, errors, paths, records or stack traces. Block ticket-dependent work without fabricated ticket/prerequisite evidence.
 
+## Canonical state/evidence selection (only after the request-mode guard)
+
+Whenever an existing canonical plan is selected — by explicit file, recent conversation, artifacts, ticket resolution, existing-path collision or markerless-plan fallback — set `plan_file` to that exact existing path and select its state/evidence location BEFORE testing any status, ordinary-intent fallback, LOW entry, slug assignment or NEXT. Re-read the required plan; a missing required path is scoped blocked without recreation.
+
+Use frontmatter/workflow sections only for a supported existing BMAD-format plan with authorized task-owned metadata. Otherwise use existing context associated with the exact selected canonical path AND task. Reuse that location downstream for status, route, baseline and logs; never add frontmatter, infer status from formatting, reset iteration/baseline or modify the unformatted human body to route. Ignore stale context for another plan/task; if association or recorded state is ambiguous/conflicting, block dependent execution rather than guess. Unknown recorded status is likewise scoped blocked, not fresh implementation.
+
+Read status from that selected location and apply **Existing-state dispatch** identically for all eight recognized statuses. No plan/state mutation precedes dispatch. Only genuinely absent recorded status permits ordinary-intent routing with canonical reuse (including the existing LOW safeguards), never a dummy/replacement plan. Status and context supply continuity, not authority; actual new scope/mutation requires current delegation and its appropriate phase.
+
 ## Intent check (only after the request-mode guard)
 
 Use the invocation prompt as the intent.
 
 The invocation prompt names a ticket from the tree when it calls a reference a ticket (such as `ticket 1.2`, a ticket file's name, or a ticket's title), or points to an existing file whose frontmatter `type` is `story`, `spike`, or `bug`, whatever its `status`. A ref or title it does not present as a ticket is not one. Only after **Optional ticket capability** permits this command, resolve the named ticket's plan, entry and prerequisites with the existing local `uv run {project-root}/_bmad/method/scripts/tickets.py --project-root {project-root} find <ref>` without provisioning; for a ticket file, pass its folder before its file name. Unavailable capability, denied authority or non-zero exit → scoped blocked with a privacy-safe `ticket not resolved` reason/limitation, preserving existing state and continuing independent safe analysis only; no routing fallthrough. Otherwise follow **Ticket resolution** (below).
 
-If the invocation prompt explicitly points to an existing plan file with recognized `status` frontmatter, set `plan_file`, then **EARLY EXIT** to the appropriate step:
+Select any existing canonical plan identified by the explicit file, recent conversation or relevant permitted artifacts before treating the prompt as starting intent. Apply **Canonical state/evidence selection**, then the dispatch below to its recorded status, whether formatted or contextual.
+
+### Existing-state dispatch
+
+Revalidate current request mode, scope/ownership/native permission and next-risk authority before each dispatch. Preserve canonical content/path, baseline and prior logs; no status/iteration reset or successor plan merely for routing. All eight recognized statuses terminate routing here:
 
 - `draft` → `{{ rendered("step-02-plan.md") }}`
 - `ready-for-dev` or `in-progress` → `{{ rendered("step-03-implement.md") }}`
 - `in-review` → `{{ rendered("step-04-review.md") }}`
 - `blocked` → HALT with status `blocked` and blocking condition `blocked plan supplied`.
 - `dropped` → HALT with status `blocked` and blocking condition `dropped plan supplied`.
-- `built` or `done` → revalidate current scope/ownership/permission and next-risk authority; set `followup_pass` to `true` in runtime context for a fresh review. Reset iteration only in authorized task-owned state, otherwise record it in existing context. Prior completion/reset grants no new authority. **EARLY EXIT** to `{{ rendered("step-04-review.md") }}` for safe in-scope review.
+- `built` or `done` → revalidate current scope/ownership/permission and current verification/review evidence; set `followup_pass` to `true` in runtime context for a fresh review. Do not reset iteration, baseline or status, create a successor plan or reimplement merely to dispatch. Prior completion grants no new authority; actual new scope/mutation needs actual delegation and the appropriate phase. **EARLY EXIT** to `{{ rendered("step-04-review.md") }}` for safe in-scope review.
 
-Otherwise, treat the invocation prompt as starting intent. Reuse a selected canonical/unformatted plan at its original `plan_file` path/content with state/evidence in existing context; do not infer status, copy or force-convert it. An explicitly required missing plan blocks execution, but absence of a plan for LOW does not.
+Only with no selected canonical plan, or genuinely no recorded status in its selected location, treat the resolved prompt/conversation/artifacts as starting intent. Reuse a selected canonical/unformatted plan at its original `plan_file` path/content with state/evidence in existing context; unknown/conflicting recorded status blocks rather than falling through. An explicitly required missing plan blocks execution, but absence of a plan for LOW does not.
 If the invocation prompt and existing safe context do not contain enough intent to identify what to implement, ask for the missing intent and HALT dependent execution with status `blocked` and blocking condition `unclear intent`; do not run a ticket helper to fill the gap.
 
 One ticket per invocation: never read another entry, and never advance to a different ticket regardless of outcome.
@@ -59,7 +71,7 @@ One ticket per invocation: never read another entry, and never advance to a diff
 
 This runs on the output of `tickets.py find` for one ticket. Set `ticket_args` to the arguments find resolved it with. Find's `description`, `verify`, `references`, `notes`, and `unknown` are the intent, together with `epic_file` and what that file's References name when it is not null, and `story_file` when it is not null. Never write to a ticket file or run `pull`/`mark` to manufacture workflow artifacts or authority.
 
-- When the file at find's `plan` exists on disk, treat it as a plan file the invocation prompt pointed to and route it by its `status` (above).
+- When the file at find's `plan` exists on disk, apply **Canonical state/evidence selection** before testing status or fallback, then **Existing-state dispatch** for its recorded status. Genuinely absent status continues with canonical reuse, never a replacement plan.
 - If that plan is genuinely required for explicit full/resume or existing state, but missing, block dependent execution without recreation; preserve ticket state and continue independent safe analysis.
 - Otherwise set `plan_file` to find's `plan`; the plan's frontmatter carries `ticket` set to find's `id`, or to the stem of find's `story_file` when `id` is null, never its `ref`. Continue to INSTRUCTIONS, skipping item 5.
 
@@ -90,9 +102,9 @@ This runs on the output of `tickets.py find` for one ticket. Set `ticket_args` t
 4. Multi-goal warning. If the intent appears to contain multiple independently shippable goals, carry `multiple-goals` forward so step-02 can add it to `{plan_file}` frontmatter `warnings`. Do not split or block.
 5. Set the plan file.
 
-   Reuse the selected existing canonical plan first, including unformatted user plans, keeping original path/content/human intent and state/evidence in existing context. HF references it, not a second original. If canonical was selected, keep `plan_file` at its path and go NEXT; slug derivation/new-path assignment below applies only otherwise, when a new BMAD plan is genuinely needed. No dummy Issue/board.
+   Reuse the selected existing canonical plan first, including unformatted user plans, keeping original path/content/human intent and state/evidence in existing context. HF references it, not a second original. If canonical was selected, reapply **Canonical state/evidence selection** and dispatch recorded status before NEXT; only genuinely absent status goes NEXT with that same path. Slug derivation/new-path assignment below applies only otherwise, when a new BMAD plan is genuinely needed. No dummy Issue/board.
 
-   Derive a valid kebab-case slug from the clarified intent. If the intent references a tracking identifier (story number, issue number, ticket ID), lead the slug with it (e.g. `3-2-digest-delivery`, `gh-47-fix-auth`). If `{{ config.output_folder }}/{active_initiative}/plan-{slug}.md` already exists: if its status is `draft`, treat it as the same work and resume it (set `plan_file` to that path, **EARLY EXIT** → `{{ rendered("step-02-plan.md") }}`); otherwise append `-2`, `-3`, etc. Set `plan_file` = `{{ config.output_folder }}/{active_initiative}/plan-{slug}.md`.
+   Derive a valid kebab-case slug from the clarified intent. If the intent references a tracking identifier (story number, issue number, ticket ID), lead the slug with it (e.g. `3-2-digest-delivery`, `gh-47-fix-auth`). If `{{ config.output_folder }}/{active_initiative}/plan-{slug}.md` already exists, determine whether it is this task's canonical plan before selecting a new path. For the same task, apply **Canonical state/evidence selection** and dispatch recorded status; genuinely absent status reuses it as ordinary intent. Uncertain association blocks dependent work, not a guessed successor. Only a demonstrably unrelated collision permits `-2`, `-3`, etc. Set `plan_file` to a new path only when no canonical plan is reusable and a new BMAD plan is genuinely needed.
 
 ## NEXT
 

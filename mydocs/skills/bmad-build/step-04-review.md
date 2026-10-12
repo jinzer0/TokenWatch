@@ -108,9 +108,24 @@ For initial review and every loopback/resume/follow-up, retain each applicable r
 
      If it cannot be continued, apply patches yourself within the same constraints. Run required verification and acceptance checks after changes, including when the plan omits commands. Failed checks trigger autonomous same-scope repair/reverify with evidence retained; unresolved failure/nonconvergence records incomplete/scoped blocked and escalates without publication. Rewrite the task-owned `{diff_file}` after repairs.
 
-   - **defer** — Before persistence, resolve the real paths of the canonical plan and repository root. Normalize an absolute in-repository plan path to a privacy-safe repository-relative reference for `source_plan`; never serialize `{plan_file}` verbatim. Reject traversal, symlink escapes and private path components. If the plan is outside the repository or no safe reference exists, keep the finding/evidence in non-persisted current context only; do not write a deferred record or leak the reference in a report. Never persist raw paths, private identifiers or hashes of them in any field. Do not copy or relocate the canonical plan to manufacture a reference; continue independent safe work.
+   - **defer** — Before persistence, resolve the real paths of the canonical plan, repository root and deferred destination (including existing parent paths). Normalize an absolute in-repository plan path to a privacy-safe repository-relative reference for `source_plan`; never serialize `{plan_file}` verbatim. Require repository containment for both references; reject traversal, symlink escapes and private path components. If the plan or destination is outside the repository or no safe reference exists, keep the finding/evidence in non-persisted current context only; do not write a deferred record or leak the reference in a report. Never persist raw paths, private identifiers or hashes of them in any field. Do not copy or relocate the canonical plan to manufacture a reference; continue independent safe work.
 
-     Only after those checks, append one new entry to `{{ config.output_folder }}/{active_initiative}/deferred-work.md`. Record `source_plan` as that privacy-safe reference, `summary` as one sentence, and `evidence` as the verified reason or what would settle a maybe-false claim. Sanitize all fields and serialize free-form values as YAML block scalars so punctuation remains data. Preserve existing entries without searching for duplicates, and parse the appended record to verify its fields retain their intended privacy-safe text.
+     Only after those checks, update the single `deferred` list in `{{ config.output_folder }}/{active_initiative}/deferred-work.md` using the same complete-document contract as clarification, planning and oneshot. Each new entry has exactly four privacy-safe fields: a unique `id`, `source_plan`, `summary` and `evidence`. Preserve every prior entry unchanged; allocate an unused id without deduplicating findings or deleting earlier records. Use a complete serialized document, not a scalar-body snippet. This JSON object is valid YAML serialization; its values are illustrative, not fabricated task evidence:
+
+     ```json
+     {
+       "deferred": [
+         {
+           "id": "deferred-001",
+           "source_plan": "plans/current-task.md",
+           "summary": "Verified advisory finding selected for later work.",
+           "evidence": "Current triage recorded the reason for this deferral."
+         }
+       ]
+     }
+     ```
+
+     Parse the existing complete document and require one top-level `deferred` list. Build the WHOLE candidate with preserved prior entries and authorized new four-field entries; serialize free-form values as data. Serialize and parse the WHOLE candidate before any atomic append/persist; verify field types, unique ids, one deferred list, unchanged prior entries and exact intended privacy-safe values. Recheck the destination has not changed before atomic persistence. On any parse, validation or concurrent-change failure, do not mutate the deferred file; keep the reason in current context. Never append a bare YAML item or a second deferred key to an existing document.
      {% endif %}
 
 ## NEXT
