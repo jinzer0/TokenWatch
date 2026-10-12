@@ -332,6 +332,20 @@ function render(
 }
 function safety(snapshot: Snapshot, skill: Skill, route: Route, review: Review): void {
   const files = snapshot.outputs;
+  assertText(
+    files['workflow.md'],
+    /snapshot reference[\s\S]*repository-root-relative/,
+    `${skill}: rendered steps have repository base`
+  );
+  assertText(
+    files['workflow.md'],
+    /loading reference alone is relative to the unchanged caller cwd/,
+    `${skill}: rendered entry loading has caller base`
+  );
+  expect(
+    files['workflow.md'].includes('absolute snapshot path'),
+    'obsolete nested-cwd convention is absent'
+  ).toBe(false);
   const step = files['step-01-clarify-and-route.md'];
   const selector =
     step
@@ -776,6 +790,54 @@ function safety(snapshot: Snapshot, skill: Skill, route: Route, review: Review):
     ).toBe(false);
   }
   const renderedReview = files[reviewFile];
+  if (skill === 'bmad-build' && review !== 'none') {
+    const resumedReview = files['step-04-review.md'];
+    const depth =
+      review === 'auto'
+        ? route === 'oneshot'
+          ? 'quick'
+          : route === 'full'
+            ? 'thorough'
+            : undefined
+        : review;
+    if (depth)
+      assertText(
+        resumedReview,
+        new RegExp(`review: '${depth}'`),
+        'direct step04 resume uses effective pinned depth'
+      );
+    else {
+      assertText(
+        resumedReview,
+        /Quick group[\s\S]*effective_review[\s\S]*quick/,
+        'recorded oneshot direct review branch exists'
+      );
+      assertText(
+        resumedReview,
+        /Thorough group[\s\S]*effective_review[\s\S]*thorough/,
+        'recorded full direct review branch exists'
+      );
+    }
+    const repairs =
+      resumedReview
+        .split('**bad_plan** — Same-scope technical correction')[1]
+        ?.split('**defer**')[0] ?? '';
+    assertText(
+      repairs,
+      /effective implementation route/,
+      'repair route is independent of review depth'
+    );
+    if (route !== 'full')
+      expect(
+        repairs.includes(`${snapshot.reference}/step-oneshot.md`),
+        'oneshot technical repair link exists'
+      ).toBe(true);
+    if (route !== 'oneshot')
+      expect(
+        repairs.includes(`${snapshot.reference}/step-03-implement.md`),
+        'full technical repair link exists'
+      ).toBe(true);
+  }
   expect(
     /^\s*`{1,2}(?:yaml|markdown|text)\b/m.test(renderedReview),
     'review examples are not damaged fence fragments'
@@ -807,15 +869,32 @@ function safety(snapshot: Snapshot, skill: Skill, route: Route, review: Review):
       review === 'auto'
         ? route === 'oneshot'
           ? 'quick'
-          : route === 'full' || skill === 'bmad-build'
+          : route === 'full'
             ? 'thorough'
             : undefined
         : review;
     if (expected)
       assertText(renderedReview, new RegExp(`review: '${expected}'`), 'resolved review branch');
     else {
-      assertText(renderedReview, /Quick set/, 'auto route quick review witness');
-      assertText(renderedReview, /Thorough set/, 'auto route thorough review witness');
+      assertText(renderedReview, /Quick (?:set|group)/, 'auto route quick review witness');
+      assertText(renderedReview, /Thorough (?:set|group)/, 'auto route thorough review witness');
+      if (skill === 'bmad-build') {
+        assertText(
+          renderedReview,
+          /Select exactly one lens group[\s\S]*BEFORE writing `in-review`/,
+          'runtime review depth is selected before effects'
+        );
+        assertText(
+          renderedReview,
+          /dormant groups are not required and must not be launched/,
+          'inactive rendered lenses are not completion blockers'
+        );
+        assertText(
+          renderedReview,
+          /Unknown, conflicting or missing needed route evidence blocks dependent review/,
+          'no guessed full review on invalid recorded route'
+        );
+      }
     }
     assertText(renderedReview, /### Review/, 'review lenses branch');
     if (skill === 'bmad-build' && route === 'auto' && review === 'auto') {
@@ -927,6 +1006,20 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
             expect(row[2].includes('**EARLY EXIT**')).toBe(true);
             expect(row[2].includes(`${snapshot.reference}/${target}`)).toBe(true);
             expect(target in snapshot.outputs).toBe(true);
+            if (route === 'auto' && ['ready-for-dev', 'in-progress'].includes(row[1])) {
+              expect(
+                row[2].includes(`${snapshot.reference}/step-oneshot.md`),
+                'auto resume retains direct implementation branch'
+              ).toBe(true);
+              expect(
+                row[2].includes(`${snapshot.reference}/step-03-implement.md`),
+                'auto resume retains full implementation branch'
+              ).toBe(true);
+              expect(
+                row[2].includes('effective_route'),
+                'auto resume chooses recorded effective route at runtime'
+              ).toBe(true);
+            }
             if (['in-review', 'built', 'done'].includes(row[1]))
               expect(/step-02-plan|step-03-implement|step-oneshot/.test(row[2])).toBe(false);
           }

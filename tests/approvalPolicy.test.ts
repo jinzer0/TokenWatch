@@ -855,6 +855,103 @@ describe('risk-based approval delivery source contracts (not native enforcement)
     );
   });
 
+  it('P1 automatic implementation and review use associated recorded route before effects', () => {
+    const dispatch = section(
+      read('mydocs/skills/bmad-build/step-01-clarify-and-route.md'),
+      '### Existing-state dispatch'
+    );
+    has(
+      dispatch,
+      /On `auto`, read recorded `route` from the SAME selected exact-path\/task/,
+      'auto reads plan or contextual route instead of pin-only dispatch'
+    );
+    has(dispatch, /Accept only `full` or `oneshot`/, 'unknown route does not guess full');
+    has(
+      dispatch,
+      /do not overwrite the canonical route or other state merely to dispatch/,
+      'pins override invocation without resets'
+    );
+    for (const status of ['ready-for-dev', 'in-progress']) {
+      const row = dispatch.split('\n').find((line) => line.startsWith(`| \`${status}\``)) ?? '';
+      has(
+        row,
+        /effective_route[\s\S]*oneshot[\s\S]*step-oneshot[\s\S]*effective_route[\s\S]*full[\s\S]*step-03-implement/,
+        `${status}: both actual runtime branches`
+      );
+    }
+    const review = read('mydocs/skills/bmad-build/step-04-review.md');
+    const resolution = section(review, '### Resolve effective review (before any write or launch)');
+    has(
+      resolution,
+      /SAME selected exact canonical path AND task/,
+      'direct review resolves associated route'
+    );
+    has(
+      resolution,
+      /`quick` for `oneshot`, or `thorough` for `full`/,
+      'auto review maps effective recorded route'
+    );
+    has(
+      resolution,
+      /Pinned review[\s\S]*overrides depth independently of route/,
+      'explicit depth remains authoritative'
+    );
+    has(
+      resolution,
+      /dormant groups are not required and must not be launched/,
+      'unselected lenses never create blockers'
+    );
+    expect(
+      review.indexOf('### Resolve effective review') < review.indexOf('Record status `in-review`')
+    ).toBe(true);
+    const repair =
+      review.split('**bad_plan** — Same-scope technical correction')[1]?.split('**defer**')[0] ??
+      '';
+    has(
+      repair,
+      /effective implementation route[\s\S]*step-oneshot[\s\S]*step-03-implement/,
+      'technical repair follows recorded route rather than review depth'
+    );
+    has(
+      repair,
+      /On oneshot, repair directly in this session; on full, re-engage/,
+      'patches preserve direct implementation versus subagent handoff'
+    );
+  });
+
+  it('P2 all workflow references use root while entry loading retains caller cwd', () => {
+    for (const skill of Object.keys(bmadFiles)) {
+      const workflow = read(`mydocs/skills/${skill}/workflow.md`);
+      has(
+        workflow,
+        /snapshot reference[\s\S]*repository-root-relative/,
+        `${skill}: correct snapshot base`
+      );
+      has(
+        workflow,
+        /Resolve it against the authorized `\{project-root\}`/,
+        `${skill}: no nested cwd resolution`
+      );
+      has(
+        workflow,
+        /loading reference alone is relative to the unchanged caller cwd/,
+        `${skill}: entry loading base stays distinct`
+      );
+      lacks(workflow, /absolute snapshot path/, `${skill}: obsolete convention removed`);
+    }
+    const form = read('.github/ISSUE_TEMPLATE/task.yml');
+    lacks(
+      form,
+      /task plan approval procedure is required before work starts/,
+      'task form no longer reinstates universal approval'
+    );
+    has(
+      form,
+      /LOW\/MEDIUM scope[\s\S]*HIGH 위험 행동 직전/,
+      'task form confirms scoped risk boundary'
+    );
+  });
+
   it('P1 every pinned route retains existing review and terminal state dispatch', () => {
     const step = read('mydocs/skills/bmad-build/step-01-clarify-and-route.md');
     const dispatch = section(step, '### Existing-state dispatch');

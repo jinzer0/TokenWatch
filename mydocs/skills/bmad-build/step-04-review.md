@@ -1,5 +1,11 @@
 {% if workflow.review == "auto" %}
+{% if workflow.route == "oneshot" %}
+{% set review = "quick" %}
+{% elif workflow.route == "full" %}
 {% set review = "thorough" %}
+{% else %}
+{% set review = "runtime" %}
+{% endif %}
 {% else %}
 {% set review = workflow.review %}
 {% endif %}
@@ -23,12 +29,28 @@ Before any state/iteration write, diff artifact, reviewer/repair dispatch or NEX
 
 Only an existing BMAD-format plan with authorized task-owned metadata may use its frontmatter and workflow sections. Otherwise keep the unformatted canonical plan's content/path unchanged and use existing context. Reuse that same location for all state/evidence reads and writes: `baseline_revision`, route, status, risk, review, lenses, triage logs and implementation notes. Never add frontmatter, force-convert, copy or replace an existing human plan to store workflow state.
 
+### Resolve effective review (before any write or launch)
+
+Re-read state/evidence associated with the SAME selected exact canonical path AND task, not another plan or stale context. Resolve runtime `{effective_route}` from a pinned invocation `full`/`oneshot` first; otherwise read recorded `route` from that selected authorized BMAD metadata or associated existing context, accepting only `full`/`oneshot`. Do not overwrite canonical route, body, status, baseline or iteration merely to resolve dispatch. No renderer-time branch executes this runtime resolution.
+
+{% if review == "runtime" %}
+Both route and review are `auto`: after resolving `{effective_route}`, set runtime `{effective_review}` to `quick` for `oneshot`, or `thorough` for `full`. Select exactly one lens group below BEFORE writing `in-review`, review metadata, a diff artifact or launching any reviewer. Unknown, conflicting or missing needed route evidence blocks dependent review before those effects; retain truthful limitations in existing non-persisted context, never default to thorough/full, fabricate metadata or create a dummy plan. Continue independent safe work only.
+{% else %}
+Set runtime `{effective_review}` to `{{ review }}`. {% if workflow.review == "auto" %}The pinned invocation route determines this automatic depth (`oneshot` → `quick`, `full` → `thorough`).{% else %}Pinned review `{{ workflow.review }}` overrides depth independently of route; unresolved route does not change this explicit depth or authorize route-dependent implementation.{% endif %}
+{% endif %}
+
+Only the selected group's applicable required lanes are active; dormant groups are not required and must not be launched. Review `none` activates no optional lenses and still requires verification/AC. Apply the existing request-mode, ownership, native and HIGH guards before proceeding.
+
 Record status `in-review` in that same state/evidence location before continuing, never in an unformatted human plan.
 
 {% if workflow.review == "none" %}
 Record `review: 'none'`, `review_source: 'pinned'`, and `lenses_ran: []` in that state/evidence location.
 {% elif workflow.review == "auto" %}
-Record `review: 'thorough'` and `review_source: 'auto'` in that state/evidence location.
+{% if review == "runtime" %}
+Record `review` as the resolved `{effective_review}` (`quick` or `thorough`) and `review_source: 'auto'` in that state/evidence location, never an unresolved placeholder or a renderer default.
+{% else %}
+Record `review: '{{ review }}'` and `review_source: 'auto'` in that state/evidence location.
+{% endif %}
 {% else %}
 Record `review: '{{ workflow.review }}'` and `review_source: 'pinned'` in that state/evidence location.
 {% endif %}
@@ -50,6 +72,19 @@ Announce skipped lenses first, then launch every active lens before handling any
 
 {% if review == "quick" %}
 {{ workflow.quick_lenses }}
+{% elif review == "runtime" %}
+
+### Quick group — active ONLY when runtime `{effective_review} = quick`
+
+Follow these instructions only for the selected quick group; otherwise this whole group is dormant (no launch and no required completion evidence).
+
+{{ workflow.quick_lenses }}
+
+### Thorough group — active ONLY when runtime `{effective_review} = thorough`
+
+Follow these instructions only for the selected thorough group; otherwise this whole group is dormant (no launch and no required completion evidence). Never launch both groups or treat all rendered lenses as active.
+
+{{ workflow.thorough_lenses }}
 {% else %}
 {{ workflow.thorough_lenses }}
 {% endif %}
@@ -95,8 +130,8 @@ For initial review and every loopback/resume/follow-up, retain each applicable r
 
 4. Process entries in cascading order. If intent_gap or bad_plan entries exist, resolve dependent findings on the corrected implementation rather than silently losing evidence. Before each loopback append iteration/evidence (frontmatter when supported, otherwise existing context); preserve baseline and prior logs. Repeated nonconvergence (including more than five loops) records incomplete/scoped blocked and escalates, not successful completion. Before each repair/revert revalidate ownership and the next risky action's authority.
    - **intent_gap** — A genuine human-owned intent gap blocks dependent actions; ask only the unresolved material decision and continue independent safe work. Never blanket-revert the tree. If rollback is needed and delegated, remove only identified task-owned hunks against pre-edit baselines, preserving userwork/evidence; inseparable overlap blocks that rollback. Once human intent is resolved, read fully and follow `{{ rendered("step-02-plan.md") }}` to re-run steps 2–4.
-   - **bad_plan** — Same-scope technical correction proceeds autonomously, regardless of complexity. Preserve human intent, original baseline and append-only logs. Extract KEEP instructions, amend only agent-owned technical sections, and append finding/amendment/known-bad-state/KEEP evidence. Repair in place where possible; any delegated reversion is limited to identified task-owned hunks, never all changes since revision or unrelated work. Read fully and follow `{{ rendered("step-03-implement.md") }}` to re-derive and reverify, then review again. Changed scope/HIGH authority blocks only its dependent action.
-   - **patch** — Auto-fix within current scope/ownership/authority. Re-engage the step-03 implementation subagent when available; seed the same root/child/native safety and ownership constraints before this repair message:
+   - **bad_plan** — Same-scope technical correction proceeds autonomously, regardless of complexity. Preserve human intent, original baseline and append-only logs. Extract KEEP instructions, amend only agent-owned technical sections, and append finding/amendment/known-bad-state/KEEP evidence. Repair in place where possible; any delegated reversion is limited to identified task-owned hunks, never all changes since revision or unrelated work. Revalidate the effective implementation route before handoff, independently of pinned review depth. {% if workflow.route == "full" %}Read fully and follow `{{ rendered("step-03-implement.md") }}`.{% elif workflow.route == "oneshot" %}Read fully and follow `{{ rendered("step-oneshot.md") }}`.{% else %}For `{effective_route} = oneshot`, read fully and follow `{{ rendered("step-oneshot.md") }}`; for `{effective_route} = full`, read fully and follow `{{ rendered("step-03-implement.md") }}`. Unknown/missing/conflicting route blocks only dependent repair, never defaults to full.{% endif %} Re-derive and reverify, then review again. Changed scope/HIGH authority blocks only its dependent action.
+   - **patch** — Auto-fix within current scope/ownership/authority using the resolved effective implementation route, not the lens depth. On oneshot, repair directly in this session; on full, re-engage the step-03 implementation subagent when available. Unknown/missing/conflicting needed route blocks only dependent repair. Seed the same root/child/native safety and ownership constraints before a full-route repair message:
 
      ```text
      Review of your implementation found problems. Fix each one below with the smallest change that does the job.

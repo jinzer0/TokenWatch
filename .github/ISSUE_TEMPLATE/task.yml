@@ -109,5 +109,5 @@ body:
           required: true
         - label: I explicitly listed what this task excludes.
           required: true
-        - label: I understand that the task plan approval procedure is required before work starts.
+        - label: 명확한 LOW/MEDIUM scope는 별도 계획 승인 없이 진행하며, HIGH 위험 행동 직전에만 대상·행위·영향·복구 조건에 맞는 명시 승인을 확인합니다.
           required: true
