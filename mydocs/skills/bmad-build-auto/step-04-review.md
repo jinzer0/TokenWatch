@@ -25,6 +25,26 @@ First re-read the required nonempty existing plan and capture current scope/mode
 
 Only an existing BMAD-format plan with authorized task-owned metadata may use its frontmatter and workflow sections. Otherwise keep the unformatted canonical plan's content/path unchanged and use existing context. Reuse that same location for all state/evidence reads and writes: `baseline_revision`, route, status, risk, review, lenses, triage logs and implementation notes. Never add frontmatter, force-convert, copy or replace an existing human plan to store workflow state.
 
+### Effective implementation route and review depth (before effects)
+
+On initial entry, in-review resume, built/done delegated follow-up and every loopback/repair, recheck the SAME exact selected canonical path/task state/evidence association and resolve `{effective_route}` BEFORE review status, diff/input metadata, reviewer launch or repair. Authorized supported BMAD metadata or SAME existing associated canonical context/task supplies recorded route; status, review depth, formatting and rendered branch presence do not.
+
+{% if workflow.route == "full" or workflow.route == "oneshot" %}
+The current explicit invocation pins runtime `{effective_route} = {{ workflow.route }}` for this invocation only; never rewrite stored canonical `route`/`route_source`.
+{% else %}
+Read recorded `route` from that SAME selected location, accepting only unambiguous `full|oneshot`. Missing, unknown or conflicting route blocks dependent active review/repair with its truthful privacy-safe reason; no full fallback, substitute plan/context or default metadata repair.
+{% endif %}
+
+An ambiguous canonical association blocks dependent work even with a route pin. Preserve human body/path, stored route/status/baseline/iteration and existing evidence on this blocked branch; independent safe review analysis/reporting may continue without writes or reviewer launch. For an incoming built/done terminal state only, no delegated follow-up means terminal reporting and STOP: incoming verified `done` stays unchanged, with no artifacts/status mutation/reimplementation. Initial authorized review and in-review resume still follow the active review contract below.
+
+{% if workflow.review == "none" or workflow.review == "quick" or workflow.review == "thorough" %}
+Set runtime `{effective_review} = {{ workflow.review }}`; this explicit pin controls review DEPTH only, never implementation/repair route.
+{% else %}
+For review `auto`, set runtime `{effective_review} = quick` ONLY when `{effective_route} = oneshot`, or `thorough` ONLY when `{effective_route} = full`. Unresolved route cannot select review depth or launch a set.
+{% endif %}
+
+Select exactly ONE active review group before any review status/diff metadata write or launch. Only its applicable lanes are required; another rendered group is dormant and must neither run nor count as missing. Revalidate effective implementation route independently of review depth before every bad_plan, patch, failed-verification repair, resume and Finalize.
+
 Before any status write, capture `resume_incoming_status` in non-persisted runtime context from the SAME selected state/evidence location associated with this exact canonical path/task. Carry it through this review's loopbacks; do not replace it with the intermediate `in-review` value. Missing/conflicting association blocks dependent writes rather than borrowing another plan's status. A previously `done` plan remains a terminal follow-up, not authority to restart implementation. Preserve iteration, original baseline and all prior logs.
 
 Record status `in-review` in that same state/evidence location only for authorized active review, never in an unformatted human plan. Use the captured `resume_incoming_status` at Finalize to restore verified terminal continuity.
@@ -38,7 +58,7 @@ Record `review: 'quick'` and `review_source: 'auto'` in that state/evidence loca
 {% elif workflow.route == "full" %}
 Record `review: 'thorough'` and `review_source: 'auto'` in that state/evidence location.
 {% else %}
-Read `route` from the resolved state/evidence location and record `review`: `quick` when `route` is `oneshot`, `thorough` when `full`; `review_source: 'auto'`.
+Record the already resolved runtime `{effective_review}` (`quick` for effective oneshot, `thorough` for effective full) and `review_source: 'auto'` in the SAME selected state/evidence location. No review write on an unresolved route.
 {% endif %}
 {% if review != "none" %}
 
@@ -61,17 +81,21 @@ Unresolved placeholders, unsafe/custom instructions or inability to retain mater
 Launch independent active preflight-safe lenses after substituting only privacy-safe review placeholders and seeding safety/ownership constraints; customized instructions obey the same preflight and cannot override it. Use supported native task scheduling: GJC launches detach by design, then the leader uses native await for all available results before collection/triage or dependent work. Do not require unsupported blocking launches. Missing required capability records a scoped lane limitation; continue independent safe work, never fabricate lens results.
 
 {% if review == "quick" %}
+**Quick set — active ONLY when `{effective_review} = quick`.**
+
 {{ workflow.quick_lenses }}
 {% elif review == "thorough" %}
+**Thorough set — active ONLY when `{effective_review} = thorough`.**
+
 {{ workflow.thorough_lenses }}
 {% else %}
-The launch paragraph above applies to the set the mapping selects: read `route` from the resolved state/evidence location — the quick set when it is `oneshot`, the thorough set when it is `full`. Launch only that set.
+The launch paragraph above applies ONLY to the group already selected by `{effective_review}`. Both groups are rendered for runtime selection, not both required. Never reread another route source, guess a group or launch before resolution/preflight.
 
-**Quick set**
+**Quick set — active ONLY when `{effective_review} = quick`**
 
 {{ workflow.quick_lenses }}
 
-**Thorough set**
+**Thorough set — active ONLY when `{effective_review} = thorough`**
 
 {{ workflow.thorough_lenses }}
 {% endif %}
@@ -125,25 +149,25 @@ For initial review and every loopback/resume/follow-up, retain each applicable r
 
     Where `{date}` is the current system date. One row per finding from every lens, in the order the lenses reported them; `<total>` must equal the number of findings the lenses reported — a finding missing from the log is a triage failure. Members of a grouped entry keep their own rows and share the route.
 
-5.  Resolve dependent entries after intent/technical correction without losing findings/evidence. Before each bad_plan loopback increment iteration in authorized BMAD state or existing context, preserving original baseline/logs. More than five loops or repeated nonconvergence records incomplete/scoped blocked evidence, then HALT for non-convergence, never successful publication. Before repair/revert revalidate next-risk authority and ownership.
+5.  Resolve dependent entries after intent/technical correction without losing findings/evidence. FIRST recheck `{effective_route}` and exact selected state/evidence association before any bad_plan/patch/failed-verification repair or route-dependent write/dispatch, independently of `{effective_review}`. Missing/unknown/conflicting required route blocks only dependent repair with truthful evidence, no default full handoff, reimplementation, canonical-route rewrite or iteration increment. Before each authorized bad_plan loopback increment iteration in authorized BMAD state or existing context, preserving original baseline/logs. More than five loops or repeated nonconvergence records incomplete/scoped blocked evidence, then HALT for non-convergence, never successful publication. Before repair/revert revalidate next-risk authority and ownership.
     - **intent_gap** — Human-owned intent is unresolved: record questions/evidence and block dependent actions, preserving attempted task-owned changes and independent safe work. No blanket tree revert. Any necessary delegated rollback must target only identified task-owned hunks against captured pre-edit baselines, preserve userwork/evidence and stop on inseparable overlap. HALT with scoped blocked intent-gap evidence; never invent the answer or create a mandatory patch artifact.
-    - **bad_plan** — Correct same-scope technical planning autonomously regardless of complexity. Preserve human intent/original baseline/append logs and all prior constraints; extract KEEP instructions and append triggering finding/amendment/known-bad-state/KEEP evidence. Repair in place where possible; any delegated reversion is only identified task-owned hunks, never all revision differences or unrelated work. Changed scope/HIGH authority blocks only that decision. Read fully and follow `{{ rendered("step-03-implement.md") }}` to re-derive/reverify, then review again.
+    - **bad_plan** — After the route recheck, correct same-scope technical planning autonomously regardless of complexity. Preserve human intent/stored canonical route/original baseline/append logs and all prior constraints; extract KEEP instructions and append triggering finding/amendment/known-bad-state/KEEP evidence. For unformatted humans, technical amendments stay in existing associated context, not their body. Repair in place where possible; any delegated reversion is only identified task-owned hunks, never all revision differences or unrelated work. Changed scope/HIGH authority blocks only that decision. Read fully and follow `{{ rendered("step-03-implement.md") }}` with the same invocation-only pin or revalidated recorded `{effective_route}` to re-derive/reverify: oneshot remains in the current leader, full uses its native async worker contract. Then review again under independently selected `{effective_review}`; this is never a fresh route choice.
     - **patch** — Auto-fix within current scope/ownership/authority. Seed the actual repair dispatch with RULES root/child/native safety, request mode, task-owned boundaries and HIGH revalidation before sending the message below. Use supported native launch/await scheduling if needed.
       {% if workflow.route == "oneshot" %}
-      Apply the patches yourself.
+      ONLY when `{effective_route} = oneshot`, apply the patches yourself in the current leader. Never launch/re-engage a full implementation worker for this branch.
       {% else %}
       {% if workflow.route == "full" %}
-      Re-engage the step-03 implementation subagent — the same one, addressed by the name or id its launch returned; a fresh launch is not re-engagement. Send it one message, exactly this, with the findings filled in:
+      ONLY when `{effective_route} = full`, re-engage the step-03 implementation subagent — the same one, addressed by the name or id its launch returned; a fresh launch is not re-engagement. Send it the bounded repair message below:
       {% else %}
-      On the full route, re-engage the step-03 implementation subagent — the same one, addressed by the name or id its launch returned; a fresh launch is not re-engagement. Send it one message, exactly this, with the findings filled in:
+      Runtime selection, independent of review depth: ONLY when `{effective_route} = full`, re-engage the step-03 implementation subagent — the same one, addressed by the name or id its launch returned; a fresh launch is not re-engagement. The following worker message is dormant on oneshot. Send it the bounded repair message below:
       {% endif %}
 
       Send verified findings as file, observed defect and required smallest scoped correction. Seed current authority/ownership constraints into that repair message. The worker returns changes, unresolved findings and evidence; the leader owns the union verification and applicable gates, following native worker restrictions instead of mandating unsupported child test execution.
 
 {% if workflow.route == "full" %}
-If the subagent cannot be continued, apply the patches yourself.
+Only on the resolved full route, if the subagent cannot be continued, apply the patches yourself within current authority/ownership; worker unavailability is not permission to change canonical route.
 {% else %}
-On oneshot, or if the full-route subagent cannot be continued, apply the patches yourself.
+ONLY when `{effective_route} = oneshot`, apply the patches yourself in the current leader without a full worker/message. ONLY when `{effective_route} = full` and its subagent cannot be continued, apply the patches yourself within current authority/ownership. Unresolved route never reaches either fallback.
 {% endif %}
 {% endif %}
 Rerun required verification/AC (plan commands/manual checks plus applicable root checks). Same-scope failures/complex repairs proceed autonomously and reverify with failed evidence retained. Unresolved failure/nonconvergence stays incomplete/scoped blocked with no successful publication. Refresh privacy-safe task-owned review inputs, repeat preflight and append each fix/result; no whole-tree attribution.
@@ -153,7 +177,7 @@ Rerun required verification/AC (plan commands/manual checks plus applicable root
 
 ## Finalize
 
-Apply this same Finalize contract to **initial run→built** and **done/built follow-up→fresh review→Finalize**. Re-read the existing required canonical plan and current request scope/mode, task-owned ownership/pre-edit baselines, native permissions, actual verification/AC and review evidence before any status/publication. Missing required paths block without recreation; LOW context-only exits never enter here. Prior built/done/reset/carried rows do not grant current permission or verification.
+Apply this same Finalize contract to **initial run→built** and **done/built follow-up→fresh review→Finalize**. Re-read the existing required canonical plan and current request scope/mode, task-owned ownership/pre-edit baselines, native permissions, actual verification/AC and review evidence before any status/publication. Recheck the SAME selected association and invocation-only pin or recorded `{effective_route}` and independent `{effective_review}`; unresolved route blocks dependent repair/completion/publication, never chooses full or fabricates review success. Missing required paths block without recreation; LOW context-only exits never enter here. Prior built/done/reset/carried rows do not grant current permission or verification.
 
 Before every next risky action revalidate actual HIGH requester authority/scope, targets/actions/impact/recovery_conditions/result/evidence. Reuse condition-matching approval only; missing/denied/changed conditions block that action and independent safe review/context continues. Verify required checks/AC even with review `none`, carried rows or follow-up. Repair same-scope failures autonomously and reverify; unresolved failures remain incomplete.
 

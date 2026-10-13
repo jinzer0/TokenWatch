@@ -962,7 +962,12 @@ describe('risk-based approval delivery source contracts (not native enforcement)
       /expanded = unescape\(decoded\)[\s\S]*uri = urlsplit\(decoded\)/,
       'all entity layers decoded before fragment split'
     );
-    has(guard, /"xamz", "xgoog"/, 'signed cloud credentials share same boundary');
+    has(
+      guard,
+      /_credential_key\(match\[1\], url=True\)/,
+      'URL parameters use shared credential classifier'
+    );
+    has(renderer, /"xamz", "xgoog"/, 'shared classifier retains signed cloud credentials');
     has(
       guard,
       /raise RenderError\("credential-bearing URI parameters"\)/,
@@ -972,6 +977,124 @@ describe('risk-based approval delivery source contracts (not native enforcement)
       renderer,
       /_check_url_credentials\(uri\.query, uri\.fragment\)\n {12}return original/,
       'guard runs before accepting original URI'
+    );
+  });
+
+  it('P1 plaintext credential text and named values fail before hashing or manifest input capture', () => {
+    const renderer = read('tools/bmad/render_skill.py');
+    const entry = renderer.split('def _relative_text(')[1]?.split('def _relative_values(')[0] ?? '';
+    has(
+      entry,
+      /_check_text_credentials\(text\)/,
+      'every template and resolved string uses common preflight'
+    );
+    has(
+      renderer,
+      /_check_credential_value\(key, value\)[\s\S]*text = _require_string/,
+      'original typed config key inspected before standalone value loses its meaning'
+    );
+    has(
+      renderer,
+      /_resolve_config_value\(value, label, self\._ctx\.project_root, key=name\)/,
+      'direct lookup preserves dotted or spaced literal key boundaries'
+    );
+    has(
+      renderer,
+      /_resolve_config_value\(value, f"config\.\{path\}", project_root, key=key\)/,
+      'short lookup preserves original key rather than flattened label suffix'
+    );
+    const configGate =
+      renderer
+        .split('def _resolve_config_value(')[1]
+        ?.split('def _validate_config_destinations(')[0] ?? '';
+    lacks(
+      configGate,
+      /label\.rsplit/,
+      'dotted diagnostic label never supplies credential identity'
+    );
+    has(
+      renderer,
+      /value = self\._table\[name\]\n {8}_check_credential_value\(name, value\)\n {8}if isinstance\(value, dict\)/,
+      'selected credential containers checked before child lookup'
+    );
+    has(
+      renderer,
+      /if nested:\n {12}_check_credential_value\(name, value\)/,
+      'short lookup retains selected credential ancestor rather than only leaf'
+    );
+    has(
+      renderer,
+      /for key, item in value\.items\(\):\n {12}_check_credential_value\(key, item\)/,
+      'recursive mappings cannot hide sensitive values behind keys'
+    );
+    const textGuard =
+      renderer.split('def _check_text_credentials(')[1]?.split('def _check_url_credentials(')[0] ??
+      '';
+    has(
+      textGuard,
+      /_check_credential_value\(key, value\)/,
+      'assignments and headers share credential value gate'
+    );
+    has(textGuard, /Bearer\|Basic/, 'authorization scheme carriers checked');
+    has(textGuard, /PRIVATE KEY/, 'known private key material cannot be copied as prose');
+    const capture =
+      renderer.split('class _CustomizationTable(')[1]?.split('class _RenderContext')[0] ?? '';
+    expect(
+      capture.indexOf('_relative_values(') < capture.indexOf('self._ctx.inputs[label] = resolved')
+    ).toBe(true);
+  });
+
+  it('P1 auto entry planning implementation review and repair share selected recorded route authority', () => {
+    const clarify = read('mydocs/skills/bmad-build-auto/step-01-clarify-and-route.md');
+    const plan = read('mydocs/skills/bmad-build-auto/step-02-plan.md');
+    const implement = read('mydocs/skills/bmad-build-auto/step-03-implement.md');
+    const review = read('mydocs/skills/bmad-build-auto/step-04-review.md');
+    expect(
+      clarify.indexOf('### Effective implementation route') <
+        clarify.indexOf('### Existing-state dispatch')
+    ).toBe(true);
+    has(
+      clarify,
+      /Missing, unknown or conflicting route leaves it unresolved/,
+      'auto has no missing-route full default'
+    );
+    has(
+      plan,
+      /Never overwrite an existing recorded `route`\/`route_source`/,
+      'pin changes invocation, not human canonical metadata'
+    );
+    has(
+      plan,
+      /Only genuinely fresh delegated intent with no existing workflow state or route/,
+      'fresh routing cannot repair missing resume authority'
+    );
+    expect(
+      implement.indexOf('### Select exactly one effective route BEFORE effects') <
+        implement.indexOf('### Baseline')
+    ).toBe(true);
+    has(
+      implement,
+      /Any other rendered branch is dormant instructions, never executed or required/,
+      'one effective implementation branch'
+    );
+    has(
+      implement,
+      /Missing, unknown or conflicting route blocks dependent implementation\/repair/,
+      'legacy plan missing route cannot launch full worker'
+    );
+    expect(
+      review.indexOf('### Effective implementation route and review depth') <
+        review.indexOf('Record status `in-review`')
+    ).toBe(true);
+    has(
+      review,
+      /Select exactly ONE active review group before any review status\/diff metadata write or launch/,
+      'effective route chooses auto depth before effects'
+    );
+    has(
+      review,
+      /FIRST recheck `\{effective_route\}` and exact selected state\/evidence association before any bad_plan\/patch\/failed-verification repair/,
+      'repair preserves implementation route independently of depth'
     );
   });
 

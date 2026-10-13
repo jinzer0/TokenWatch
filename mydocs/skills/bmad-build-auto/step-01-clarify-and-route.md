@@ -43,6 +43,20 @@ Use frontmatter/workflow sections only for a supported existing BMAD-format plan
 
 Read status from that selected location and apply **Existing-state dispatch** identically for all eight recognized statuses. No plan/state mutation precedes dispatch. Only genuinely absent recorded status permits ordinary-intent routing with canonical reuse (including the existing LOW safeguards), never a dummy/replacement plan. Status and context supply continuity, not authority; actual new scope/mutation requires current delegation and its appropriate phase.
 
+### Effective implementation route (runtime, not a template default)
+
+Resolve `{effective_route}` from the SAME exact canonical path/task state/evidence location selected above, before status-based dispatch or any route-dependent action. Recheck this selection on every resume, follow-up and downstream repair; never borrow another plan/task's context or infer route from status, plan formatting, review depth or a rendered branch.
+
+{% if workflow.route == "full" or workflow.route == "oneshot" %}
+The current explicit invocation pins `{effective_route} = {{ workflow.route }}` for THIS invocation only. Keep the stored canonical `route` and `route_source` unchanged; the pin is runtime selection, not permission to rewrite human intent, route, baseline or iteration.
+{% else %}
+For existing workflow state, read recorded `route` from that selected location: exactly `full` or `oneshot` sets `{effective_route}`. Missing, unknown or conflicting route leaves it unresolved, with a truthful privacy-safe reason (`missing recorded route`, `unknown recorded route` or `conflicting recorded route`). No implicit full/oneshot fallback. Only genuinely fresh delegated intent with no existing workflow state or route may defer a new technical route choice to step-02; an existing-state resume with missing route is NOT fresh intent.
+{% endif %}
+
+Unresolved route blocks only dependent implementation, active review and repair, before their status/metadata writes or dispatch. Preserve the selected canonical plan/context, human body/path, stored route/status/baseline/iteration; do not create a plan/dummy context or repair state by default. Independent safe investigation/planning/reporting may continue without claiming readiness or completion. Read-only/planning-only/report-only already stopped above and never selects an execution route. A route pin cannot cure an ambiguous canonical path/task association or override blocked/dropped safeguards.
+
+Genuinely fresh LOW work needing no plan retains the existing-context exit below, with no plan-dependent recorded-route requirement or forced artifact. Existing-state resumes cannot use that exit to bypass a missing/unknown/conflicting recorded route. Genuinely absent status alone does not erase an existing route or other continuity state.
+
 ## Intent check (only after the request-mode guard)
 
 Use the invocation prompt as the intent.
@@ -53,14 +67,14 @@ Select any existing canonical plan identified by the explicit file, recent conve
 
 ### Existing-state dispatch
 
-Revalidate current request mode, scope/ownership/native permission and next-risk authority before each dispatch. Preserve canonical content/path, baseline and prior logs; no status/iteration reset or successor plan merely for routing. All eight recognized statuses terminate routing here:
+Revalidate current request mode, scope/ownership/native permission and next-risk authority and **Effective implementation route** before each dispatch. Preserve canonical content/path, baseline and prior logs; no status/iteration reset or successor plan merely for routing. All eight recognized statuses terminate routing here:
 
 - `draft` → `{{ rendered("step-02-plan.md") }}`
-- `ready-for-dev` or `in-progress` → `{{ rendered("step-03-implement.md") }}`
-- `in-review` → `{{ rendered("step-04-review.md") }}`
+- `ready-for-dev` or `in-progress` → only resolved `{effective_route} = full|oneshot` permits **EARLY EXIT** to `{{ rendered("step-03-implement.md") }}`, which executes exactly that route. Unresolved route blocks dependent implementation without fallthrough.
+- `in-review` → only resolved `{effective_route} = full|oneshot` permits **EARLY EXIT** to `{{ rendered("step-04-review.md") }}`; unresolved route blocks dependent active review/repair without fallthrough.
 - `blocked` → HALT with status `blocked` and blocking condition `blocked plan supplied`.
 - `dropped` → HALT with status `blocked` and blocking condition `dropped plan supplied`.
-- `built` or `done` → revalidate current scope/ownership/permission and current verification/review evidence; set `followup_pass` to `true` in runtime context for a fresh review. Do not reset iteration, baseline or status, create a successor plan or reimplement merely to dispatch. Prior completion grants no new authority; actual new scope/mutation needs actual delegation and the appropriate phase. **EARLY EXIT** to `{{ rendered("step-04-review.md") }}` for safe in-scope review.
+- `built` or `done` → revalidate current scope/ownership/permission and current verification/review evidence. With no actual delegated follow-up, report terminal evidence/limitations and STOP without artifacts or state mutation; an incoming verified `done` remains `done`. For an actually delegated fresh review, require resolved `{effective_route} = full|oneshot`, then set `followup_pass` to `true` in runtime context and **EARLY EXIT** to `{{ rendered("step-04-review.md") }}`. Unresolved route blocks dependent review/repair, not independent safe reporting. Do not reset iteration, baseline or status, create a successor plan or reimplement merely to dispatch. Prior completion grants no new authority; actual new scope/mutation needs actual delegation and the appropriate phase.
 
 Only with no selected canonical plan, or genuinely no recorded status in its selected location, treat the resolved prompt/conversation/artifacts as starting intent. Reuse a selected canonical/unformatted plan at its original `plan_file` path/content with state/evidence in existing context; unknown/conflicting recorded status blocks rather than falling through. An explicitly required missing plan blocks execution, but absence of a plan for LOW does not.
 If the invocation prompt and existing safe context do not contain enough intent to identify what to implement, ask for the missing intent and HALT dependent execution with status `blocked` and blocking condition `unclear intent`; do not run a ticket helper to fill the gap.

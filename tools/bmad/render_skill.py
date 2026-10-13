@@ -238,11 +238,12 @@ def _load_sources(skill_dir: Path) -> dict[str, str]:
     return sources
 
 
-def _resolve_config_value(value: Any, label: str, project_root: Path) -> str:
+def _resolve_config_value(value: Any, label: str, project_root: Path, *, key: str) -> str:
+    _check_credential_value(key, value)
     text = _require_string(value, label, allow_empty=label == "config.core.active_initiative")
+    _check_text_credentials(text)
     expanded = text.replace("{project-root}", project_root.as_posix())
     portable = expanded.replace("\\", "/")
-    key = label.rsplit(".", 1)[-1]
     if key in {"output_folder", "active_initiative"}:
         # These values are filesystem destinations, not arbitrary prose. Resolve
         # output paths against the checkout, never the caller's nested cwd.
@@ -276,19 +277,91 @@ def _validate_output_destination(central: dict[str, Any], project_root: Path) ->
     core = central.get("core")
     if not isinstance(core, dict):
         raise RenderError("core configuration must be a table")
-    output = _resolve_config_value(core.get("output_folder"), "config.core.output_folder", project_root)
-    initiative = _resolve_config_value(core.get("active_initiative"), "config.core.active_initiative", project_root)
+    output = _resolve_config_value(core.get("output_folder"), "config.core.output_folder", project_root, key="output_folder")
+    initiative = _resolve_config_value(core.get("active_initiative"), "config.core.active_initiative", project_root, key="active_initiative")
     if not (project_root / output / initiative).resolve().is_relative_to(project_root):
         raise RenderError("composed initiative destination is outside repository")
 
 
-def _check_url_credentials(query: str, fragment: str) -> None:
-    sensitive_keys = {
-        "key", "code", "sig", "policy", "keypairid", "auth", "authorization",
-        "authentication", "apikey", "accesskey", "privatekey", "jwt", "session",
-        "sessionid", "cookie", "credential", "credentials", "password", "passwd",
-        "pwd", "token", "secret",
+def _credential_key(key: str, *, url: bool = False) -> bool:
+    normalized = "".join(character for character in _decode_credential_text(key).casefold() if character.isalnum())
+    plain_keys = {
+        "auth", "authorization", "authentication", "apikey", "accesskey", "privatekey",
+        "jwt", "session", "sessionid", "cookie", "setcookie", "credential", "credentials",
+        "password", "passwd", "pwd", "token", "secret",
     }
+    return (
+        normalized in plain_keys
+        or normalized.endswith(("token", "secret", "password", "signature", "credential", "credentials", "apikey", "accesskey", "authorization", "authentication"))
+        or (url and (normalized in {"key", "code", "sig", "policy", "keypairid"} or normalized.startswith(("xamz", "xgoog"))))
+    )
+
+
+def _credential_placeholder(value: Any) -> bool:
+    if isinstance(value, dict):
+        return all(_credential_placeholder(item) for item in value.values())
+    if isinstance(value, list):
+        return all(_credential_placeholder(item) for item in value)
+    if value is None or isinstance(value, bool):
+        return True
+    if not isinstance(value, str):
+        return False
+    text = value.strip()
+    for quote in ('"""', "'''", '"', "'", '`'):
+        if len(text) >= 2 * len(quote) and text.startswith(quote) and text.endswith(quote):
+            text = text[len(quote):-len(quote)].strip()
+            break
+    text = re.sub(r"^(?:Bearer|Basic)\s+", "", text, flags=re.IGNORECASE)
+    return text.casefold() in {"", "<redacted>", "<placeholder>", "..."} or re.fullmatch(r"\$?\{[A-Za-z_][A-Za-z0-9_.]*\}", text) is not None
+
+
+def _check_credential_value(key: str, value: Any) -> None:
+    if _credential_key(key) and not _credential_placeholder(value):
+        raise RenderError("credential-bearing value")
+
+
+def _decode_credential_text(text: str) -> str:
+    decoded = text
+    for _ in range(8):
+        expanded = unicodedata.normalize("NFKC", unescape(unquote(decoded)))
+        expanded = re.sub(r"\\u([0-9A-Fa-f]{4})", lambda match: chr(int(match[1], 16)), expanded)
+        if expanded == decoded:
+            break
+        decoded = expanded
+    else:
+        raise RenderError("ambiguous encoded credential text")
+    return decoded
+
+
+def _check_text_credentials(text: str) -> None:
+    decoded = _decode_credential_text(text).replace("\r\n", "\n").replace("\r", "\n")
+    if re.search(r"-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----", decoded):
+        raise RenderError("private key material")
+    # Capture the complete adjacent shell/quoted value, not an empty or
+    # placeholder prefix that can be followed by credential bytes.
+    value_pattern = r'''(?:"""[\s\S]*?"""|''' + "'''[\\s\\S]*?'''" + r'''|\$?\{[A-Za-z_][A-Za-z0-9_.]*\}|"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;}\]"']++)++'''
+    assignments = r'''(?<!\w)(?:"(?P<double>[^"\r\n]+)"|'(?P<single>[^'\r\n]+)'|`(?P<code>[^`\r\n]+)`|(?P<bare>[A-Za-z][A-Za-z0-9_.\[\]-]*))\s*(?P<operator>[:=])\s*''' + f"(?P<value>{value_pattern})"
+    # Overlap so a nonsensitive enclosing literal cannot hide a supported
+    # assignment inside it. Possessive value runs avoid partition backtracking.
+    for match in re.finditer(f"(?={assignments})", decoded):
+        key = next(match[name] for name in ("double", "single", "code", "bare") if match[name] is not None)
+        value = match["value"]
+        if match["bare"] is not None and match["operator"] == "=":
+            # JSON delimiters are ordinary bytes inside a shell assignment
+            # word. Do not accept an empty/placeholder prefix of that word.
+            value += re.match(r"[^\s;]*", decoded[match.end("value"):])[0]
+        header = "".join(character for character in key.casefold() if character.isalnum())
+        if header.endswith(("auth", "authorization", "authentication")) and value.casefold() in {"bearer", "basic"}:
+            credential = re.match(r"(?:[ \t]+|\r?\n[ \t]+)(" + value_pattern + ")", decoded[match.end("value"):])
+            if credential is None:
+                continue
+            value = credential[1]
+        _check_credential_value(key, value)
+    for match in re.finditer(r"(?im)^[ \t`]*(?:Bearer|Basic)[ \t]+(" + value_pattern + r")[ \t`]*$", decoded):
+        _check_credential_value("authorization", match[1])
+
+
+def _check_url_credentials(query: str, fragment: str) -> None:
     for component in (query, fragment):
         decoded = component
         for _ in range(8):
@@ -303,17 +376,13 @@ def _check_url_credentials(query: str, fragment: str) -> None:
         # Include router fragments, HTML/semicolon separators and nested URL or
         # JSON parameters. Inspect decoded keys, never retain a credential value.
         for match in re.finditer(r"(?:^|[?&#;/{,])([^?&#;/{,=:]+)[=:]", decoded):
-            key = "".join(character for character in match[1].casefold() if character.isalnum())
-            if (
-                key in sensitive_keys
-                or key.startswith(("xamz", "xgoog"))
-                or key.endswith(("token", "secret", "password", "signature", "credential", "credentials"))
-            ):
+            if _credential_key(match[1], url=True):
                 raise RenderError("credential-bearing URI parameters")
 
 
 def _relative_text(text: str, project_root: Path) -> str:
     """Normalize canonical checkout tokens; reject machine paths, preserve public web links."""
+    _check_text_credentials(text)
     root = project_root.as_posix()
     home_prefix = r"(?:\$HOME|\$\{HOME\}|%USERPROFILE%|%HOMEPATH%)[/\\]"
 
@@ -430,6 +499,8 @@ def _relative_values(value: Any, project_root: Path) -> Any:
     if isinstance(value, list):
         return [_relative_values(item, project_root) for item in value]
     if isinstance(value, dict):
+        for key, item in value.items():
+            _check_credential_value(key, item)
         return {key: _relative_values(item, project_root) for key, item in value.items()}
     return value
 
@@ -442,7 +513,10 @@ def _find_config_values(data: Any, key: str, prefix: str = "") -> list[tuple[str
         path = f"{prefix}.{name}" if prefix else name
         if name == key and not isinstance(value, (dict, list)):
             matches.append((path, value))
-        matches.extend(_find_config_values(value, key, path))
+        nested = _find_config_values(value, key, path)
+        if nested:
+            _check_credential_value(name, value)
+        matches.extend(nested)
     return matches
 
 
@@ -454,7 +528,7 @@ def _resolve_short_config(central: dict[str, Any], key: str, project_root: Path)
         paths = ", ".join(path for path, _ in matches)
         raise RenderError(f"ambiguous config value `{key}` found at: {paths}")
     path, value = matches[0]
-    return path, _resolve_config_value(value, f"config.{path}", project_root)
+    return path, _resolve_config_value(value, f"config.{path}", project_root, key=key)
 
 
 def _format_markdown_list(items: list[str]) -> str:
@@ -582,9 +656,10 @@ class _ConfigTable(_Table):
         if name not in self._table:
             raise RenderError(f"missing config value `{label.removeprefix('config.')}`")
         value = self._table[name]
+        _check_credential_value(name, value)
         if isinstance(value, dict):
             return _ConfigTable(self._central, value, label, self._ctx)
-        resolved = _resolve_config_value(value, label, self._ctx.project_root)
+        resolved = _resolve_config_value(value, label, self._ctx.project_root, key=name)
         self._ctx.inputs[label] = resolved
         return _Text(resolved, label)
 

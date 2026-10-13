@@ -693,7 +693,130 @@ function safety(snapshot: Snapshot, skill: Skill, route: Route, review: Review):
     ).toBe(false);
   }
   const plan = files['step-02-plan.md'];
-  if (route !== 'auto') {
+  if (skill === 'bmad-build-auto') {
+    const clarify = files['step-01-clarify-and-route.md'];
+    const implement = files['step-03-implement.md'];
+    const activeReview = files['step-04-review.md'];
+    expect(
+      clarify.indexOf('### Effective implementation route') <
+        clarify.indexOf('### Existing-state dispatch'),
+      'auto entry resolves route before recorded-status dispatch'
+    ).toBe(true);
+    assertText(
+      clarify,
+      /ready-for-dev` or `in-progress`[\s\S]*only resolved `\{effective_route\} = full\|oneshot`[\s\S]*Unresolved route blocks dependent implementation without fallthrough/,
+      'auto ready and in-progress cannot fall into full'
+    );
+    assertText(
+      clarify,
+      /incoming verified `done` remains `done`/,
+      'auto terminal continuity survives route validation'
+    );
+    expect(
+      implement.indexOf('### Select exactly one effective route BEFORE effects') <
+        implement.indexOf('### Baseline'),
+      'auto route selected before writes or handoff'
+    );
+    assertText(
+      implement,
+      /Any other rendered branch is dormant instructions, never executed or required/,
+      'both emitted implementation branches are not two active workers'
+    );
+    expect(
+      implement.includes('#### Oneshot (active ONLY when `{effective_route} = oneshot`)')
+    ).toBe(route !== 'full');
+    expect(implement.includes('#### Full (active ONLY when `{effective_route} = full`)')).toBe(
+      route !== 'oneshot'
+    );
+    assertText(
+      implement,
+      /Recheck the SAME selected association and invocation pin or recorded `\{effective_route\} = full\|oneshot` before active review dispatch/,
+      'implementation-to-review revalidates current selection'
+    );
+    expect(
+      activeReview.indexOf('### Effective implementation route and review depth') <
+        activeReview.indexOf('Record status `in-review`'),
+      'auto review resolves route and depth before status'
+    );
+    assertText(
+      activeReview,
+      /Revalidate effective implementation route independently of review depth before every bad_plan, patch, failed-verification repair, resume and Finalize/,
+      'repair cannot fall into another implementation route'
+    );
+    if (review !== 'none')
+      assertText(
+        activeReview,
+        /FIRST recheck `\{effective_route\}` and exact selected state\/evidence association before any bad_plan\/patch\/failed-verification repair/,
+        'active triage repeats route preflight before repair'
+      );
+    if (route === 'auto') {
+      assertText(
+        clarify,
+        /Missing, unknown or conflicting route leaves it unresolved/,
+        'missing stored route is not fresh default'
+      );
+      assertText(
+        implement,
+        /Missing, unknown or conflicting route blocks dependent implementation\/repair/,
+        'legacy implementation fallback is forbidden'
+      );
+      assertText(
+        activeReview,
+        /Missing, unknown or conflicting route blocks dependent active review\/repair/,
+        'direct review resume cannot evade selection'
+      );
+    }
+    if (route === 'auto' && review === 'auto') {
+      assertText(
+        activeReview,
+        /Quick set — active ONLY when `\{effective_review\} = quick`/,
+        'runtime quick selected from effective oneshot'
+      );
+      assertText(
+        activeReview,
+        /Thorough set — active ONLY when `\{effective_review\} = thorough`/,
+        'runtime thorough selected from effective full'
+      );
+      assertText(
+        activeReview,
+        /Both groups are rendered for runtime selection, not both required/,
+        'dormant lenses do not become required'
+      );
+    }
+    assertText(
+      plan,
+      /Never overwrite an existing recorded `route`\/`route_source`/,
+      `${skill}: stored provenance never replaced by invocation`
+    );
+    if (route !== 'auto') {
+      assertText(
+        plan,
+        new RegExp(`effective_route} = ${route}`),
+        `${skill}: invocation selects effective route`
+      );
+      assertText(
+        plan,
+        /effective_route_source} = pinned/,
+        `${skill}: invocation-only pinned provenance`
+      );
+    } else {
+      assertText(
+        plan,
+        /effective_route_source} = recorded/,
+        `${skill}: existing state uses actual recorded route`
+      );
+      assertText(
+        plan,
+        /ONLY for a genuine fresh route choice[\s\S]*effective_route_source} = auto/,
+        `${skill}: fresh selection is not resume fallback`
+      );
+    }
+    assertText(
+      plan,
+      /record the actual selected `route: 'oneshot'` or `route: 'full'` and `route_source` from runtime/,
+      `${skill}: fresh metadata records resolved selection`
+    );
+  } else if (route !== 'auto') {
     assertText(plan, new RegExp(`route: '${route}'`), `${skill}: pinned ${route}`);
     assertText(plan, /route_source(?:: 'pinned'|` is `pinned`)/, `${skill}: route provenance`);
   } else {
@@ -1239,7 +1362,126 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
         });
       }
     }
-    // 52 spellings x four publication inputs x two skills = 416 negatives.
+    for (const layer of [
+      '_bmad/config.toml',
+      '_bmad/custom/config.toml',
+      '_bmad/custom/config.user.toml'
+    ]) {
+      for (const key of [
+        'api_key',
+        'Authorization',
+        'password',
+        'api%5Fkey',
+        'ＡＰＩ＿ＫＥＹ',
+        'private.key'
+      ]) {
+        for (const lookup of ['direct', 'short'] as const) {
+          it(`${skill} rejects consumed typed credential ${layer} ${key} ${lookup} before input capture`, () => {
+            const f = fixture(skill);
+            const source = join(f.skillDir, 'plan-template.md');
+            const text =
+              readBytes(source).toString('utf8') +
+              `\nSynthetic consumed placeholder: {{ ${lookup === 'direct' ? 'config.core' : 'config'}[${JSON.stringify(key)}] }}\n`;
+            writeFileSync(source, text);
+            f.sourceHashes['plan-template.md'] = sha256(text);
+            f.templateHashes['plan-template.md'] = sha256(text);
+            const config = join(f.root, layer);
+            mkdirSync(dirname(config), { recursive: true });
+            writeFileSync(config, `[core]\n${JSON.stringify(key)} = "{synthetic_credential}"\n`);
+            const prior = render(f);
+            expect(prior.manifest.inputs.resolved_values[`config.core.${key}`]).toBe(
+              '{synthetic_credential}'
+            );
+            const previous = new Map(
+              ['manifest.json', ...Object.keys(prior.outputs)].map((name) => [
+                name,
+                readBytes(join(prior.generation, name))
+              ])
+            );
+            const generations = readdirSync(dirname(prior.generation));
+            const candidate = `[core]\n${JSON.stringify(key)} = "synthetic-secret"\n`;
+            writeFileSync(config, candidate);
+            const result = invoke(
+              f.renderer,
+              ['--project-root', f.root, '--skill', f.skillDir],
+              f.root
+            );
+            expect(
+              !result.error &&
+                result.status === 1 &&
+                result.stdout === 'HALT: BMAD rendering failed.\n' &&
+                result.stderr === '',
+              'typed credential cannot be stored under a safe-looking value'
+            ).toBe(true);
+            expect(readBytes(config).toString('utf8')).toBe(candidate);
+            expect(readBytes(source).toString('utf8')).toBe(text);
+            expect(readdirSync(dirname(prior.generation))).toEqual(generations);
+            expect(
+              [...previous].every(([name, bytes]) =>
+                readBytes(join(prior.generation, name)).equals(bytes)
+              )
+            ).toBe(true);
+          });
+        }
+      }
+    }
+    for (const layer of [
+      '_bmad/config.toml',
+      '_bmad/custom/config.toml',
+      '_bmad/custom/config.user.toml'
+    ]) {
+      for (const key of ['auth', 'password']) {
+        for (const lookup of ['direct', 'short']) {
+          it(`${skill} rejects selected nested typed credential ${layer} ${key} ${lookup}`, () => {
+            const f = fixture(skill);
+            const source = join(f.skillDir, 'plan-template.md');
+            const field =
+              lookup === 'direct'
+                ? `config.core[${JSON.stringify(key)}].synthetic_inner`
+                : 'config.synthetic_inner';
+            const text =
+              readBytes(source).toString('utf8') + `\nSynthetic consumed field: {{ ${field} }}\n`;
+            writeFileSync(source, text);
+            f.sourceHashes['plan-template.md'] = sha256(text);
+            f.templateHashes['plan-template.md'] = sha256(text);
+            const config = join(f.root, layer);
+            mkdirSync(dirname(config), { recursive: true });
+            writeFileSync(config, `[core.${key}]\nsynthetic_inner = "{synthetic_credential}"\n`);
+            const prior = render(f);
+            const previous = new Map(
+              ['manifest.json', ...Object.keys(prior.outputs)].map((name) => [
+                name,
+                readBytes(join(prior.generation, name))
+              ])
+            );
+            const generations = readdirSync(dirname(prior.generation));
+            const candidate = `[core.${key}]\nsynthetic_inner = "synthetic-secret"\n`;
+            writeFileSync(config, candidate);
+            const result = invoke(
+              f.renderer,
+              ['--project-root', f.root, '--skill', f.skillDir],
+              f.root
+            );
+            expect(
+              !result.error &&
+                result.status === 1 &&
+                result.stdout === 'HALT: BMAD rendering failed.\n' &&
+                result.stderr === '',
+              'credential ancestor cannot disappear from captured leaf identity'
+            ).toBe(true);
+            expect(readBytes(config).toString('utf8')).toBe(candidate);
+            expect(readBytes(source).toString('utf8')).toBe(text);
+            expect(readdirSync(dirname(prior.generation))).toEqual(generations);
+            expect(
+              [...previous].every(([name, bytes]) =>
+                readBytes(join(prior.generation, name)).equals(bytes)
+              )
+            ).toBe(true);
+          });
+        }
+      }
+    }
+    // 92 spellings x four publication inputs x two skills = 736 negatives.
     // Paths are invented sentinels, never actual machine/user locations.
     for (const [form, prose] of [
       ['posix', 'Read /synthetic-private-machine/work/file.md'],
@@ -1329,7 +1571,59 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
         'nested-html-entity-key',
         'Read https://example.com/work?access_t&amp;#111;ken=synthetic-secret'
       ],
-      ['encoded-userinfo-uri', 'Read https://synthetic-user%3Asynthetic-secret%40example.com/work']
+      ['encoded-userinfo-uri', 'Read https://synthetic-user%3Asynthetic-secret%40example.com/work'],
+      ['plaintext-bearer', 'Authorization: Bearer synthetic-secret'],
+      ['plaintext-basic', 'Authorization: Basic c3ludGhldGljLXNlY3JldA=='],
+      ['plaintext-api-assignment', 'Use api_key=synthetic-secret'],
+      ['plaintext-api-header', 'X-Api-Key: synthetic-secret'],
+      ['plaintext-json-assignment', '{"api_key":"synthetic-secret"}'],
+      ['plaintext-uppercase', 'API_KEY = synthetic-secret'],
+      ['plaintext-password', 'password: synthetic-secret'],
+      ['plaintext-client-secret', 'client_secret=synthetic-secret'],
+      ['plaintext-refresh-token', 'refresh_token=synthetic-secret'],
+      ['plaintext-id-token', 'idToken=synthetic-secret'],
+      ['plaintext-escaped-json-key', '{"api\\u005Fkey":"synthetic-secret"}'],
+      ['plaintext-entity-key', 'api&#95;key=synthetic-secret'],
+      ['plaintext-percent-key', 'api%5Fkey=synthetic-secret'],
+      ['plaintext-whitespace-header', 'Authorization :\tBearer synthetic-secret'],
+      ['plaintext-cookie', 'Cookie: synthetic-session=synthetic-secret'],
+      ['plaintext-set-cookie', 'Set-Cookie: synthetic-session=synthetic-secret'],
+      ['plaintext-env-api-key', 'export API_KEY="synthetic-secret"'],
+      ['plaintext-quoted-empty-prefix', 'export API_KEY=""synthetic-secret'],
+      ['plaintext-shell-brace-suffix', 'export API_KEY=""}synthetic-secret'],
+      ['plaintext-shell-bracket-suffix', 'export API_KEY=""]synthetic-secret'],
+      ['plaintext-shell-comma-suffix', 'export API_KEY="",synthetic-secret'],
+      ['plaintext-triple-quoted-value', 'api_key="""\nsynthetic-secret\n"""'],
+      ['plaintext-nested-double-multiline', 'note = """\napi_key=synthetic-secret\n"""'],
+      [
+        'plaintext-nested-single-multiline',
+        "note = '''\nAuthorization: Bearer synthetic-secret\n'''"
+      ],
+      ['plaintext-opener-double-multiline', 'note = """api_key=synthetic-secret\n"""'],
+      [
+        'plaintext-opener-single-multiline',
+        "note = '''Authorization: Bearer synthetic-secret\n'''"
+      ],
+      ['plaintext-bearer-crlf', 'Bearer synthetic-secret\r\n'],
+      ['plaintext-basic-crlf', 'Basic c3ludGhldGljLXNlY3JldA==\r\n'],
+      ['plaintext-bearer-encoded-crlf', 'Bearer synthetic-secret%0D%0A'],
+      ['plaintext-basic-encoded-crlf', 'Basic c3ludGhldGljLXNlY3JldA==%0D%0A'],
+      ['plaintext-quoted-space-key', '{"api key":"synthetic-secret"}'],
+      [
+        'plaintext-pgp-private',
+        '-----BEGIN PGP PRIVATE KEY BLOCK-----\nsynthetic-fake-key\n-----END PGP PRIVATE KEY BLOCK-----'
+      ],
+      ['plaintext-quoted-placeholder-suffix', 'api_key="{synthetic_credential}"synthetic-secret'],
+      ['plaintext-single-quoted-space-key', "{'api key':'synthetic-secret'}"],
+      [
+        'plaintext-private-key',
+        '-----BEGIN PRIVATE KEY-----\nsynthetic-fake-key\n-----END PRIVATE KEY-----'
+      ],
+      ['plaintext-attached-placeholder', 'api_key={synthetic_credential}synthetic-secret'],
+      ['plaintext-folded-authorization', 'Authorization: Bearer\n synthetic-secret'],
+      ['plaintext-encoded-fold', 'Authorization: Bearer%0A%20synthetic-secret'],
+      ['plaintext-standalone-bearer', 'Bearer synthetic-secret'],
+      ['plaintext-proxy-authorization', 'Proxy-Authorization: Basic c3ludGhldGljLXNlY3JldA==']
     ] as const) {
       for (const surface of proseSurfaces) {
         it(`${skill} rejects foreign ${form} on ${surface} before publication`, () => {
@@ -1415,6 +1709,15 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
           '`https://example.com/code` **prd-*/prd-*.md** ' +
           'Read **https://example.com/docs is the public reference** ' +
           'and **http://example.org/docs is the public reference** ' +
+          'token_count=12; code=public; token usage and API key policy are public descriptions; ' +
+          'api_key={synthetic_credential}; Authorization: Bearer {synthetic_credential}; password=<redacted>; ' +
+          'Proxy-Authorization: Basic {synthetic_credential}; ' +
+          '\nBasic authentication is required.\nBearer tokens must never be logged.\n' +
+          '-----BEGIN PGP PUBLIC KEY BLOCK-----\nsynthetic-public-key\n-----END PGP PUBLIC KEY BLOCK-----\n' +
+          '{"api_key":"","password":"{synthetic_credential}"}\n' +
+          'api_key="""\n"""\napi_key="""\n{synthetic_credential}"""\n' +
+          "password='''\n'''\npassword='''\n{synthetic_credential}'''\n" +
+          `Basic ${'A'.repeat(64)} authentication is required.\n` +
           `**${f.root}/AGENTS.md** _${f.root}/AGENTS.md_`;
         const { assignments, overrides, input } = privacyProse(f, skill, surface, prose);
         const before = readBytes(input);
@@ -1424,6 +1727,16 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
           snapshot.outputs[surface === 'source' ? 'plan-template.md' : 'step-04-review.md'];
         expect(
           output.includes('https://example.com/docs/reference?mode=public#section') &&
+            output.includes('api_key={synthetic_credential}') &&
+            output.includes('Authorization: Bearer {synthetic_credential}') &&
+            output.includes('token_count=12') &&
+            output.includes('Basic authentication is required.') &&
+            output.includes('Bearer tokens must never be logged.') &&
+            output.includes('-----BEGIN PGP PUBLIC KEY BLOCK-----') &&
+            output.includes('{"api_key":"","password":"{synthetic_credential}"}') &&
+            output.includes('api_key="""\n{synthetic_credential}"""') &&
+            output.includes("password='''\n{synthetic_credential}'''") &&
+            output.includes(`Basic ${'A'.repeat(64)} authentication is required.`) &&
             output.includes('http://example.org/docs/reference') &&
             output.includes('https://[2001:db8::1]/docs/reference') &&
             output.includes('mydocs/skills/reference.md') &&
