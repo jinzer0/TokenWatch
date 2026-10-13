@@ -15,10 +15,10 @@ This is a read-only review delegation, not a native workflow invocation or permi
 ## Evidence Rules
 
 - Read a test before claiming what it covers, runs, asserts, or misses.
-- Before claiming no test exists, search the whole repo by the symbol under test and by import references; expected file locations are not enough.
+- Before claiming no test was found in scope, search approved safe source/test ranges by the symbol and import references; expected file locations alone are not enough. Report the actual bounded search scope, never expand access to private/unapproved sources.
 - Never assert what you did not verify. If a finding cannot be grounded, drop it.
 - In a finding, say what you actually checked — "none of the tests I read cover this" — and show how far you looked. Say a test doesn't exist anywhere only when the symbol/import-reference search actually shows that.
-- For instruction/skill/template surfaces without symbols or imports, search their names, policy clauses, renderer branches, and entrypoint/reference consumers instead; report actual search scope and limitations. Read current canonical human intent, acceptance, and resolved existing-context evidence regardless of headings or metadata; do not infer authority or verification from status labels.
+- For instruction/skill/template surfaces without symbols or imports, search approved names, policy clauses, renderer branches and entrypoint/reference consumers; report scope and limitations. Use only supplied sanitized acceptance criteria and bounded verification facts, never canonical/private intent, plans/context, raw prompts or private artifacts. Missing material criteria or approved evidence remains a limitation, not permission for fallback reads or a clean result. Do not infer authority or verification from status labels.
 - Do not assign severity, confidence, priority, or ranking.
 
 ## Review Sequence
@@ -115,4 +115,4 @@ When you find no verification gaps and no other findings, output exactly this si
 
 ## CONTENT SOURCE
 
-"Review content:" in the message that launched you gives the content itself or a path to read it from. Read the file when it is a path; either way that is the content under review, and this instruction file never is. If no content is supplied, or the file it points to is missing, empty, or unreadable, say exactly that and stop — never report a clean review for content you could not read.
+The parent supplies "Review content and verification facts:", "Task-owned source/verification facts:" or "CONTENT:" and approved repository-relative source/hunk/evidence references. Read only those preflight-approved safe ranges, never canonical/private sources or an unapproved fallback. This instruction file never is the content. Missing, empty, unsafe or unreadable material must be reported as a scoped limitation, never a clean review.

@@ -13,7 +13,9 @@ A claims check runs as Step 5.
 
 - **content** — Content to review, or a path to read it from: diff, full file, or function
 - **also_consider** (optional) — Areas to keep in mind during review alongside normal edge-case analysis
-- **claims_file** (optional) — Path to the existing canonical plan/context, or use human intent and acceptance supplied by the parent. Do NOT read the claims source before Step 5: the path tracing in Steps 2–3 must finish before the claims are seen. Do not require a new plan, fixed headings, or approval metadata.
+- **review_acceptance** (optional) — Only the privacy-safe observable criteria supplied by the parent, never a canonical plan/context path or raw human prompt. Evaluate these criteria only in Step 5, after path tracing in Steps 2–3. Missing material criteria remain a limitation, not permission for fallback reads or a clean result.
+
+Use only parent-preflight-approved safe task-owned source ranges and repository-relative references. Never read canonical/private intent, plans/context, raw records or private temporary artifacts, even to fill an evidence gap. Request an approved safe reference or report the scoped limitation; do not search outside the supplied boundary. The leader preserves authoritative intent separately.
 
 **MANDATORY: Execute steps in the Execution section IN EXACT ORDER. DO NOT skip steps or change the sequence. When a halt condition triggers, follow its specific instruction exactly. Each action within a step is a REQUIRED action to complete that step.**
 
@@ -94,9 +96,9 @@ Add nothing if nothing qualifies.
 
 ## Claims Check
 
-Final pass for the Edge Case Hunter. Read the canonical claims source named or supplied by the parent now; the path tracing is finished and the claims cannot steer it retroactively.
+Final pass for the Edge Case Hunter. Evaluate only the supplied sanitized `review_acceptance` and bounded verification facts now; path tracing is finished and these criteria cannot steer it retroactively. No canonical claims source or private-context fallback read is authorized.
 
-Use actual human intent, acceptance criteria, and already-resolved decisions/evidence in the existing canonical context, regardless of formatting. `## Intent` and `## Tasks & Acceptance` are possible locations, not prerequisites; do not demand headings, metadata, a new plan, or renewed approval for resolved same-scope intent. Intent describes the contract, not proof of implementation — a claim repeated in a code comment is still the same claim, not confirmation. Extract each checkable claim — what the change does, what it preserves, ordering, arithmetic, and parity with existing code ("exactly as X does") — then try to falsify each one against the code you have already traced. Where your trace is not enough to decide, read the code and current evidence that decide it: the compared-to function, the actual callee, the state the claim assumes. Existing-context evidence may resolve a claim when it applies to the current change; do not trust status labels or stale verdicts. If no claims source is supplied, complete the actual content review without inventing claims; if a supplied claims source is unavailable, do not claim it was checked. Missing actual review content still triggers the halt condition above.
+Supplied observable criteria describe the contract, not proof of implementation; a repeated comment is not confirmation. Extract each checkable claim — behavior, preservation, ordering, arithmetic and parity — and try to falsify it against the already traced safe source. Read additional code/evidence only within the approved repository-relative ranges. If those ranges or material criteria are unavailable, state the limitation without inventing missing intent, requesting private data or claiming the criteria were checked. Missing actual review content still triggers the halt condition above. Never trust status labels or stale verdicts.
 
 Append one finding per falsified claim to the same JSON array, with the four standard fields plus:
 
@@ -109,4 +111,4 @@ Verified claims produce nothing. Add nothing if nothing is falsified.
 
 ## CONTENT SOURCE
 
-"Review content:" in the message that launched you gives the content itself or a path to read it from. Read the file when it is a path; either way that is the content under review, and this instruction file never is.
+The parent supplies "Review content and verification facts:", "Task-owned source/verification facts:" or "CONTENT:" and approved repository-relative source/hunk/evidence references. Read only the approved safe ranges; no raw canonical or private fallback is authorized. This instruction file never is the review content.

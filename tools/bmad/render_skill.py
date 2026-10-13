@@ -27,9 +27,11 @@ if sys.version_info < (3, 11):
 
 import tomllib
 from datetime import date, time
+from html import unescape
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
+import unicodedata
 
 # Runtime sources are not a location for interpreter caches.
 sys.dont_write_bytecode = True
@@ -280,6 +282,36 @@ def _validate_output_destination(central: dict[str, Any], project_root: Path) ->
         raise RenderError("composed initiative destination is outside repository")
 
 
+def _check_url_credentials(query: str, fragment: str) -> None:
+    sensitive_keys = {
+        "key", "code", "sig", "policy", "keypairid", "auth", "authorization",
+        "authentication", "apikey", "accesskey", "privatekey", "jwt", "session",
+        "sessionid", "cookie", "credential", "credentials", "password", "passwd",
+        "pwd", "token", "secret",
+    }
+    for component in (query, fragment):
+        decoded = component
+        for _ in range(8):
+            expanded = unicodedata.normalize("NFKC", unescape(unquote(decoded)))
+            if expanded == decoded:
+                break
+            decoded = expanded
+        else:
+            raise RenderError("ambiguous encoded URI parameters")
+        if "\\" in decoded:
+            raise RenderError("ambiguous structured URI escape")
+        # Include router fragments, HTML/semicolon separators and nested URL or
+        # JSON parameters. Inspect decoded keys, never retain a credential value.
+        for match in re.finditer(r"(?:^|[?&#;/{,])([^?&#;/{,=:]+)[=:]", decoded):
+            key = "".join(character for character in match[1].casefold() if character.isalnum())
+            if (
+                key in sensitive_keys
+                or key.startswith(("xamz", "xgoog"))
+                or key.endswith(("token", "secret", "password", "signature", "credential", "credentials"))
+            ):
+                raise RenderError("credential-bearing URI parameters")
+
+
 def _relative_text(text: str, project_root: Path) -> str:
     """Normalize canonical checkout tokens; reject machine paths, preserve public web links."""
     root = project_root.as_posix()
@@ -315,16 +347,26 @@ def _relative_text(text: str, project_root: Path) -> str:
         if scheme is not None and len(scheme[1]) != 1:
             # Consume the complete URI, not just its slashes. Only public web
             # references are prose, never file/unknown schemes or credentials.
-            uri = urlsplit(original)
+            decoded = original
+            for _ in range(8):
+                expanded = unescape(decoded)
+                if expanded == decoded:
+                    break
+                decoded = expanded
+            else:
+                raise RenderError("ambiguous encoded URI entities")
+            uri = urlsplit(decoded)
             if (
                 uri.scheme.lower() not in {"http", "https"}
                 or not uri.netloc
                 or not uri.hostname
                 or uri.username is not None
                 or uri.password is not None
-                or "\\" in original
+                or "%" in uri.netloc
+                or "\\" in decoded
             ):
                 raise RenderError("unsupported URI reference")
+            _check_url_credentials(uri.query, uri.fragment)
             return original
         if original.startswith(("~", "$HOME", "${HOME}", "%USERPROFILE%", "%HOMEPATH%")):
             raise RenderError("home-relative machine reference")

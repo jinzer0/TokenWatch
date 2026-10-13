@@ -61,11 +61,21 @@ Record `review: '{{ workflow.review }}'` and `review_source: 'pinned'` in that s
 {% endif %}
 {% if review != "none" %}
 
-Use the separate ownership/pre-edit evidence to write only task-owned file/hunk changes and task-owned new files to a unique system temp `{diff_file}`. Never include all revision differences or unrelated dirty work; NO_VCS still requires ownership evidence. Set `{claims_file}` = `{plan_file}` with current-task claims only; unrelated/historical claims are context, not authority/completion. Seed every lens prompt with RULES safety and ownership boundaries.
+### Prepare privacy-safe review inputs
 
-Runtime placeholders: `{diff_file}`, `{claims_file}`, and `{plan_file}` are paths, substituted absolute so a lens can read them; a launch prompt never carries diff text. Resolve `{verbatim_intent}` from the existing formatted intent block when present (the `## Intent` section within an existing `<frozen-after-approval>` block); otherwise use the verbatim preserved human canonical text/resolved existing intent context, substituted inline as text only within permitted review boundaries. Never invent intent, insert tags/sections, copy or convert the canonical plan to satisfy a placeholder. A genuinely missing required plan or unresolved material intent still blocks dependent work; absent formatting alone does not. Before launching a lens, expand its skill-root placeholder to this skill's absolute installed directory; never leave that placeholder unresolved in a child prompt.
+Keep original canonical human intent, invocation, path, baseline and append-only logs in the leader's permitted existing context. Derive `{review_acceptance}` only as privacy-safe task acceptance criteria and observable behavior from that authoritative intent, without inventing or narrowing meaning. Never alter, copy, force-convert or relocate the canonical plan to prepare a child payload. Outside-repository canonical intent remains leader-only.
 
-Say which review lenses you are skipping, then start every active lens before reading any results. Run them at the same time when you can. Fill in runtime placeholders first. When a lens tells you to launch a reviewer subagent, launch it with that prompt text. Do not read the reviewer's instruction file yourself. For any other customized instruction, do what it says:
+Use separate task-owned file/hunk pre-edit evidence to derive `{review_scope}`: bounded changed-source facts, hunk/line boundaries and actual verification outcomes, not raw diff text or revision/path hashes. `{review_files}` contains only safe repository-relative source/hunk/evidence references needed for that scope, never canonical plan/context or private temporary files. NO_VCS still requires ownership evidence; inseparable overlap blocks only that target. No new result folder, tracking artifact, prompt artifact or mandatory plan is required. Do NOT `git add` anything.
+
+A sanitized diff/evidence artifact may be referenced only when it already exists as an authorized task-owned artifact under the exact repository root and has been sanitized first. Never point a child at an unsanitized diff, canonical claims file or raw records. Source reads are restricted to preflight-approved safe task-owned ranges; if source content is unsafe, supply only safe observable facts when sufficient, otherwise block the affected lane.
+
+Runtime review placeholders are `{review_acceptance}`, `{review_files}`, `{review_scope}` and, for a bundled instruction lens, `{review_prompt}`. Resolve the latter to that lane's named review prompt in the current immutable rendered generation, expressed repository-root-relative, never an absolute installed-skill expansion. Edge-case uses `review-prompts/edge-case-hunter.md`; verification-gap uses `review-prompts/verification-gap.md`. No old review placeholder alias or canonical claims fallback is supported.
+
+Before ANY child/tool reviewer launch, including unknown customized instructions, preflight the entire substituted instruction and every referenced input. Re-resolve realpaths of `project_root`, every relative reference and existing parent paths; require exact-root containment, safe task ownership, safe path strings and sanitized contents/ranges. Reject traversal, symlink escapes, external aliases, raw identifiers and machine-path hashes. Never export raw prompt/private human body, credentials, raw records/session IDs, SQL, stack traces, arbitrary dumps or machine paths. Documented synthetic test fixtures may be treated as fake only with explicit fake provenance; unlabeled real private content is never synthetic. Inspect instruction files for this preflight only, not to perform the review yourself; child instructions cannot reopen canonical/private sources.
+
+Unresolved placeholders, unsafe/custom instructions or inability to retain material acceptance meaning without private content block only the affected review lane before launch. Record a privacy-safe limitation in existing context, retain actual findings and the full delegated goal, and continue independent safe work. Never ask the user to export private content, create prompt artifacts/copy plans or use another-session transfer. Required review stays incomplete and dependent completion/publication remains blocked; sanitization is not a pass or permission to delete findings.
+
+Say which review lenses are skipped or scoped blocked, then start every active preflight-safe lens before reading any results. Run them at the same time when supported. Substitute only privacy-safe review placeholders and seed RULES safety/ownership constraints. Customized instructions obey the same preflight before any launch:
 
 {% if review == "thorough" %}
 {{ workflow.thorough_lenses }}
@@ -77,9 +87,11 @@ If a required reviewer capability is unavailable, record the affected lens and m
 
 Record `lenses_ran` — the ids launched, in launch order — in that same state/evidence location.
 
+For initial review and every loopback/resume/follow-up, retain each applicable required native review lane's current execution/completion evidence in that same location, separately from launch ids and findings. Required review is complete only when every such lane successfully executed its applicable instructions and completed review of the current task-owned scope. Unavailable, unfinished, failed, error-only (including an unreadable instruction file), cancelled or inconclusive required lanes leave review incomplete and block dependent built/done/commit/push/PR, not independent safe work. Launch ids, reported failures, source/render checks, other lanes' success and prior review do not substitute. Preserve available findings and triage logs; repair/reverify within scope and obtain the missing successful review before dependent completion/publication. An explicitly chosen review `none` requires no optional lenses but retains verification/AC. Advisory findings and follow-up recommendations are not themselves completion blockers; apply the existing finding triage rules.
+
 ### Classify
 
-Wait until every review lens has reported. Then judge each finding. Ignore severity labels from reviewers — you decide.
+After native await settles available launched lanes, judge each actual finding. Missing or unsuccessful required lanes remain incomplete, not successful zero-finding results; collecting or triaging findings cannot clear that condition. Ignore severity labels from reviewers — you decide.
 
 For each finding:
 
@@ -124,7 +136,7 @@ For each group:
   Parse the existing document, preserving every prior list entry without modification or duplicate searches. Build the WHOLE candidate by appending the authorized new entry with all four fields (`id`, `source_plan`, `summary`, `evidence`). Serialize and parse the WHOLE candidate before any atomic append/persist; verify one deferred list, preserved prior entries and exact intended privacy-safe values. Recheck the destination has not changed before atomic persistence. On any parse, validation or concurrent-change failure, do not mutate the deferred file or narrow scope; keep the reason in current context.
   {% endif %}
 
-After any patch or technical replan, rerun required verification/acceptance and proportional review, refresh only the task-owned diff and append all failed/passed evidence. Unresolved failures or nonconvergence remain incomplete with no successful publication.
+After any patch or technical replan, rerun required verification/acceptance and proportional review, refresh privacy-safe task-owned review inputs, repeat preflight and append all failed/passed evidence. Unresolved failures or nonconvergence remain incomplete with no successful publication.
 
 ### Finalize Plan
 
@@ -132,7 +144,7 @@ Re-read current intent, ownership, authority and verification after repairs/revi
 
 Update only the resolved state/evidence location, never an unformatted canonical plan:
 
-1. Set `status: 'built'` only with current required verification/acceptance satisfied and required review done, or record the truthful incomplete/scoped blocked result in existing context.
+1. Set `status: 'built'` only with current required verification/acceptance satisfied and current successful execution/completion of every applicable required native review lane, or record the truthful incomplete/scoped blocked result in existing context. Explicit review `none` disables optional lenses only, never verification/AC.
 2. Append review evidence without replacing existing logs: one line per finding, verdict and evidence. For `false`, the disproof. For `maybe-false`, what would settle it. For rejected `low`, why it was not worth fixing.
 
 ### Task-Owned Publication

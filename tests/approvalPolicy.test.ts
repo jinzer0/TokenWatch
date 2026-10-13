@@ -654,7 +654,7 @@ describe('risk-based approval delivery source contracts (not native enforcement)
         );
         has(
           section(text, '### Finalize Plan'),
-          /Set `status: 'built'` only[^\n]*required review done/,
+          /Set `status: 'built'` only[^\n]*current successful execution\/completion of every applicable required native review lane/,
           'oneshot built requires actual review'
         );
         has(
@@ -862,6 +862,116 @@ describe('risk-based approval delivery source contracts (not native enforcement)
       execution,
       /_validate_output_destination\(central, project_root\)\n {4}_publish\(/,
       'containment rechecked before immutable publication'
+    );
+  });
+
+  it('P1 every reviewer consumer and default exports only sanitized acceptance and safe references', () => {
+    for (const file of [
+      'mydocs/skills/bmad-build/step-04-review.md',
+      'mydocs/skills/bmad-build/step-oneshot.md',
+      'mydocs/skills/bmad-build-auto/step-04-review.md'
+    ]) {
+      const text = read(file);
+      has(
+        text,
+        /Outside-repository canonical intent remains leader-only/,
+        `${file}: no copied private canonical body`
+      );
+      has(
+        text,
+        /Before ANY child\/tool reviewer launch[\s\S]*entire substituted instruction and every referenced input/,
+        `${file}: overrides have same pre-export gate`
+      );
+      has(
+        text,
+        /require exact-root containment, safe task ownership, safe path strings and sanitized contents\/ranges/,
+        `${file}: reference and content preflight`
+      );
+      has(
+        text,
+        /inability to retain material acceptance meaning without private content block only the affected review lane before launch/,
+        `${file}: sanitization cannot weaken the goal`
+      );
+      has(
+        text,
+        /Required review stays incomplete and dependent completion\/publication remains blocked/,
+        `${file}: unsafe input cannot produce a pass`
+      );
+      lacks(
+        text,
+        /\{(?:verbatim_intent|diff_file|claims_file)\}|substituted absolute|absolute installed directory/,
+        `${file}: no unsafe reviewer placeholder aliases`
+      );
+    }
+    for (const skill of Object.keys(bmadFiles)) {
+      const lenses =
+        read(`mydocs/skills/${skill}/customize.toml`).split(
+          '# Review lenses for the review step'
+        )[1] ?? '';
+      for (const key of ['review_acceptance', 'review_scope', 'review_files', 'review_prompt'])
+        expect(lenses.includes(`{${key}}`)).toBe(true);
+      lacks(
+        lenses,
+        /\{(?:verbatim_intent|diff_file|claims_file|plan_file)\}/,
+        `${skill}: shipped lenses cannot read private context`
+      );
+      lacks(
+        lenses,
+        /^Review content: \{review_scope\}/m,
+        `${skill}: edge default uses actual bundled reader label`
+      );
+      for (const prompt of ['edge-case-hunter.md', 'verification-gap.md']) {
+        const text = read(`mydocs/skills/${skill}/review-prompts/${prompt}`);
+        has(
+          text,
+          /approved[\s\S]*safe[\s\S]*ranges/,
+          `${skill}/${prompt}: scoped input reads only`
+        );
+        lacks(
+          text,
+          /Read current canonical human intent|Read the canonical claims source|\*\*claims_file\*\*/,
+          `${skill}/${prompt}: no contradictory canonical fallback`
+        );
+        has(
+          text,
+          /Review content and verification facts:/,
+          `${skill}/${prompt}: actual default content label accepted`
+        );
+      }
+    }
+  });
+
+  it('P1 public web references reject decoded credential parameters before preserving bytes', () => {
+    const renderer = read('tools/bmad/render_skill.py');
+    const guard =
+      renderer.split('def _check_url_credentials(')[1]?.split('def _relative_text(')[0] ?? '';
+    has(guard, /for component in \(query, fragment\)/, 'query and router fragment both inspected');
+    has(guard, /unquote\(decoded\)/, 'encoded credential keys cannot bypass validation');
+    has(
+      guard,
+      /unescape\(unquote\(decoded\)\)/,
+      'nested HTML entities decoded after percent escapes'
+    );
+    has(
+      guard,
+      /ambiguous structured URI escape/,
+      'escaped JSON keys cannot evade credential names'
+    );
+    has(
+      renderer,
+      /expanded = unescape\(decoded\)[\s\S]*uri = urlsplit\(decoded\)/,
+      'all entity layers decoded before fragment split'
+    );
+    has(guard, /"xamz", "xgoog"/, 'signed cloud credentials share same boundary');
+    has(
+      guard,
+      /raise RenderError\("credential-bearing URI parameters"\)/,
+      'no redaction or credential hash persisted'
+    );
+    has(
+      renderer,
+      /_check_url_credentials\(uri\.query, uri\.fragment\)\n {12}return original/,
+      'guard runs before accepting original URI'
     );
   });
 
@@ -1164,7 +1274,7 @@ describe('risk-based approval delivery source contracts (not native enforcement)
     }
   });
 
-  it('P1 review completion needs actual successful lanes and marker-free canonical intent', () => {
+  it('P1 review completion needs actual successful lanes and preserves canonical intent only with the leader', () => {
     for (const skill of Object.keys(bmadFiles)) {
       const text = read(`mydocs/skills/${skill}/step-04-review.md`);
       has(
@@ -1179,14 +1289,14 @@ describe('risk-based approval delivery source contracts (not native enforcement)
       );
       has(
         text,
-        /otherwise[^\n]*preserved canonical[^\n]*existing context/i,
-        `${skill}: no canonical tag requirement`
+        /Keep original canonical human intent, invocation, path, baseline and append-only logs in the leader's permitted existing context/i,
+        `${skill}: canonical authority stays intact without child export`
       );
     }
     has(
       read('mydocs/skills/bmad-build/step-oneshot.md'),
-      /otherwise[^\n]*preserved human canonical[^\n]*existing intent context/i,
-      'oneshot marker-free intent'
+      /Never alter, copy, force-convert or relocate the canonical plan to prepare a child payload/i,
+      'oneshot does not force a private canonical conversion'
     );
   });
 

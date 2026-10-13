@@ -332,6 +332,64 @@ function render(
 }
 function safety(snapshot: Snapshot, skill: Skill, route: Route, review: Review): void {
   const files = snapshot.outputs;
+  for (const name of ['step-04-review.md', 'step-oneshot.md']) {
+    const text = files[name];
+    if (!text || !text.includes('Runtime review placeholders')) continue;
+    assertText(
+      text,
+      /Outside-repository canonical intent remains leader-only/,
+      `${name}: private intent stays with leader`
+    );
+    assertText(
+      text,
+      /Before ANY child\/tool reviewer launch[\s\S]*entire substituted instruction and every referenced input/,
+      `${name}: no unsafe override dispatch`
+    );
+    assertText(
+      text,
+      /Required review stays incomplete and dependent completion\/publication remains blocked/,
+      `${name}: unsafe handoff cannot pass`
+    );
+    assertText(
+      text,
+      /Required review is complete only when every such lane successfully executed/,
+      `${name}: lane reply is not successful completion`
+    );
+    assertText(
+      text,
+      /failed, error-only[\s\S]*cancelled or inconclusive required lanes leave review incomplete/,
+      `${name}: errors do not clear required review`
+    );
+    expect(
+      /\{(?:verbatim_intent|diff_file|claims_file)\}|substituted absolute/.test(text),
+      `${name}: obsolete private payload instructions absent`
+    ).toBe(false);
+    expect(
+      /^Review content: \{review_scope\}/m.test(text),
+      `${name}: actual default labels match bundled reader`
+    ).toBe(false);
+    for (const placeholder of [
+      'review_acceptance',
+      'review_scope',
+      'review_files',
+      'review_prompt'
+    ])
+      expect(text.includes(`{${placeholder}}`)).toBe(true);
+  }
+  for (const name of ['review-prompts/edge-case-hunter.md', 'review-prompts/verification-gap.md']) {
+    const text = files[name];
+    assertText(
+      text,
+      /Review content and verification facts:/,
+      `${name}: consumes real sanitized default labels`
+    );
+    expect(
+      /Read current canonical human intent|Read the canonical claims source|\*\*claims_file\*\*/.test(
+        text
+      ),
+      `${name}: no canonical fallback in rendered closure`
+    ).toBe(false);
+  }
   assertText(
     files['workflow.md'],
     /snapshot reference[\s\S]*repository-root-relative/,
@@ -738,7 +796,7 @@ function safety(snapshot: Snapshot, skill: Skill, route: Route, review: Review):
         );
         assertText(
           final,
-          /Set `status: 'built'` only[^\n]*required review done/,
+          /Set `status: 'built'` only[^\n]*current successful execution\/completion of every applicable required native review lane/,
           'rendered oneshot built requires actual review'
         );
         assertText(
@@ -1181,7 +1239,7 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
         });
       }
     }
-    // 29 spellings x four publication inputs x two skills = 232 negatives.
+    // 52 spellings x four publication inputs x two skills = 416 negatives.
     // Paths are invented sentinels, never actual machine/user locations.
     for (const [form, prose] of [
       ['posix', 'Read /synthetic-private-machine/work/file.md'],
@@ -1212,7 +1270,66 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
       ['incomplete-userprofile-var', 'Read **%USERPROFILE%/synthetic-private-machine/work/file.md'],
       ['incomplete-homepath-var', 'Read **%HOMEPATH%/synthetic-private-machine/work/file.md'],
       ['bold-file-uri', 'Read **file:///synthetic-private-machine/work/file.md**'],
-      ['bold-credential-uri', 'Read **https://synthetic-user:synthetic-secret@example.com/work**']
+      ['bold-credential-uri', 'Read **https://synthetic-user:synthetic-secret@example.com/work**'],
+      ['query-access-token', 'Read https://example.com/work?access_token=synthetic-secret'],
+      ['fragment-access-token', 'Read https://example.com/work#access_token=synthetic-secret'],
+      ['query-api-key', 'Read https://example.com/work?apiKey=synthetic-secret'],
+      ['query-client-secret', 'Read https://example.com/work?client-secret=synthetic-secret'],
+      ['fragment-auth-code', 'Read https://example.com/work#/auth?code=synthetic-secret'],
+      ['encoded-token-key', 'Read https://example.com/work?access%5Ftoken=synthetic-secret'],
+      ['double-encoded-token', 'Read https://example.com/work?access%255Ftoken=synthetic-secret'],
+      [
+        'aws-signed-url',
+        'Read https://example.com/work?X-Amz-Credential=synthetic-secret&X-Amz-Signature=synthetic-signature'
+      ],
+      [
+        'google-signed-url',
+        'Read https://example.com/work?X-Goog-Credential=synthetic-secret&X-Goog-Signature=synthetic-signature'
+      ],
+      [
+        'azure-signed-url',
+        'Read https://example.com/work?sv=synthetic-version&sig=synthetic-signature'
+      ],
+      [
+        'cloudfront-signed-url',
+        'Read https://example.com/work?Key-Pair-Id=synthetic-id&Signature=synthetic-signature'
+      ],
+      ['semicolon-token-query', 'Read https://example.com/work?mode=public;token=synthetic-secret'],
+      [
+        'html-escaped-token-query',
+        'Read https://example.com/work?mode=public&amp;access_token=synthetic-secret'
+      ],
+      [
+        'nested-credential-url',
+        'Read https://example.com/work?redirect=https%3A%2F%2Fexample.com%2Fauth%3Frefresh_token%3Dsynthetic-secret'
+      ],
+      ['bold-query-token', 'Read **https://example.com/work?access_token=synthetic-secret**'],
+      [
+        'multiword-query-token',
+        'Read **https://example.com/work?access_token=synthetic-secret is private**'
+      ],
+      [
+        'encoded-json-token',
+        'Read https://example.com/work?data=%7B%22access_token%22%3A%22synthetic-secret%22%7D'
+      ],
+      [
+        'escaped-json-key',
+        'Read https://example.com/work?data=%7B%22access_%5Cu0074oken%22%3A%22synthetic-secret%22%7D'
+      ],
+      [
+        'double-escaped-json-key',
+        'Read https://example.com/work?data=%7B%22access_%255Cu0074oken%22%3A%22synthetic-secret%22%7D'
+      ],
+      ['html-entity-token-key', 'Read https://example.com/work?access_t&#111;ken=synthetic-secret'],
+      [
+        'encoded-entity-token-key',
+        'Read https://example.com/work?access_t%26%23111%3Bken=synthetic-secret'
+      ],
+      [
+        'nested-html-entity-key',
+        'Read https://example.com/work?access_t&amp;#111;ken=synthetic-secret'
+      ],
+      ['encoded-userinfo-uri', 'Read https://synthetic-user%3Asynthetic-secret%40example.com/work']
     ] as const) {
       for (const surface of proseSurfaces) {
         it(`${skill} rejects foreign ${form} on ${surface} before publication`, () => {
