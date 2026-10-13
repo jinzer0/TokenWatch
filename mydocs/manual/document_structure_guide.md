@@ -233,6 +233,8 @@ local-only도 raw path privacy 예외가 아니다. manifest의 project/skill �
 
 foreign absolute filesystem reference도 source/customization/설정 prose에서 snapshot·manifest에 복사하지 않고 publication 전 fixed HALT로 차단한다. 외부 override 파일의 명시 read 권한은 그 filename이나 내용 속 raw machine path를 저장할 권한이 아니다. 공개 HTTP(S) URL과 repository-relative reference는 filesystem absolute path와 구분해 유지한다.
 
+`output_folder`는 caller cwd가 아닌 승인된 checkout root 기준으로 resolve하고 실제 target이 root 안에 있어야 한다. `active_initiative`는 output-relative 경로 또는 빈 문자열이며 두 설정을 결합한 실제 target도 symlink resolve 후 checkout 안인지 확인한다. 상대 경로의 parent traversal(`..`), URI·drive-relative·home 표현, 외부/미생성 외부 target을 가리키는 symlink는 rendering/publication 전에 fixed HALT로 차단한다. 안전한 상대 경로·dot/native separator와 contained absolute target은 정규화하되 설정 파일·기존 generation·configured output directory를 만들거나 고쳐서 우회하지 않는다.
+
 manifest schema 3의 `template_sha256`는 경로 privacy 정규화 후 실제 rendering에 쓰는 effective template를 식별한다. raw source의 checkout 경로를 hash로 남기지 않으며, source/config 파일 bytes는 변경하지 않는다. executable renderer와 실제 한 번 읽어 실행한 helper의 hash는 실행 bytes에 계속 결합한다. 동일 입력을 다른 checkout으로 옮겨도 public generation/manifest/snapshot bytes가 같아야 한다. 중복/native separator와 dot segment reference는 안전하게 정규화하고 symlink traversal·해석 불가능한 표현은 출력 전에 HALT한다.
 
 독립 실행 범위는 직접 위임한 intent·기존 canonical 계획의 oneshot/full 및 review 분기다. 큰 ticket-tree engine은 포함하지 않는 선택 capability다. 명시 ticket 요청은 실제 helper/runtime/native 권한이 없으면 해당 ticket resolution만 scoped blocked로 기록하며 ticket·prerequisite를 꾸미거나 설치하지 않는다. 일반/no-intent 흐름은 ticket capability 부재로 중단하지 않고 안전한 기존 context·필요한 intent 확인으로 진행한다. 없는 artifact 폴더는 빈 context로 취급하며 scan을 위해 dummy 폴더/계획을 만들지 않는다.

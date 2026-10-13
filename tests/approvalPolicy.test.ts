@@ -829,6 +829,42 @@ describe('risk-based approval delivery source contracts (not native enforcement)
     );
   });
 
+  it('P1 configuration paths use checkout and composed output containment before publication', () => {
+    const renderer = read('tools/bmad/render_skill.py');
+    const resolution =
+      renderer.split('def _resolve_config_value(')[1]?.split('def _relative_text(')[0] ?? '';
+    has(
+      resolution,
+      /"output_folder", "active_initiative"/,
+      'both operational path settings are covered'
+    );
+    has(
+      resolution,
+      /"\.\." in portable\.split\("\/"\)/,
+      'parent traversal cannot survive as prose'
+    );
+    has(
+      resolution,
+      /project_root \/ path\)\.resolve\(\)/,
+      'relative output uses checkout instead of process cwd'
+    );
+    has(
+      resolution,
+      /project_root \/ output \/ initiative\)\.resolve\(\)\.is_relative_to\(project_root\)/,
+      'initiative symlinks checked at their actual output base'
+    );
+    const execution = renderer.split('def render(')[1] ?? '';
+    expect(
+      execution.indexOf('_validate_output_destination(central, project_root)') <
+        execution.indexOf('probe, _ = render_pass')
+    ).toBe(true);
+    has(
+      execution,
+      /_validate_output_destination\(central, project_root\)\n {4}_publish\(/,
+      'containment rechecked before immutable publication'
+    );
+  });
+
   it('P1 machine path rejection includes foreign source and customization values', () => {
     const renderer = read('tools/bmad/render_skill.py');
     const normalization =

@@ -240,12 +240,44 @@ def _resolve_config_value(value: Any, label: str, project_root: Path) -> str:
     text = _require_string(value, label, allow_empty=label == "config.core.active_initiative")
     expanded = text.replace("{project-root}", project_root.as_posix())
     portable = expanded.replace("\\", "/")
+    key = label.rsplit(".", 1)[-1]
+    if key in {"output_folder", "active_initiative"}:
+        # These values are filesystem destinations, not arbitrary prose. Resolve
+        # output paths against the checkout, never the caller's nested cwd.
+        path = Path(portable)
+        if not path.is_absolute() and ".." in portable.split("/"):
+            raise RenderError("config path contains parent traversal")
+        if portable.startswith(("~", "$HOME", "${HOME}", "%USERPROFILE%", "%HOMEPATH%")):
+            raise RenderError("config path contains a home reference")
+        if not path.is_absolute() and re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", portable):
+            raise RenderError("config path contains a URI or drive-relative reference")
+        if key == "active_initiative":
+            # Initiatives are appended to output_folder. Preserve that base;
+            # resolving them independently against the checkout would validate
+            # a different target and miss symlinks inside the output directory.
+            if path.is_absolute():
+                raise RenderError("initiative must be an output-relative path")
+            return posixpath.normpath(portable) if portable else ""
+        resolved = (path if path.is_absolute() else project_root / path).resolve()
+        if not resolved.is_relative_to(project_root):
+            raise RenderError("consumed config path is outside repository")
+        return resolved.relative_to(project_root).as_posix()
     if Path(portable).is_absolute():
         path = Path(portable).resolve()
         if not path.is_relative_to(project_root):
             raise RenderError("consumed config path is outside repository")
         return path.relative_to(project_root).as_posix()
     return _relative_text(expanded, project_root)
+
+
+def _validate_output_destination(central: dict[str, Any], project_root: Path) -> None:
+    core = central.get("core")
+    if not isinstance(core, dict):
+        raise RenderError("core configuration must be a table")
+    output = _resolve_config_value(core.get("output_folder"), "config.core.output_folder", project_root)
+    initiative = _resolve_config_value(core.get("active_initiative"), "config.core.active_initiative", project_root)
+    if not (project_root / output / initiative).resolve().is_relative_to(project_root):
+        raise RenderError("composed initiative destination is outside repository")
 
 
 def _relative_text(text: str, project_root: Path) -> str:
@@ -745,6 +777,7 @@ def render(
         if prompt not in sources or not sources[prompt].strip():
             raise RenderError("required review prompt is missing or empty")
     central = load_central_config(project_root)
+    _validate_output_destination(central, project_root)
     customization_path = contained_source(skill_dir / "customize.toml", skill_dir)
     defaults = load_toml(customization_path, required=True)
     _check_persistent_layers(project_root, skill_dir, defaults)
@@ -818,6 +851,7 @@ def render(
         or _relative_values(manifest, project_root) != manifest
     ):
         raise RenderError("checkout location remains in rendered snapshot")
+    _validate_output_destination(central, project_root)
     _publish(destination, outputs, manifest)
     return entry
 

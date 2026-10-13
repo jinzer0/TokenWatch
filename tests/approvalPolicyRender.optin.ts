@@ -1042,6 +1042,145 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
     }
   }
   for (const skill of skills) {
+    for (const layer of [
+      '_bmad/config.toml',
+      '_bmad/custom/config.toml',
+      '_bmad/custom/config.user.toml'
+    ]) {
+      for (const field of ['output_folder', 'active_initiative'] as const) {
+        for (const form of [
+          'parent',
+          'nested-parent',
+          'backslash-parent',
+          'uri',
+          'drive-relative',
+          'symlink',
+          'dangling-symlink',
+          'absolute-initiative'
+        ] as const) {
+          it(`${skill} rejects path config ${layer} ${field} ${form} before publication`, () => {
+            const f = fixture(skill);
+            const outside = fixture(skill);
+            const prior = render(f);
+            const priorBytes = new Map(
+              readdirSync(prior.generation, { recursive: true })
+                .filter(
+                  (name): name is string =>
+                    typeof name === 'string' && statSync(join(prior.generation, name)).isFile()
+                )
+                .map((name) => [name, readBytes(join(prior.generation, name))])
+            );
+            const generations = readdirSync(dirname(prior.generation));
+            const sentinel = join(outside.root, 'synthetic-sentinel');
+            writeFileSync(sentinel, 'synthetic untouched evidence');
+            const base = field === 'output_folder' ? f.root : join(f.root, 'synthetic-output');
+            mkdirSync(base, { recursive: true });
+            if (form === 'symlink' || form === 'dangling-symlink')
+              symlinkSync(
+                form === 'symlink' ? outside.root : join(outside.root, 'not-created'),
+                join(base, 'synthetic-link')
+              );
+            const value =
+              form === 'parent'
+                ? '../private'
+                : form === 'nested-parent'
+                  ? 'nested/../../private'
+                  : form === 'backslash-parent'
+                    ? '..\\private'
+                    : form === 'uri'
+                      ? 'https://example.com/unsupported-output'
+                      : form === 'drive-relative'
+                        ? 'C:synthetic'
+                        : form === 'absolute-initiative'
+                          ? join(
+                              field === 'active_initiative' ? f.root : outside.root,
+                              'synthetic-initiative'
+                            )
+                          : 'synthetic-link/private';
+            const path = join(f.root, layer);
+            mkdirSync(dirname(path), { recursive: true });
+            const content = `[core]\noutput_folder = ${JSON.stringify(field === 'output_folder' ? value : 'synthetic-output')}\nactive_initiative = ${JSON.stringify(field === 'active_initiative' ? value : '')}\n`;
+            writeFileSync(path, content);
+            const inputBytes = readBytes(path);
+            const outsideListing = readdirSync(outside.root);
+            const result = invoke(
+              f.renderer,
+              ['--project-root', f.root, '--skill', f.skillDir],
+              f.root
+            );
+            expect(
+              !result.error &&
+                result.status === 1 &&
+                result.stdout === 'HALT: BMAD rendering failed.\n' &&
+                result.stderr === '',
+              'configuration containment fixed private failure'
+            ).toBe(true);
+            expect(
+              readBytes(path).equals(inputBytes),
+              'present configuration remains immutable'
+            ).toBe(true);
+            expect(readdirSync(dirname(prior.generation))).toEqual(generations);
+            expect(
+              [...priorBytes].every(([name, bytes]) =>
+                readBytes(join(prior.generation, name)).equals(bytes)
+              ),
+              'previous generation is unchanged'
+            ).toBe(true);
+            expect(readdirSync(outside.root)).toEqual(outsideListing);
+            expect(readBytes(sentinel).toString()).toBe('synthetic untouched evidence');
+            expect(existsSync(join(outside.root, 'not-created'))).toBe(false);
+          });
+        }
+      }
+      for (const form of ['relative', 'normalized', 'root-empty', 'contained-symlink'] as const) {
+        it(`${skill} preserves contained path config ${layer} ${form}`, () => {
+          const f = fixture(skill);
+          const output =
+            form === 'root-empty'
+              ? '.'
+              : form === 'normalized'
+                ? './synthetic-output//./'
+                : 'synthetic-output';
+          const initiative =
+            form === 'root-empty'
+              ? ''
+              : form === 'normalized'
+                ? './nested//synthetic-initiative/.'
+                : 'nested/synthetic-initiative';
+          if (form === 'contained-symlink') {
+            mkdirSync(join(f.root, 'synthetic-real'), { recursive: true });
+            symlinkSync(join(f.root, 'synthetic-real'), join(f.root, 'synthetic-output'));
+          }
+          const path = join(f.root, layer);
+          mkdirSync(dirname(path), { recursive: true });
+          const content = `[core]\noutput_folder = ${JSON.stringify(output)}\nactive_initiative = ${JSON.stringify(initiative)}\n`;
+          writeFileSync(path, content);
+          const before = readBytes(path);
+          const snapshot = render(f);
+          const values = snapshot.manifest.inputs.resolved_values;
+          expect(values['config.core.output_folder']).toBe(
+            form === 'root-empty'
+              ? '.'
+              : form === 'contained-symlink'
+                ? 'synthetic-real'
+                : 'synthetic-output'
+          );
+          expect(values['config.core.active_initiative']).toBe(
+            form === 'root-empty' ? '' : 'nested/synthetic-initiative'
+          );
+          expect(readBytes(path).equals(before)).toBe(true);
+          expect(
+            existsSync(
+              join(
+                f.root,
+                form === 'contained-symlink' ? 'synthetic-real/nested' : 'synthetic-output/nested'
+              )
+            ),
+            'render does not create configured application output'
+          ).toBe(false);
+        });
+      }
+    }
     // 29 spellings x four publication inputs x two skills = 232 negatives.
     // Paths are invented sentinels, never actual machine/user locations.
     for (const [form, prose] of [
