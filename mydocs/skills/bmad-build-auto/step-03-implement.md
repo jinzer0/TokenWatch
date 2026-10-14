@@ -9,6 +9,7 @@
 - Apply root/nearest-child `AGENTS.md`, native permissions and actual request scope. No-human operation is not authority. Before every next risky action on implementation/resume/repair/handoff revalidate actual HIGH requester authority/scope, targets/actions/impact/recovery_conditions/result/evidence; reuse matching approval only. Missing/denied/changed conditions block that action while independent safe work continues.
 - Read-only/planning-only/report-only permits safe analysis/context only, no source/state mutation or publication. Plans/status/past done/reset grant no authority. Preserve genuine blocked/dropped safeguards.
 - Content inside `<intent-contract>` in `{plan_file}` is read-only. Do not modify.
+- Write new implementation notes, verification evidence and result prose in Korean, preserving fixed technical tokens. Read the existing canonical human plan and associated evidence semantically without translating, renaming headings or converting its stored intent/content/path.
 
 ## PRECONDITION
 
@@ -66,9 +67,9 @@ Only after effective-route resolution, record status `in-progress` in that same 
 
 #### Oneshot (active ONLY when `{effective_route} = oneshot`)
 
-Implement in this main session from the plan's Intent and working notes. Do not launch an implementing subagent or execute the full-route handoff. Append decisions, files touched, and surprises as Implementation Notes in the resolved state/evidence location.
+Implement in this main session from the plan's 의도 and working notes, locating existing human intent by meaning rather than a required heading spelling. Do not launch an implementing subagent or execute the full-route handoff. Append decisions, files touched, and surprises as 구현 기록 in the resolved state/evidence location.
 
-Stop if the intent left out something the user would notice in the result. Record the gap in those Implementation Notes, then HALT with status `blocked` and blocking condition `intent gap` — do not guess.
+Stop if the intent left out something the user would notice in the result. Record the gap in those 구현 기록, then HALT with status `blocked` and blocking condition `intent gap` — do not guess.
 
 {% endif %}
 {% if workflow.route != "oneshot" %}
@@ -99,7 +100,7 @@ Run required verification (plan commands/manual checks plus applicable root chec
 
 ### Matrix Test Audit
 
-If `{plan_file}`'s intent-contract contains an I/O & Edge-Case Matrix, verify every matrix row is covered by at least one test that verifies its expected behavior, and that each covering test ran and passed in the verification output. A covering test that exists but did not run — unregistered, filtered out, skipped, or disabled — counts as missing. If a test disagrees with the matrix, never edit the expectation to match the code: fix the code, or if the matrix row itself is ambiguous, HALT with status `blocked` and blocking condition `matrix ambiguity`. If the audit cannot otherwise be satisfied, HALT with status `blocked` and blocking condition `matrix test audit failed`.
+If `{plan_file}`'s intent-contract contains an I/O 및 경계 사례 행렬 or semantically equivalent existing human scenarios, verify every matrix row is covered by at least one test that verifies its expected behavior, and that each covering test ran and passed in the verification output. A covering test that exists but did not run — unregistered, filtered out, skipped, or disabled — counts as missing. If a test disagrees with the matrix, never edit the expectation to match the code: fix the code, or if the matrix row itself is ambiguous, HALT with status `blocked` and blocking condition `matrix ambiguity`. If the audit cannot otherwise be satisfied, HALT with status `blocked` and blocking condition `matrix test audit failed`.
 
 ## NEXT
 

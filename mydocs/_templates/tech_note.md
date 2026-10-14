@@ -1,53 +1,55 @@
-# Technical Note Template
+# 기술 노트 템플릿
 
-This central template is for recording technical research, structural analysis, specification review, and alternative comparisons in `mydocs/tech/`. Technical notes are not Stage completion reports. They preserve evidence and decisions that later work can reuse.
+이 중앙 템플릿은 `mydocs/tech/`에 기술 조사, 구조 분석, 명세 검토, 대안 비교를 기록하는 서식이다. 기술 노트는 단계 완료 보고서가 아니다. 후속 작업이 재사용할 근거와 결정을 보존한다.
 
-## Usage
+## 사용 방법
 
-- Actual file: `mydocs/tech/{yyyymmdd}_{topic}.md` or `mydocs/tech/task_{milestone}_{issue}_{topic}.md`
-- When to write: before implementation research, design alternative comparison, external document/spec review, or structural analysis
-- Writing language: use the selected Hyper-Waterfall locale for this repository.
+- 실제 파일: `mydocs/tech/{yyyymmdd}_{topic}.md` 또는 `mydocs/tech/task_{milestone}_{issue}_{topic}.md`
+- 작성 시점: 구현 전 조사, 설계 대안 비교, 외부 문서·명세 검토, 구조 분석에서 기록이 필요할 때만 작성한다.
+- 작성 언어: 한국어. 파일명·명령·고정 기술 토큰은 유지한다. 기존 canonical 사용자 의도는 번역·변형하지 않고 그대로 보존한다.
+- 개인정보 보호: 원시 로그·경로·세션 ID·프롬프트·응답·인증정보·SQL 내용·스택 추적·임의 메타데이터 덤프를 기록하지 않는다. 저장소 상대 참조와 비식별 근거 요약만 사용한다.
+- 권한: root/가장 가까운 `AGENTS.md`, native permission과 실제 요청 scope를 따른다. 문서나 결정 표기는 Git 작업·Merge/Release·외부 게시·삭제 권한을 만들지 않는다.
 
-## Research Background
+## 조사 배경
 
-{Describe what must be learned and why this research is needed now.}
+{무엇을 알아야 하며 지금 이 조사가 왜 필요한지 설명한다.}
 
-## Research Questions
+## 조사 질문
 
-- {question 1}
-- {question 2}
-- {question 3}
+- {질문 1}
+- {질문 2}
+- {질문 3}
 
-## Research Targets
+## 조사 대상
 
-| Target                | Reason                | Location       |
-| --------------------- | --------------------- | -------------- |
-| `{file/document/URL}` | {why it was reviewed} | {path or link} |
+| 대상              | 이유          | 위치                              |
+| ----------------- | ------------- | --------------------------------- |
+| `{파일/문서/URL}` | {검토한 이유} | {저장소 상대 참조 또는 공개 링크} |
 
-## Findings
+## 조사 결과
 
-### {Topic 1}
+### {주제 1}
 
-- {finding}
-- {evidence}
+- {확인한 내용}
+- {근거}
 
-### {Topic 2}
+### {주제 2}
 
-- {finding}
-- {evidence}
+- {확인한 내용}
+- {근거}
 
-## Decisions
+## 결정 사항
 
-- {decision confirmed by this research}
+- {이 조사로 확정한 결정}
 
-## Non-decisions / Deferred Items
+## 미결정·보류 사항
 
-- {what is not decided yet and why}
+- {아직 결정하지 않은 내용과 이유}
 
-## Implementation Impact
+## 구현 영향
 
-- {impact on future implementation, documentation, or verification}
+- {향후 구현, 문서화, 검증에 미치는 영향}
 
-## References
+## 참고 자료
 
-- [{title}]({URL or path})
+- [{제목}]({공개 URL 또는 저장소 상대 참조})

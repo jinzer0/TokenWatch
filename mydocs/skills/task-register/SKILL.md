@@ -20,7 +20,7 @@ description: |
 - The work does not yet have an Issue number.
 - Purpose, background, and scope are at least drafted.
 - `gh` CLI is authenticated for the current user.
-- When possible, local `.github/ISSUE_TEMPLATE/task.yml` or upstream `<hyper-waterfall-release-dir>/templates/locales/en/.github/ISSUE_TEMPLATE/task.yml` from the selected release or verified temporary checkout can be read.
+- 저장소 소유 한국어 `.github/ISSUE_TEMPLATE/task.yml`을 읽는다. 읽을 수 없으면 아래 한국어 섹션 목록을 사용하며 upstream locale 선택·설치·네트워크 조회에 의존하지 않는다.
 - Before creating the Issue, the title, body, milestone, and label draft can be confirmed with the task requester.
 
 ## Procedure
@@ -77,25 +77,25 @@ description: |
    - Do not create new labels.
 6. Draft the Issue.
    - Write the Issue title and body in Korean. Keep fixed technical tokens such as labels, file paths, branch names, command names, and code identifiers unchanged where needed.
-   - Title: one sentence that reveals the work unit.
+   - Title: `작업: ` 접두사와 작업 단위를 드러내는 한국어 한 문장.
    - Body: prefer GitHub Issue Form `.github/ISSUE_TEMPLATE/task.yml`.
-     - When checking the upstream source template for an applied repository, use `<hyper-waterfall-release-dir>/templates/locales/en/.github/ISSUE_TEMPLATE/task.yml`.
-     - Since `gh issue create` does not run Issue Form UI, convert form fields to Markdown sections.
+     - 저장소 소유 한국어 서식만 사용한다. `gh issue create`는 Issue Form UI를 실행하지 않으므로 필드의 한국어 항목명을 Markdown 제목으로 변환한다. 고정 field ID/type/required 값은 바꾸지 않는다.
    - Issue Form sections:
-     - Background
-     - Goals
-     - Scope - Included
-     - Scope - Excluded
-     - Acceptance Criteria
-     - Verification Criteria
-     - References
-     - Milestone and label candidates
-   - If the Issue Form cannot be read, use the same section list as fallback.
+     - 배경
+     - 목표
+     - 범위 - 포함
+     - 범위 - 제외
+     - 인수 기준
+     - 검증 기준
+     - 참고 자료
+     - 마일스톤 및 라벨 후보
+     - 확인 사항
+   - Issue Form을 읽을 수 없으면 위 한국어 섹션 목록을 fallback으로 사용한다. 확인 사항에는 실제 확인한 중복·제외 범위·위험 승인 경계만 기록하며 영어 upstream 서식으로 대체하지 않는다.
    - Milestone: one open milestone chosen from live lookup and the selection reason.
    - Labels: approved existing labels and reasons, or none.
    - Split label reasons by type/area/kind, and include the exception reason if using 5 or more labels.
 7. Request approval before creating the Issue.
-   - Show the task requester the title, body, milestone, labels, and selection reasons.
+   - 제목·본문·마일스톤·라벨·선택 이유와 생성 승인 요청을 한국어로 제시한다. 고정 라벨명·명령·경로·식별자는 유지한다.
    - Do not run `gh issue create` until the task requester explicitly approves creation in the same thread.
 8. After approval, create the Issue.
 
@@ -126,7 +126,7 @@ description: |
 - If 5 or more labels were used, the approved exception reason is included in the report.
 - `area:*` labels are selected by primary work ownership.
 - The Issue body fills the required inputs corresponding to `.github/ISSUE_TEMPLATE/task.yml`.
-- The creation report includes Issue number, URL, milestone, labels, and selection reasons.
+- 생성 보고는 한국어 제목·항목명으로 Issue 번호, URL, 마일스톤, 라벨, 선택 이유를 포함한다. 고정 기술 토큰과 상태값은 유지한다.
 
 ## Never Do
 

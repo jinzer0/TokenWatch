@@ -1,56 +1,56 @@
-# External PR Review Template
+# 외부 PR 검토 서식
 
-이 중앙 서식은 `mydocs/pr/pr_{number}_review.md`의 외부 contributor PR 초기 판단·영향·검증 계획·권고를 기록한다. 안전한 같은 scope의 검토 방향을 다시 승인받는 gate가 아니며 필요한 위험 결정과 외부 행동 권한만 분리한다.
+이 중앙 서식은 `mydocs/pr/pr_{number}_review.md`의 외부 기여자 PR 초기 판단·영향·검증 계획·권고를 기록한다. 안전한 같은 범위의 검토 방향을 다시 승인받는 관문이 아니며 필요한 위험 결정과 외부 행동 권한만 분리한다.
 
-## Usage
+## 사용 안내
 
-- Actual file: `mydocs/pr/pr_{number}_review.md`
-- When to write: immediately after checking external contributor PR metadata and diff
-- Writing language: use the selected Hyper-Waterfall locale for this repository.
+- 실제 파일: `mydocs/pr/pr_{number}_review.md`
+- 작성 시점: 외부 기여자 PR의 메타데이터와 전체 diff를 확인한 직후
+- 작성 언어: 생성하는 HF 문서와 GitHub 제목·본문·검토·댓글은 반드시 한국어로 작성한다. 경로·명령·기술 키·상태 코드 등 고정 기술 토큰은 유지한다. 기존 canonical 사용자 문서는 번역·복제하지 않고 참조한다.
 
-## PR Information
+## PR 정보
 
 - PR: #{number}
-- Title: {PR title}
-- Author: {author}
+- 제목: {PR 제목}
+- 작성자: {작성자}
 - base/head: `{base}` <- `{head}`
-- head repository: `{fork or same repo}`
-- State: {OPEN/MERGED/CLOSED}
-- Linked Issue: {link if any, otherwise none}
+- head 저장소: {fork 또는 동일 저장소}
+- 상태: {OPEN/MERGED/CLOSED}
+- 연결 Issue: {있으면 링크, 없으면 없음}
 
-## Change Summary
+## 변경 요약
 
-- {core changes in the PR}
+- {PR의 핵심 변경 사항}
 
-## Impact Area and Compatibility
+## 영향 영역과 호환성
 
-| Area   | Impact   | Compatibility Judgment    |
-| ------ | -------- | ------------------------- |
-| {area} | {impact} | {compatible/caution/risk} |
+| 영역   | 영향   | 호환성 판단      |
+| ------ | ------ | ---------------- |
+| {영역} | {영향} | {호환/주의/위험} |
 
-## Code/Documentation Review Findings
+## 코드·문서 검토 발견 사항
 
-- {main findings discovered during review}
+- {검토 중 발견한 주요 사항}
 
-## Verification Plan
+## 검증 계획
 
 ```bash
-{required verification command}
+{필요한 검증 명령}
 ```
 
-- {manual check item}
+- {수동 확인 항목}
 
-## Recommendation
+## 권고
 
-Recommendation: {merge / request changes / close}
+권고: {병합 / 변경 요청 / 종료}
 
-Rationale:
+판단 근거:
 
-- {judgment rationale}
+- {판단 이유}
 
 ## 실행 권한과 검증 경계
 
-- 같은 scope의 안전한 local 분석·검증 계획과 허용된 검증은 재승인 없이 자율 진행한다. read-only/planning-only 요청은 분석·계획·검증 제안만 허용하며 source 변경이나 실행 권한을 만들지 않는다.
-- untrusted 외부 code 실행은 안전·sandbox·native permission과 실제 별도 위임을 먼저 확인한다. HIGH는 다음 위험 행동의 targets/actions/impact/recovery_conditions와 승인 결과/evidence를 확인하고 동일 조건만 재사용한다. missing/denied/changed는 해당 위험 행동만 차단하며 안전한 독립 작업은 계속한다.
+- 같은 범위의 안전한 로컬 분석·검증 계획과 허용된 검증은 재승인 없이 자율 진행한다. read-only/planning-only 요청은 분석·계획·검증 제안만 허용하며 소스 변경이나 실행 권한을 만들지 않는다.
+- 신뢰할 수 없는 외부 코드 실행은 안전·sandbox·native permission과 실제 별도 위임을 먼저 확인한다. HIGH는 다음 위험 행동의 targets/actions/impact/recovery_conditions와 승인 결과·근거를 확인하고 동일 조건만 재사용한다. missing/denied/changed는 해당 위험 행동만 차단하며 안전한 독립 작업은 계속한다.
 - formal review/comment 게시, Merge/Release, Issue close, tag와 미위임 cleanup은 별도 권한이다. 위 권고·초안·계획 상태를 그 행동의 승인으로 취급하지 않는다.
-- 미실행·failed·blocked 결과와 잔여 위험을 성공 검증과 구분해 기록한다.
+- passed/failed/blocked/not-run 결과와 잔여 위험을 구분해 기록한다. 미실행·실패·차단을 성공 검증으로 표시하지 않는다.

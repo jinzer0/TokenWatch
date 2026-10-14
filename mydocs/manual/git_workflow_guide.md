@@ -49,11 +49,11 @@ local/task{N} -- verified task-only commit --> standing delegated push publish/t
 
 일반 task PR와 release PR는 별개다. 실제 Issue는 `local/taskN -> publish/taskN -> main`, Issue 없는 context 작업은 `local/{task_slug} -> publish/{task_slug} -> main`과 semantic summary를 사용한다. Task PR 위임은 Merge/Release로 확장되지 않는다. base/release가 모두 `main`이면 release promotion과 `main -> main` PR는 적용하지 않는다. 채택 저장소의 framework 버전 update PR는 release 후 별도 작업이다.
 
-| Type                              | Purpose                                                                                                                  | Branch Flow                                    | PR Title                                                                 |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------- | ------------------------------------------------------------------------ |
-| task PR                           | Apply repository feature, documentation, or operations work by Issue                                                     | `local/task{N}` -> `publish/task{N}` -> `main` | `Task #{N}: {task title}`                                                |
-| release promotion                 | Inapplicable while the base and release branches are both `main`; create tags only in a separately approved release task | Not applicable                                 | `Release: {version}`                                                     |
-| Hyper-Waterfall version update PR | Update an adopted repository from the current version to the target release/tag                                          | `local/task{N}` -> `publish/task{N}` -> `main` | `Task #{N}: Hyper-Waterfall {fromVersion} -> {toVersion} version update` |
+| Type                              | Purpose                                                                                                                  | Branch Flow                                    | PR Title                                                            |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------- | ------------------------------------------------------------------- |
+| task PR                           | Apply repository feature, documentation, or operations work by Issue                                                     | `local/task{N}` -> `publish/task{N}` -> `main` | `Task #{N}: {task title}`                                           |
+| release promotion                 | Inapplicable while the base and release branches are both `main`; create tags only in a separately approved release task | Not applicable                                 | `Release: {version}`                                                |
+| Hyper-Waterfall version update PR | Update an adopted repository from the current version to the target release/tag                                          | `local/task{N}` -> `publish/task{N}` -> `main` | `Task #{N}: Hyper-Waterfall {fromVersion} -> {toVersion} 버전 갱신` |
 
 ## Maintainer Workflow
 
@@ -63,7 +63,7 @@ local/task{N} -- verified task-only commit --> standing delegated push publish/t
 # 1. Push local/taskN to publish/taskN and create an Open PR to main
 git checkout local/task17
 git push origin local/task17:publish/task17
-gh pr create --base main --head publish/task17 --title "Task #17: title" --body-file /tmp/task17-pr-body.md
+gh pr create --base main --head publish/task17 --title "Task #17: 작업 제목" --body-file /tmp/task17-pr-body.md
 
 # 2. 별도 formal review / merge / branch deletion 권한이 모두 있을 때만 실행
 gh pr review --approve
@@ -84,12 +84,12 @@ Contributor도 같은 root 위임을 따른다. 검증된 task-only push와 명�
 # 1. Fork the original repository once on GitHub
 # 2. Work in the fork
 git clone https://github.com/{contributor}/TokenWatch.git
-git checkout -b feature/my-task
+git checkout -b local/my-task
 # ... work and commit ...
-git push origin feature/my-task
+git push origin local/my-task:publish/my-task
 
 # 3. Create a PR to the original repository's main
-gh pr create --repo jinzer0/TokenWatch --base main --head {contributor}:feature/my-task --title "title"
+gh pr create --repo jinzer0/TokenWatch --base main --head {contributor}:publish/my-task --title "작업 제목"
 
 # 4. Maintainer reviews and merges
 ```

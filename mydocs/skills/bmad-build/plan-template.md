@@ -12,7 +12,7 @@ review: '' # none | quick | thorough — set by step-04
 review_source: '' # pinned | auto — set with review by step-04
 lenses_ran: [] # ids of the lenses launched, set by step-04
 review_loop_iteration: 0 # incremented by step-04 before each review loopback
-context: [] # optional: `{project-root}/`-prefixed paths to project-wide standards/docs the implementation agent should load. Keep short — only what isn't already distilled into the plan body.
+context: [] # optional: `{project-root}/`-prefixed standards/docs read by the leader only to derive privacy-safe {implementation_contract}/{implementation_files}. Never expand into a worker reading list; keep short.
 ---
 
 <!-- Target: 900–1300 tokens (less if route is oneshot). Above 1600 = high risk of context rot.
@@ -24,62 +24,66 @@ context: [] # optional: `{project-root}/`-prefixed paths to project-wide standar
      without copying, moving or forced conversion; HF references it. LOW may use existing
      context alone. Root/nearest child AGENTS.md and native permissions remain authoritative;
      this plan, status and arbitrary approved fields cannot grant or override authority. -->
+<!-- Newly generated human headings, labels, title and prose are Korean. Preserve machine
+     keys/enums, runtime placeholders, frozen tags, paths and status codes. Existing canonical
+     human body/path/headings stay verbatim; read section meaning/evidence semantically in
+     the SAME associated context, never translate or rewrite them to match this template. -->
 
 <frozen-after-approval reason="human-owned intent — do not modify unless human renegotiates">
 
-## Intent
+## 의도
 
 <!-- What is broken or missing, and why it matters. Then the high-level approach — the "what", not the "how". -->
 
-**Problem:** ONE_TO_TWO_SENTENCES
+**문제:** 한두 문장으로 설명
 
-**Approach:** ONE_TO_TWO_SENTENCES
+**접근 방식:** 한두 문장으로 설명
 
-## Boundaries & Constraints
+## 경계와 제약
 
 <!-- Two tiers: Always = invariant rules. Never = out of scope + forbidden approaches.
      Delete this section if route is oneshot. -->
 
-**Always:** INVARIANT_RULES
+**항상 지킬 사항:** 불변 규칙
 
-**Never:** NON_GOALS_AND_FORBIDDEN_APPROACHES
+**금지 사항:** 범위 밖 목표와 금지된 접근 방식
 
-## I/O & Edge-Case Matrix
+## I/O 및 경계 사례 행렬
 
 <!-- If no meaningful I/O scenarios exist, delete this section. Do not write "N/A" or "None".
      Delete this section if route is oneshot. -->
 
-| Scenario   | Input / State | Expected Output / Behavior | Error Handling    |
-| ---------- | ------------- | -------------------------- | ----------------- |
-| HAPPY_PATH | INPUT         | OUTCOME                    | No error expected |
-| ERROR_CASE | INPUT         | OUTCOME                    | ERROR_HANDLING    |
+| 시나리오  | 입력 / 상태 | 예상 출력 / 동작 | 오류 처리      |
+| --------- | ----------- | ---------------- | -------------- |
+| 정상 사례 | 입력        | 결과             | 오류 없음      |
+| 오류 사례 | 입력        | 결과             | 오류 처리 방식 |
 
 </frozen-after-approval>
 
-## Code Map
+## 코드 맵
 
 <!-- Agent-populated during planning. Annotated paths prevent blind codebase searching.
      Delete this section if route is oneshot. -->
 
-- `FILE` -- ROLE_OR_RELEVANCE
-- `FILE` -- ROLE_OR_RELEVANCE
+- `파일 경로` -- 역할 또는 관련성
+- `파일 경로` -- 역할 또는 관련성
 
-## Tasks & Acceptance
+## 작업과 수용 기준
 
 <!-- Tasks: backtick-quoted file path -- action -- rationale. Prefer one task per file; group tightly-coupled changes when splitting would be artificial. -->
 <!-- If an I/O Matrix is present, include a task to unit-test its edge cases. -->
 <!-- AC covers system-level behaviors not captured by the I/O Matrix. Do not duplicate I/O scenarios here. -->
 <!-- Delete this section if route is oneshot. -->
 
-**Execution:**
+**실행:**
 
-- [ ] `FILE` -- ACTION -- RATIONALE
+- [ ] `파일 경로` -- 수행할 작업 -- 근거
 
-**Acceptance Criteria:**
+**인수 기준:**
 
-- Given PRECONDITION, when ACTION, then EXPECTED_RESULT
+- 사전 조건에서 작업을 수행하면 예상 결과가 성립한다.
 
-## Implementation Notes
+## 구현 기록
 
 <!-- Agent-owned. Append-only during implementation: decisions made, files touched, surprises
      encountered. Never delete this section. At planning time record only relevant scope,
@@ -92,29 +96,29 @@ context: [] # optional: `{project-root}/`-prefixed paths to project-wide standar
      Missing/denied or changed authority blocks that action, not independent safe work.
      Checkpoints are evidence, not same-scope approval gates. -->
 
-## Plan Change Log
+## 계획 변경 기록
 
 <!-- Append-only. Populated by step-04 during review loops. Do not modify or delete existing entries.
      Each entry records: what finding triggered the change, what was amended, what known-bad state
      the amendment avoids, and any KEEP instructions (what worked well and must survive re-derivation).
      Empty until the first bad_plan loopback. -->
 
-## Review Triage Log
+## 리뷰 분류 기록
 
 <!-- Append-only. Populated by step-04 on EVERY review pass, including loopbacks and blocked exits.
      Each entry records verdict counts (high/medium/low/false/maybe-false) and one row per
      reviewer finding: verdict, route, and evidence — the refutation for false, what would settle
      it for maybe-false, the action taken for patches. Empty until the first review pass. -->
 
-## Design Notes
+## 설계 기록
 
 <!-- If the approach is straightforward, delete this section. Do not write "N/A" or "None".
      Delete this section if route is oneshot. -->
 <!-- Design rationale and golden examples only when non-obvious. Keep examples to 5–10 lines. -->
 
-DESIGN_RATIONALE_AND_EXAMPLES
+설계 근거와 예시
 
-## Verification
+## 검증
 
 <!-- If no build, test, or lint commands apply, delete this section. Do not write "N/A" or "None". -->
 <!-- How the agent confirms its own work. Prefer CLI commands. When no CLI check applies, state what to inspect manually. -->
@@ -125,10 +129,10 @@ DESIGN_RATIONALE_AND_EXAMPLES
      Standing commit/push and clear-request PR do not grant Merge/Release, formal posting,
      Issue close, tags or undelegated deletion/cleanup. -->
 
-**Commands:**
+**명령어:**
 
-- `COMMAND` -- expected: SUCCESS_CRITERIA
+- `명령어` -- 예상 결과: 성공 기준
 
-**Manual checks (if no CLI):**
+**수동 확인 (CLI가 없는 경우):**
 
-- WHAT_TO_INSPECT_AND_EXPECTED_STATE
+- 확인할 항목과 예상 상태

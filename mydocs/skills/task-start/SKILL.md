@@ -19,6 +19,7 @@ description: |
 - 기존 canonical 계획/context와 task-owned 파일/hunk·baseline을 확인한다. LOW는 Issue·milestone·보드·별도 계획이 없어도 시작한다. 필요한 계획만 BMAD가 하나 작성하고 HF는 참조/evidence를 연결한다.
 - unrelated dirty/untracked 파일은 보존하며 실제 불가분 충돌만 해당 대상으로 좁게 차단한다. baseline 이후 변경 전체를 task 소유로 추정하지 않는다.
 - `gh`는 실제 위임된 GitHub 조회/행동이 필요할 때만 prerequisite다. 명시 Issue 등록은 `task-register`의 별도 생성 권한을 따른다.
+- 새 HF 계획·보드·맥락 기록·보고·승인 요청의 제목·항목명·설명·예시는 한국어로 작성한다. 고정 기술 토큰·상태값·명령·경로·커밋 형식은 유지하고 기존 사용자 canonical 계획의 원문·의도는 번역하거나 강제 변환하지 않는다. 개인정보·원시 세션/경로·로그는 노출하지 않는다.
 
 ## Procedure
 
@@ -44,11 +45,11 @@ description: |
 
 4. 보드가 필요한 작업만 `mydocs/orders/{yyyymmdd}.md`에 기존 Issue row를 추가/갱신한다. LOW는 기존 context의 scope·변경·검증 기록으로 충분하다.
    - Use output format from `mydocs/_templates/orders.md`.
-   - Row format: `| #{N} | {task title} | In progress | M{milestone}, canonical 계획/context 참조 |`
-   - Place it under the appropriate milestone section. Use "Common - Operations" for operational work.
+   - Row format: `| #{N} | {한국어 작업 제목} | In progress | M{milestone}, 기준 계획/맥락 참조 |`
+   - 적절한 마일스톤 섹션에 둔다. 운영 작업은 `공통 - 운영`을 사용한다. 서식을 읽을 수 없으면 `Issue / 작업 / 상태 / 비고` 표와 같은 한국어 섹션명을 사용한다.
 5. 기존 활성 canonical 계획을 우선 재사용한다. 기존 unformatted 사용자 계획은 의도/state를 context에 연결하며 복제·강제 변환하지 않는다. 필요할 때만 BMAD 단일 계획을 `mydocs/plans/task_m{milestone}_{N}.md` 등 기존 적절한 위치에 작성한다. HF 별도 `_impl` 원본·빈/dummy 계획을 만들지 않는다.
    - Use central template `mydocs/_templates/task_plan.md`.
-   - template을 읽을 수 없을 때만 목적/배경/scope 포함·제외/설계/변경 파일/필요에 비례하는 stage/검증/risk·evidence를 사용한다. 고정 stage 최솟값은 없고 한 stage도 가능하다.
+   - template을 읽을 수 없을 때만 한국어 fallback 제목 `목적`, `배경`, `범위` 아래 `포함`·`제외`, `설계 방향`, `문서 위치 판단`, `예상 변경 파일`, `실행 구성과 비례 단계`, `작업과 수용 기준`, `검증 계획`, `위험과 한정 결정`, `체크포인트와 공개`를 사용한다. `작업과 수용 기준`에는 기존 수용 기준 ID·관찰 가능한 완료 조건·검증 방법·근거를 연결한다. 고정 stage 최솟값은 없고 한 stage도 가능하다. 기존 canonical 계획은 이 제목에 맞춰 번역·재작성하지 않는다.
 6. Verify changes.
    ```bash
    git status --short

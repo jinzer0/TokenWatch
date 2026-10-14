@@ -16,10 +16,11 @@
 - Required nonempty existing plan paths remain mandatory; missing paths block without recreation, blocked/dropped safeguards remain, and LOW context-only exits never enter here. Preserve canonical/unformatted content/path with state/evidence in existing context rather than forced conversion. Frontmatter writes apply only to authorized supported BMAD format. Preserve human intent/original baseline/append logs.
 - Read-only/planning-only/report-only allows safe review/context only, mutation/publication zero. Review `none` never waives current verification/AC. Same-scope complex repair/technical replan is autonomous; unresolved failure/nonconvergence stays incomplete.
 - All review subagents must run at the same model capability as the current session.
+- Write new review records and result prose in Korean, preserving fixed technical tokens. Read existing canonical human plan sections and associated evidence by meaning, never requiring translated headings or rewriting stored intent/content/path. The labels below govern new artifact text only.
 
 ## INSTRUCTIONS
 
-First re-read the required nonempty existing plan and capture current scope/mode/ownership. Missing required paths or blocked/dropped plans preserve their safeguards without recreation. For read-only/planning-only/report-only, use safe read-only review and existing-context evidence only: skip every plan/frontmatter/source write and repair below, then apply Finalize's zero-publication reporting branch. Equivalent state/triage/deferred evidence for unformatted plans belongs in existing context, not forced conversion.
+First re-read the required nonempty existing plan and capture current scope/mode/ownership. Missing required paths or blocked/dropped plans preserve their safeguards without recreation. For read-only/planning-only/report-only, report only permitted nonmutating analysis and current evidence/limitations, then STOP here before state writes, downstream dispatch, verification/repair, Finalize, completion hooks or publication. Do not persist context or create artifacts. Equivalent state/triage/deferred evidence for authorized implementation of unformatted plans belongs in existing context, not forced conversion.
 
 ### State/evidence location
 
@@ -139,17 +140,17 @@ Before any implementation repair dispatch or worker re-engagement, including pat
     - **patch** — caused by the change; its smallest fix is trivial, adds no public surface, and guards no state you did not demonstrate. Just part of the diff. A finding whose smallest fix fails any of those conditions routes to intent_gap when the plan does not settle that fix, otherwise to bad_plan.
     - **defer** — pre-existing issue not caused by this change; or an entry whose members are all `maybe-false` and the claim, if true, would be `medium` or `high` — record that severity marked unverified, plus what would settle it (if it would only be `low`, reject it with the same note). Agent-context changes outside explicit delegated intent require their own scope/authority. Assess an explicitly delegated context correction by actual risk rather than filename; required HIGH/native authority still gates the next risky action.
 
-4.  Append a new Review Triage Log entry in the resolved state/evidence location, in this format; never add a section to an unformatted canonical plan:
+4.  Append a new 리뷰 분류 기록 entry in the resolved state/evidence location, in this format; never add a section to an unformatted canonical plan:
 
     ```markdown
-    ### {date} — Review pass
+    ### {date} — 검토 회차
 
-    - verdicts: <total> findings — high <N>, medium <N>, low <N>, false <N>, maybe-false <N>
-    - findings:
-      - `[verdict]` `[intent_gap|bad_plan|patch|defer|reject]` <finding summary> — <evidence: the refutation for false, what would settle it for maybe-false, the action taken for patches, why a rejected low was not worth fixing>
+    - 판정: 지적 <총수>건 — high <건수>, medium <건수>, low <건수>, false <건수>, maybe-false <건수>
+    - 지적:
+      - `[verdict]` `[intent_gap|bad_plan|patch|defer|reject]` <지적 요약> — <근거: false의 반증, maybe-false의 확인 조건, patch의 조치, 기각한 low를 수정하지 않은 이유>
     ```
 
-    Where `{date}` is the current system date. One row per finding from every lens, in the order the lenses reported them; `<total>` must equal the number of findings the lenses reported — a finding missing from the log is a triage failure. Members of a grouped entry keep their own rows and share the route.
+    Where `{date}` is the current system date. One row per finding from every lens, in the order the lenses reported them; `<총수>` must equal the number of findings the lenses reported — a finding missing from the log is a triage failure. Members of a grouped entry keep their own rows and share the route.
 
 5.  Resolve dependent entries after intent/technical correction without losing findings/evidence. FIRST recheck `{effective_route}` and exact selected state/evidence association before any bad_plan/patch/failed-verification repair or route-dependent write/dispatch, independently of `{effective_review}`. Missing/unknown/conflicting required route blocks only dependent repair with truthful evidence, no default full handoff, reimplementation, canonical-route rewrite or iteration increment. Before each authorized bad_plan loopback increment iteration in authorized BMAD state or existing context, preserving original baseline/logs. More than five loops or repeated nonconvergence records incomplete/scoped blocked evidence, then HALT for non-convergence, never successful publication. Before repair/revert revalidate next-risk authority and ownership.
     - **intent_gap** — Human-owned intent is unresolved: record questions/evidence and block dependent actions, preserving attempted task-owned changes and independent safe work. No blanket tree revert. Any necessary delegated rollback must target only identified task-owned hunks against captured pre-edit baselines, preserve userwork/evidence and stop on inseparable overlap. HALT with scoped blocked intent-gap evidence; never invent the answer or create a mandatory patch artifact.
@@ -183,19 +184,19 @@ Apply this same Finalize contract to **initial run→built** and **done/built fo
 
 Before every next risky action revalidate actual HIGH requester authority/scope, targets/actions/impact/recovery_conditions/result/evidence. Reuse condition-matching approval only; missing/denied/changed conditions block that action and independent safe review/context continues. Verify required checks/AC even with review `none`, carried rows or follow-up. Repair same-scope failures autonomously and reverify; unresolved failures remain incomplete.
 
-Append the following details under `## Auto Run Result` only in an existing authorized task-owned BMAD plan; otherwise use existing context without mutating read-only or unformatted human content. Preserve prior logs/intent/baseline and do not create missing plans/result artifacts. Use privacy-safe relative references, not raw private paths/session metadata:
+Append the following details in Korean under `## 자동 실행 결과` only in an existing authorized task-owned BMAD plan; otherwise use existing context without mutating read-only or unformatted human content. Locate any existing result/evidence section semantically and preserve its heading and prior entries rather than translating or duplicating it. Preserve prior logs/intent/baseline and do not create missing plans/result artifacts. Use privacy-safe relative references, not raw private paths/session metadata:
 
-- Summary of implemented change
-- Files changed with one-line descriptions
+- 구현 변경 요약
+- 변경 파일 및 파일별 한 줄 설명
   {% if review != "none" %}
-- Review findings breakdown: patches applied, items deferred, and every rejected finding with its recorded reason
-- Follow-up review recommendation: default `false`. Count only this pass's entries triaged `patch`, at entry verdict — never deferred or `false` ones. On a first pass, `true` if any patched entry was `high`, or if two or more `medium` entries were patched. On a follow-up pass (`{followup_pass}` = `true`), `true` only if this pass patched a `high` — otherwise the work has converged; patch volume is never grounds. A `true` names the specific unverified risk under `## Auto Run Result`; if none can be named, it is `false`. Record the patched counts by verdict.
+- 검토 지적 내역: 적용한 수정, 보류 항목, 기각한 모든 지적과 기록된 이유
+- 후속 검토 권고: 기본값은 `false`. 이번 회차에서 `patch`로 분류된 항목만 항목의 판정 기준으로 센다. 보류 또는 `false` 항목은 세지 않는다. 첫 회차에서는 수정한 `high` 항목이 하나라도 있거나 수정한 `medium` 항목이 둘 이상이면 `true`. 후속 회차 (`{followup_pass}` = `true`)에서는 이번 회차에 `high`를 수정한 경우에만 `true`; 그 외에는 수렴한 것으로 보며 수정량 자체는 근거가 아니다. `true`이면 `## 자동 실행 결과` 또는 의미상 대응하는 기존 결과 위치에 구체적인 미검증 위험을 명시한다. 명시할 위험이 없으면 `false`. 판정별 수정 건수를 기록한다.
   {% else %}
-- Review: none, no lenses launched
+- 검토: `none`, 실행한 렌즈 없음
   {% endif %}
-- Verification performed, including command outcomes or manual inspection notes
-- Any residual risks
-- Current request scope/mode, ownership, HIGH approval result/evidence where relevant, publication result or scoped blocked/limitations
+- 수행한 검증: 명령 결과 또는 수동 확인 메모 포함
+- 잔여 위험
+- 현재 요청 범위/모드, 변경 소유권, 해당하는 HIGH 승인 결과/근거, 공개 결과 또는 범위별 차단/한계
 
 {% if review != "none" %}
 Set authorized BMAD frontmatter `followup_review_recommended` from the computation above, or record it in existing context; never mutate read-only/unformatted human content.

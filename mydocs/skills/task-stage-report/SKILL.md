@@ -18,6 +18,7 @@ description: |
 - root/nearest-child `AGENTS.md` Risk-Based Execution Policy와 native phase/tool permission을 읽는다. 기존 canonical 계획 또는 LOW context를 참조하며 별도 승인된 `_impl` 원본을 요구하지 않는다.
 - task scope/ownership·baseline·현재 작업/검증 상태를 확인한다. 실패/blocked도 evidence 보고 대상이며 완료를 의미하지 않는다.
 - Issue가 있으면 `local/task{N}`, 없으면 기존 task slug branch/context를 사용한다. unrelated dirty/untracked는 보존하며 불가분 충돌만 해당 대상으로 차단한다.
+- 새 HF 보고·맥락 기록·승인 요청의 제목·항목명·설명·예시는 한국어로 작성한다. 고정 기술 토큰·상태값·명령·경로·커밋 형식은 유지하고 기존 사용자 canonical 계획의 원문·의도는 번역하거나 강제 변환하지 않는다. 개인정보·원시 세션/경로·로그는 노출하지 않는다.
 
 ## Procedure
 
@@ -26,13 +27,14 @@ description: |
 2. 별도 산출물이 필요한 Issue stage만 `mydocs/working/task_m{milestone}_{N}_stage{S}.md`를 사용한다. LOW는 기존 context 기록으로 충분하다. 문서 위치 판단을 canonical/context에 기록하되 같은 scope의 기록 갱신을 재승인하지 않는다.
    - Use central template `mydocs/_templates/stage_report.md`.
    - Only if the template cannot be read, use these fallback sections:
-     - Stage purpose
-     - Artifacts: file list plus line count or summary
-     - Body change scope / lossless preservation when applicable
-     - Verification results with output from step 1
-     - Residual risks
-     - Impact on next Stage
-     - 현재 상태·risk/authority·다음 안전 행동과 필요한 위험 결정만의 승인 항목
+     - 단계 목적
+     - 산출물: 파일 목록과 줄 수 또는 요약
+     - 본문 변경 범위와 무손실 보존: 해당할 때
+     - 검증 결과: 1단계의 안전한 출력 요약·증거와 `검증`, `결과`, `증거 / 한계` 표 헤더; passed/failed/blocked/not-run 유지
+     - 잔여 위험과 권한
+     - 다음 단계 영향과 안전 행동
+     - 검증된 공개와 보존 경계
+   - 현재 상태·위험/권한·다음 안전 행동과 필요한 위험 결정만의 승인 항목도 한국어로 기록한다.
 3. Check changes.
    ```bash
    git status --short
@@ -61,7 +63,7 @@ description: |
 - 필요할 때만 stage report가 존재하고 canonical/context에 연결된다. optional LOW report/Issue/board 부재는 실패가 아니다.
 - 필요한 stage report는 template의 해당 evidence/state 항목을 채운다. 실패·blocked·not-run도 기록하며 통과한 검증만 passed로 집계한다.
 - verification 실패면 stage는 incomplete이다. 실패 보고는 허용하고 같은 scope에서 수정·재검증하며 미달을 완료/publication으로 표시하지 않는다.
-- With authorized commit: `git log --oneline -1` follows `{type}: Task #{N} Stage {S}: {summary}` and the commit includes the TokenWatch attribution body and trailer.
+- 실제 위임된 commit이 있으면 `git log --oneline -1`의 subject를 해당 작업에서 선택한 허용 형식으로 검증한다. Issue 없는 작업은 `{type}: summary`, Issue stage는 `{type}: Task #{N} Stage {S}: {summary}`, substage는 `{type}: Task #{N} [Stage {S.M}]: summary`, final bundle은 `{type}: Task #{N} Stage {S} + final report: summary`를 사용한다. 다른 형식에 맞추려 새 Issue/단계/commit을 만들지 않으며 모든 형식의 TokenWatch attribution body와 trailer를 유지한다.
 - commit/push/PR는 검증된 task-owned 변경과 실제 위임/permission에 한정한다. task-owned pending 변경을 기준으로 clean을 판단하며 unrelated tracked/untracked 자료는 보존한다.
 
 ## Never Do

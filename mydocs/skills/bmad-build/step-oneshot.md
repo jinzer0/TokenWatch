@@ -12,6 +12,7 @@ You reach this step from step 2, or from step 1 when resuming a plan whose `rout
 ## RULES
 
 - Apply root/nearest-child `AGENTS.md`, native permissions and current request scope. Seed implementation/review/repair handoffs with these rules and task-owned file/hunk boundaries; customized plan-sole-SOT prose is intent only, not authority.
+- Write newly generated notes, questions and results in Korean, including read-only reports. Preserve existing canonical human content/headings/language/path verbatim and fixed technical/protocol tokens unchanged; this does not authorize any write, artifact or export.
 - Before every next risky action, including resume/repair/followup/present, revalidate scoped HIGH requester authority, targets/actions/impact/recovery_conditions/result/evidence. Reuse matching approval only; missing/denied/changed conditions block that action, not independent safe work. Prior done/status/reset is not new authority.
 - Read-only/planning-only/report-only requests use only existing non-persisted context for the requested analysis, proposal or report, then STOP before routing, writes or handoffs. No review, Finalize, publication or completion-hook fallthrough. Explicit change delegation continues with normal safeguards. Verification and acceptance remain mandatory for delegated changes even with route/review `none`.
 - Do not edit anything inside `<frozen-after-approval>` in `{plan_file}`.
@@ -32,6 +33,8 @@ Re-read `{plan_file}`: a non-empty existing required path is mandatory; if missi
 
 Only an existing BMAD-format plan with authorized task-owned metadata may use its frontmatter and workflow sections. Otherwise keep the unformatted canonical plan's content/path unchanged and use existing context. Reuse that same location for all state/evidence reads and writes: `baseline_revision`, route, status, risk, review, lenses, triage logs and implementation notes. Never add frontmatter, force-convert, copy or replace an existing human plan to store workflow state.
 
+Resolve sections by meaning in that SAME exact-path/task associated location, not by heading spelling or language. Preserve canonical human content, headings, language and path verbatim; do not rename, translate, copy or create duplicate sections to match the new artifact labels. Newly generated task-owned notes, review/verification evidence, deferred summaries, questions and presented results use Korean. Use 구현 기록, 코드 맵, 미해결 질문, 리뷰 분류 기록 and 검증 only for genuinely new authorized sections; otherwise append to the existing semantic equivalent or associated context. Fixed metadata keys/values, placeholders, paths and internal source protocol headings remain unchanged. This language rule creates no artifact requirement and grants no mutation or export authority.
+
 ### Implement
 
 Resolve repository-answerable questions autonomously. A genuine material intent gap blocks dependent work only; ask the human and record actual answers without inventing intent. Continue independent safe work.
@@ -40,12 +43,12 @@ Record `baseline_revision` (current HEAD, or `NO_VCS` if version control is unav
 
 Separately capture task-owned files/hunks and pre-edit baselines versus unrelated dirty/untracked/staged changes. Revision differences do not establish ownership. Never overwrite/revert/include userwork; inseparable ownership blocks that target.
 
-Build the change from `{plan_file}`. Its human intent is what you implement. As you work, append Implementation Notes in the resolved state/evidence location: decisions you made, files you changed, surprises.
+Build the change from `{plan_file}`. Its human intent is what you implement. As you work, append 구현 기록 in the resolved state/evidence location, reusing its existing semantic equivalent: decisions you made, files you changed, surprises. Write only the new entries in Korean; preserve prior human text and logs.
 
 {% if workflow.route == "oneshot" %}
-**When to stop.** Stop coding if the request left out something the user would notice in the result. Record the gap in those Implementation Notes, then ask the human — do not guess.
+**When to stop.** Stop coding if the request left out something the user would notice in the result. Record the gap in those 구현 기록, then ask the human in Korean — do not guess.
 {% else %}
-**When to stop and replan.** Stop coding if the request left out something the user would notice in the result. Record the gap in those Implementation Notes. In the same state/evidence location record Code Map (what you learned), Open Questions (one per gap), `route: 'full'` and `status: 'draft'`, without rewriting an unformatted canonical plan. Go back to `{{ rendered("step-02-plan.md") }}` step 6.
+**When to stop and replan.** Stop coding if the request left out something the user would notice in the result. Record the gap in those 구현 기록. In the same state/evidence location record 코드 맵 (what you learned), 미해결 질문 (one per gap), `route: 'full'` and `status: 'draft'`, reusing existing semantic equivalents without rewriting canonical human content/headings or an unformatted canonical plan. Go back to `{{ rendered("step-02-plan.md") }}` step 6.
 {% endif %}
 
 ### Review
@@ -126,8 +129,8 @@ For each group:
       {
         "id": "deferred-001",
         "source_plan": "plans/current-task.md",
-        "summary": "Outside-scope finding retained for later work.",
-        "evidence": "Verified cause is outside delegated intent; unresolved findings state what would prove them."
+        "summary": "후속 작업을 위해 보존한 범위 밖 발견 사항.",
+        "evidence": "검증된 원인은 위임된 의도 밖에 있다. 미해결 발견 사항에는 이를 입증할 조건을 기록한다."
       }
     ]
   }
@@ -145,7 +148,7 @@ Re-read current intent, ownership, authority and verification after repairs/revi
 Update only the resolved state/evidence location, never an unformatted canonical plan:
 
 1. Set `status: 'built'` only with current required verification/acceptance satisfied and current successful execution/completion of every applicable required native review lane, or record the truthful incomplete/scoped blocked result in existing context. Explicit review `none` disables optional lenses only, never verification/AC.
-2. Append review evidence without replacing existing logs: one line per finding, verdict and evidence. For `false`, the disproof. For `maybe-false`, what would settle it. For rejected `low`, why it was not worth fixing.
+2. Append Korean review evidence to 리뷰 분류 기록 or its existing semantic equivalent without replacing existing logs: one line per finding, verdict and evidence. For `false`, the disproof. For `maybe-false`, what would settle it. For rejected `low`, why it was not worth fixing. Preserve fixed verdict tokens.
 
 ### Task-Owned Publication
 
@@ -157,7 +160,7 @@ Apply root standing task-only commit/push and clear-change-request PR delegation
 
 {{ workflow.open_plan }}
 
-Give the user a short truthful result summary, distinguishing completed from incomplete/scoped blocked:
+Give the user a short truthful result summary in Korean, distinguishing completed from incomplete/scoped blocked:
 
 - What changed.
 - Review result, including anything deferred.

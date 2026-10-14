@@ -4,6 +4,8 @@
 
 Record external contributor PR review separately from the internal task workflow.
 
+생성하는 HF 검토·계획·보고 문서와 GitHub 제목·본문·검토·댓글은 반드시 한국어로 작성한다. 경로·명령·API 식별자·상태 코드 등 고정 기술 토큰은 유지한다. 기존 canonical 사용자 문서는 번역·복제하지 않고 참조한다.
+
 ## Question Answered
 
 "Should this external PR be merged, changed, or closed?"
@@ -24,6 +26,8 @@ formal review/comment 게시, Merge/Release, Issue close, tag와 미위임 clean
 - `pr_{number}_review_impl.md`
 - `pr_{number}_report.md`
 
+`pr_{number}_review_impl.md`는 실제 추가 계획이 필요하고 기존 canonical이 없을 때만 작성한다. 단일 canonical 검토 계획/context를 우선 재사용하며 기존 `_impl` 원본은 이동·삭제·변환하지 않는다. 별도 두 번째 계획이나 내부 task 산출물을 강제하지 않는다.
+
 완료 review 문서의 `pr/archives/` 이동은 실제 archive 위임이 있을 때만 한다.
 
 ## Templates Used
@@ -34,12 +38,12 @@ formal review/comment 게시, Merge/Release, Issue close, tag와 미위임 clean
 
 ## Required Content
 
-- PR information
-- Change summary
-- Impact area
-- Code/documentation review findings
-- Verification plan or results
-- Recommendation
+- PR 정보
+- 변경 요약
+- 영향 영역과 호환성
+- 코드·문서 검토 발견 사항
+- 검증 계획 또는 검증 결과
+- 권고 또는 최종 권고
 - 실제 HIGH/핵심 intent·scope 변경이나 외부 행동에만 필요한 한정 승인 조건·evidence; 일반 verification-plan 승인 요청은 필수 항목이 아니다.
 
 ## Content Not Allowed

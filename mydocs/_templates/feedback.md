@@ -1,42 +1,44 @@
-# Feedback Template
+# 피드백 템플릿
 
-This central template is for recording task requester feedback, code review comments, and rework instructions in `mydocs/feedback/`. Feedback documents preserve judgments and requests that the AI must not miss in the next revision. They do not replace long-term technical notes or troubleshooting records.
+이 중앙 템플릿은 `mydocs/feedback/`에 작업 요청자의 피드백, 코드 리뷰 의견, 재작업 지시를 기록하는 서식이다. 피드백 문서는 다음 수정에서 AI가 놓치지 않아야 할 판단과 요청을 보존한다. 장기 기술 노트나 문제 해결 기록을 대신하지 않는다.
 
-## Usage
+## 사용 방법
 
-- Actual file: `mydocs/feedback/{yyyymmdd}_{topic}.md` or `mydocs/feedback/task_{milestone}_{issue}_feedback.md`
-- When to write: when stage approval is withheld, PR review is received, the task requester asks for rework, or the design direction changes
-- Writing language: use the selected Hyper-Waterfall locale for this repository.
+- 실제 파일: `mydocs/feedback/{yyyymmdd}_{topic}.md` 또는 `mydocs/feedback/task_{milestone}_{issue}_feedback.md`
+- 작성 시점: 필요한 승인이 보류되거나, PR 리뷰를 받거나, 작업 요청자가 재작업을 요청하거나, 설계 방향이 변경되어 기록이 필요할 때. 문서 작성이나 동일 scope 수정의 재승인을 강제하지 않는다.
+- 작성 언어: 한국어. 파일명·명령·고정 기술 토큰은 유지한다. 인용하는 기존 canonical 사용자 의도는 번역·변형하지 않고 그대로 보존한다.
+- 개인정보 보호: 원시 로그·경로·세션 ID·프롬프트·응답·인증정보·SQL 내용·스택 추적·임의 메타데이터 덤프를 기록하지 않는다. 저장소 상대 참조와 비식별 요약만 사용한다.
+- 권한: root/가장 가까운 `AGENTS.md`, native permission과 실제 요청 scope를 따른다. 피드백 문서나 상태는 Git 작업·Merge/Release·공식 게시·Issue 종료·삭제 권한을 만들지 않는다.
 
-## Target
+## 대상
 
-- Related Issue: #{issue}
-- Related Stage: {stage or not applicable}
-- Related PR: #{pr or not applicable}
-- Author: {task requester or reviewer}
-- Date: YYYY-MM-DD
+- 관련 Issue: {실제 번호가 있으면 #번호, 없으면 해당 없음}
+- 관련 단계: {단계 또는 해당 없음}
+- 관련 PR: {실제 번호가 있으면 #번호, 없으면 해당 없음}
+- 작성자: {작업 요청자 또는 리뷰어}
+- 날짜: YYYY-MM-DD
 
-## Feedback Summary
+## 피드백 요약
 
-{Summarize the requested change in 1-3 sentences.}
+{요청된 변경을 1~3문장으로 요약한다.}
 
-## Detailed Feedback
+## 상세 피드백
 
-| Location                     | Content              | Expected Result        |
-| ---------------------------- | -------------------- | ---------------------- |
-| `{file or document section}` | {problem or request} | {how it should change} |
+| 위치                  | 내용             | 기대 결과            |
+| --------------------- | ---------------- | -------------------- |
+| `{파일 또는 문서 절}` | {문제 또는 요청} | {변경되어야 할 모습} |
 
-## Priority
+## 우선순위
 
-- must-fix: {must be reflected}
-- should-fix: {should be reflected if possible}
-- note: {reference note}
+- 필수 수정: {반드시 반영해야 할 내용}
+- 권장 수정: {가능하면 반영해야 할 내용}
+- 참고: {참고할 내용}
 
-## Acceptance Criteria
+## 완료 기준
 
-- {criteria for considering the revision complete}
-- {verification command or check method}
+- {수정 완료로 판단할 기준}
+- {검증 명령 또는 확인 방법}
 
-## Follow-up Check
+## 후속 확인
 
-- {what the task requester should review again}
+- {작업 요청자가 다시 검토해야 할 내용}

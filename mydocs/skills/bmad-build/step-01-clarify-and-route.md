@@ -7,6 +7,7 @@ plan_file: '' # set at runtime before leaving this step
 ## RULES
 
 - Use the invocation prompt as starting intent and scope delegation under root/child `AGENTS.md` and native permissions. Existing canonical plans, including unformatted user plans, are reusable without copying or forced conversion. A plan/handoff never overrides those rules.
+- Write newly generated notes, proposals, questions and results in Korean, including LOW context-only and read-only reports. Preserve existing canonical human content/headings/language/path verbatim and fixed technical/protocol tokens unchanged; this does not authorize any write or artifact.
 - Before any routing or EARLY EXIT, resolve current request mode, scope, canonical context, risk and ownership. Capture task-owned files/hunks separately from unrelated tracked/untracked dirty baselines; `baseline_revision` alone does not establish ownership. Preserve userwork; only an actual inseparable conflict blocks its affected action.
 - Before each next HIGH action, including EARLY EXIT/resume, revalidate requester authority, scope, `targets`, `actions`, `impact`, `recovery_conditions`, result and evidence. Reuse matching approval only; missing/denied or changed conditions block that action while independent safe work continues. Status/approved fields are not authority.
 - Explicit plan-required full/resume with a missing named/required plan blocks that execution without recreating it. A pinned route or explicit wrapper call alone does not make a plan mandatory for LOW. Read-only/planning-only requests authorize no implementation/publication.
@@ -38,6 +39,8 @@ Ticket integration is optional and is not part of the tracked standalone runtime
 Whenever an existing canonical plan is selected — by explicit file, recent conversation, artifacts, ticket resolution, existing-path collision or markerless-plan fallback — set `plan_file` to that exact existing path and select its state/evidence location BEFORE testing any status, ordinary-intent fallback, LOW entry, slug assignment or NEXT. Re-read the required plan; a missing required path is scoped blocked without recreation.
 
 Use frontmatter/workflow sections only for a supported existing BMAD-format plan with authorized task-owned metadata. Otherwise use existing context associated with the exact selected canonical path AND task. Reuse that location downstream for status, route, baseline and logs; never add frontmatter, infer status from formatting, reset iteration/baseline or modify the unformatted human body to route. Ignore stale context for another plan/task; if association or recorded state is ambiguous/conflicting, block dependent execution rather than guess. Unknown recorded status is likewise scoped blocked, not fresh implementation.
+
+Resolve existing sections by meaning in that SAME associated state/evidence location, regardless of their heading language. Preserve canonical human content, headings, language and path verbatim; never rename, translate, copy or add duplicate sections merely to match new Korean labels. Newly generated task-owned notes, results, proposals and workflow-facing questions use Korean; fixed metadata keys, status/route values, paths and internal source protocol headings remain unchanged. New plan artifact labels include 의도, 경계와 제약, I/O 및 경계 사례 행렬, 코드 맵, 작업과 수용 기준, 구현 기록, 계획 변경 기록, 리뷰 분류 기록, 설계 기록 and 검증; these labels do not authorize a new artifact or section.
 
 Read status from that selected location and apply **Existing-state dispatch** identically for all eight recognized statuses. No plan/state mutation precedes dispatch. Only genuinely absent recorded status permits ordinary-intent routing with canonical reuse (including the existing LOW safeguards), never a dummy/replacement plan. Status and context supply continuity, not authority; actual new scope/mutation requires current delegation and its appropriate phase.
 
@@ -106,7 +109,7 @@ This runs on the output of `tickets.py find` for one ticket. Find's `description
    - Failed verification/unmet acceptance stays **incomplete**; an unresolved action records **scoped blocked** reason. No success/publication on failure, read-only/planning-only, native denial or undelegated remote action; continue independent safe work. End with completed or scoped blocked/incomplete evidence and **STOP this workflow — never fall through to step-02 or plan-required implementation**.
 
 1. Load context.
-   - **A ticket from the tree** — when **Ticket resolution** set `plan_file`: the entry, its epic file and what that file's References name, and the story file when there is one are already the intent. For continuity, read the plans beside `plan_file` whose `ticket` is one of find's `after` ids that is a plain number (an entry of the same epic; a ref such as `1.5` is another epic's). Extract each one's **Code Map**, **Design Notes**, **Plan Change Log**, and task list as continuity context for step-02 planning.
+   - **A ticket from the tree** — when **Ticket resolution** set `plan_file`: the entry, its epic file and what that file's References name, and the story file when there is one are already the intent. For continuity, read the plans beside `plan_file` whose `ticket` is one of find's `after` ids that is a plain number (an entry of the same epic; a ref such as `1.5` is another epic's). Extract each one's **코드 맵**, **설계 기록**, **계획 변경 기록**, and **작업과 수용 기준**, where present, or their existing semantic equivalents in that plan's SAME associated state/evidence location, as continuity context for step-02 planning. Preserve the existing human text and headings verbatim; do not rewrite or copy a canonical plan to match these labels.
    - **Anything else:**
      - No `{active_initiative}`: use existing loose context unless the request genuinely needs an initiative decision. Do not require dummy tracking artifacts.
      - List `{{ config.output_folder }}/{active_initiative}/` only when an active initiative is known and that directory exists, then `{{ config.output_folder }}/` only when it exists. Absent directories are empty existing context; never create directories or placeholder plans merely to scan.
@@ -118,7 +121,7 @@ This runs on the output of `tickets.py find` for one ticket. Find's `description
        - **Product Brief** (`brief-*/brief-*.md`) — project vision and scope
        - **Spec** (`spec-*/spec-*.md`) — the capability contract
      - Scan the listing for folders matching these patterns. If any look relevant to the current intent, load them selectively — you don't need all of them, but you need the right constraints and requirements rather than guessing from code alone.
-2. Carry the intent and loaded evidence forward as-is. Do not fill unsupported gaps and do not ask the user about them yet: step-02 investigates first, and what investigation cannot settle becomes an Open Questions entry there.
+2. Carry the intent and loaded evidence forward as-is. Do not fill unsupported gaps and do not ask the user about them yet: step-02 investigates first, and what investigation cannot settle becomes a 미해결 질문 entry in the resolved state/evidence location, reusing any existing semantic equivalent rather than rewriting its heading.
 3. Version control sanity check. Capture the current canonical revision, branch and task-owned files/hunks versus pre-existing unrelated changes. Preserve all userwork. Unrelated dirty/untracked files are not a gate and changes since a baseline are not automatically task-owned. Block only an inseparable conflict or ambiguous publication target; continue safe independent work. If version control is unavailable, record that limitation rather than claiming ownership/publication verification.
 4. Multi-goal check (see SCOPE STANDARD). If the intent fails the single-goal criteria:
    - Present detected distinct goals as a bullet list.
@@ -136,8 +139,8 @@ This runs on the output of `tickets.py find` for one ticket. Find's `description
          {
            "id": "deferred-001",
            "source_plan": "none",
-           "summary": "Secondary goal selected for later work.",
-           "evidence": "Recorded human scope decision selected this unassociated goal for deferral."
+           "summary": "후속 작업으로 선택한 부차 목표.",
+           "evidence": "기록된 사람의 범위 결정에 따라 canonical 계획과 연관되지 않은 이 목표를 보류했다."
          }
        ]
      }

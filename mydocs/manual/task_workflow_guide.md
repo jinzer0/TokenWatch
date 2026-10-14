@@ -7,7 +7,7 @@ This manual defines the Hyper-Waterfall task procedure, task number and commit m
 - **Task plan**: 의도·scope·acceptance criteria·검증을 담은 단일 canonical 계획. 기존 활성 사용자 계획을 먼저 재사용하고, 새 계획이 필요하면 BMAD가 하나만 작성하며 HF는 참조와 context/evidence를 보완한다.
 - **Implementation plan**: canonical 계획 안의 실행 단계·산출물·검증·commit 구성. 기존 `_impl` 파일은 보존·참조하되 새 별도 원본이나 강제 변환은 요구하지 않는다.
 - **Stage report**: `_stage{N}.md` report left in `mydocs/working/` after a Stage ends.
-- **Final report**: `_report.md` report left in `mydocs/report/` after all Stages end.
+- **Final report**: 필요한 최종 상태/evidence를 남기는 `mydocs/report/`의 `_report.md`. 실패·blocked 상태도 incomplete로 보고할 수 있으며 LOW에 별도 보고를 강제하지 않는다.
 - **Approval assumption rule**: LOW/MEDIUM의 명확한 요청 scope와 조건이 일치하는 HIGH 승인 묶음을 근거로 진행한다. 같은 thread의 추가 continue는 같은 scope의 필수 gate가 아니다.
 
 ## Document Output Format
@@ -16,9 +16,9 @@ This manual defines the Hyper-Waterfall task procedure, task number and commit m
 
 GitHub Issues and Pull Requests are GitHub platform artifacts. New task Issues use `.github/ISSUE_TEMPLATE/task.yml` as the input prompt format, and PR bodies use `.github/pull_request_template.md` as the output format.
 
-Write all Hyper-Waterfall documents and GitHub platform artifacts in Korean, including Issues, Pull Request titles/bodies, daily task boards, task plans, implementation plans, stage reports, final reports, PR review records, and workflow-facing approval requests. Preserve fixed technical tokens, command names, labels, branch names, file paths, and commit subject prefixes where the workflow format requires them.
+새 Hyper-Waterfall 문서와 GitHub 플랫폼 산출물(Issue, PR, daily task board, 계획, stage/final report, PR review 기록)의 제목·본문 제목·항목명·설명·예시·승인 요청은 한국어로 작성한다. 기술 식별자·명령·고정 GitHub label·branch·경로·설정 key·상태값과 TokenWatch의 영어 semantic commit 형식은 유지한다. 기존 인간 canonical 계획·역사 문서의 경로·원문·의도는 번역·복제·강제 변환하지 않는다. upstream locale/source 언어는 provenance일 뿐 새 출력의 언어 권한이나 runtime fallback이 아니다. 기준은 [`document_structure_guide.md`](document_structure_guide.md)다.
 
-The PR body `Verification` section follows `.github/pull_request_template.md`: `Automated Verification`, `Manual/Scenario Verification`, `CI/Remote Verification`, and `Verification Limitations`. Do not merely list commands. Include results and evidence. Do not leave unperformed verification in tables; move it to `Verification Limitations` or `Remaining Risks`.
+PR 본문 `검증` 절은 `.github/pull_request_template.md`의 `자동 검증`, `수동·시나리오 검증`, `CI·원격 검증`, `검증 한계` 제목을 그대로 따른다. 명령만 나열하지 않고 결과와 evidence를 기록한다. 미실행 검증은 표에 남기지 않고 `검증 한계` 또는 `잔여 위험`으로 옮긴다.
 
 ## Framework Lifecycle Work
 
@@ -100,13 +100,13 @@ Hyper-Waterfall SKILL을 실제 적용할 때 호출 표시는 위임된 절차�
 
 Recommended format:
 
-- `Calling the task-register skill.`
-- `Calling the task-start skill.`
-- `Calling the task-stage-report skill.`
-- `Proceeding with the task-final-report skill.`
-- `Calling the pr-merge-cleanup skill.`
-- `Calling the external-pr-review skill.`
-- `Calling the todo skill.`
+- `task-register skill을 호출합니다.`
+- `task-start skill을 호출합니다.`
+- `task-stage-report skill을 호출합니다.`
+- `task-final-report skill로 진행합니다.`
+- `pr-merge-cleanup skill을 호출합니다.`
+- `external-pr-review skill을 호출합니다.`
+- `todo skill을 호출합니다.`
 
 Use this display for the corresponding Hyper-Waterfall procedure.
 

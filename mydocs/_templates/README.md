@@ -1,25 +1,33 @@
-# `_templates/` Folder Rules
+# `_templates/` 폴더 규칙
 
-## Purpose
+## 목적
 
-Define the output formats for Hyper-Waterfall artifacts in one central place.
+Hyper-Waterfall 산출물의 출력 형식을 한곳에서 정의한다.
 
-root/nearest-child `AGENTS.md` Risk-Based Execution Policy와 native permission을 우선한다. template은 필요한 산출물의 서식이지 고정 생성·승인 순서가 아니다. LOW는 existing context로 충분하고 MEDIUM의 명확한 요청 scope는 자율 진행한다. Issue/보드/별도 계획·보고나 최소 stage 수를 강제하지 않는다.
+루트 및 가장 가까운 하위 `AGENTS.md`의 위험 기반 실행 정책과 네이티브 권한을 우선한다. 서식은 필요한 산출물의 형식이지 고정 생성·승인 순서가 아니다. LOW는 기존 맥락으로 충분하고 MEDIUM의 명확한 요청 범위는 자율 진행한다. Issue/보드/별도 계획·보고나 최소 단계 수를 강제하지 않는다.
 
-- `task_plan.md`: 기존 활성 canonical 계획을 우선 재사용하고 필요한 새 BMAD 계획 하나의 서식으로 사용한다. HF는 참조/context/evidence를 연결한다.
-- `task_impl_plan.md`: canonical 계획의 execution section 서식이다. 새 별도 `_impl` 원본·dummy 계획·기존 사용자 계획의 복제/강제 변환을 요구하지 않는다. 기존 `_impl` canonical은 그대로 보존·참조한다.
-- `stage_report.md` / `final_report.md`: 필요한 성공·실패·blocked·not-run evidence를 기록한다. 실패는 incomplete이며 같은 scope에서 repair/reverify하고 다음 stage/report 갱신을 재승인하지 않는다.
-- 검증된 task-only standing commit/push와 명확한 변경 요청의 PR만 처리한다. 조회·계획·보고만의 요청이나 status는 implementation/publication 권한이 아니다. HIGH는 한정 승인 조건을 다음 위험 행동/재개에 확인하며 Merge/Release·formal posting·Issue close·tag·미위임 삭제/cleanup은 별도 권한을 유지한다.
+- `task_plan.md`: 기존 활성 기준(canonical) 계획을 우선 재사용하고 필요한 새 BMAD 계획 하나의 서식으로 사용한다. HF는 참조/맥락/증거를 연결한다.
+- `task_impl_plan.md`: 기준 계획의 실행 섹션을 구체화하는 선택 서식이다. 새 별도 `_impl` 원본·빈 계획·기존 사용자 계획의 복제/강제 변환을 요구하지 않는다. 기존 `_impl` 기준 계획은 그대로 보존·참조한다.
+- `stage_report.md` / `final_report.md`: 필요한 성공·실패·blocked·not-run 증거를 기록한다. 실패는 incomplete이며 같은 범위에서 수정·재검증하고 다음 단계/보고 갱신을 재승인하지 않는다.
+- 검증된 작업 전용 상시 commit/push와 명확한 변경 요청의 PR만 처리한다. 조회·계획·보고 전용 요청이나 상태는 구현/공개 권한이 아니다. HIGH는 한정 승인 조건을 다음 위험 행동/재개에 확인하며 Merge/Release·공식 게시·Issue close·tag·미위임 삭제/정리는 별도 권한을 유지한다.
 
-## Questions Answered
+## 작성 언어
 
-"What sections and constraints should this document follow?"
+모든 서식이 생성하는 HF 문서와 GitHub 산출물의 제목·항목명·본문·일반 안내·예시·승인 요청은 **한국어**로 작성한다. 선택 로캘·원본 서식 언어·에이전트 기본 언어를 이유로 다른 언어를 선택하지 않는다. `T-ID`, `AC`, 기술 키, 상태값, 라벨, 명령, 브랜치명, 경로, 필수 커밋 접두사·출처 표시처럼 형식상 고정된 토큰은 유지한다. 커밋 제목은 루트의 의미 기반 영어 형식을 따른다.
 
-## When to Write
+이 규칙은 생성기와 새 출력에 적용한다. 기존 사람이 작성한 기준 계획·의도·역사 문서를 번역·이동·삭제·복제·강제 변환하지 않는다. 기존 문서를 참조하고 필요한 실행 맥락·검증 증거만 연결한다.
 
-When a new artifact type is added or an existing artifact output format changes.
+프롬프트·응답·자격 증명·원시 경로/세션 ID/레코드·SQL·스택 추적·임의 메타데이터 덤프를 출력하지 않는다. 기준 상태·작업 소유권과 안전한 증거 참조를 유지하고 긴 원시 로그 대신 결과를 요약한다.
 
-## Allowed Filenames
+## 이 문서가 답하는 질문
+
+“이 문서는 어떤 섹션과 제약을 따라야 하는가?”
+
+## 작성 시점
+
+새 산출물 유형을 추가하거나 기존 산출물 출력 형식을 변경할 때 작성한다.
+
+## 허용 파일명
 
 - `orders.md`
 - `task_plan.md`
@@ -32,27 +40,27 @@ When a new artifact type is added or an existing artifact output format changes.
 - `external_pr_review.md`
 - `external_pr_review_impl.md`
 - `external_pr_report.md`
-- Other names that clearly identify the artifact type
+- 산출물 유형을 명확히 식별하는 다른 이름
 
-## Template Used
+## 사용하는 서식
 
-Not applicable. This folder itself is the source of truth for templates.
+해당 없음. 이 폴더 자체가 서식의 기준 원본이다.
 
-## Required Content
+## 필수 내용
 
-- Actual file location
-- When to write it
-- Writing language
-- Required sections
-- Optional sections
-- 검증/evidence·scope/위험 조건과 실제 필요한 한정 승인 기준
+- 실제 파일 위치
+- 작성 시점
+- 작성 언어
+- 필수 섹션
+- 선택 섹션
+- 검증/증거·범위/위험 조건과 실제 필요한 한정 승인 기준
 
-## Content Not Allowed
+## 허용하지 않는 내용
 
-- Actual verification logs from a specific task
-- Completion reports
-- Task requester approval records
+- 특정 작업의 실제 검증 로그
+- 완료 보고
+- 작업 요청자의 승인 기록
 
-## Context the Next Session AI Must Restore
+## 다음 세션 AI가 복원해야 할 맥락
 
-The output format for each artifact type, and which folder each document belongs in.
+각 산출물 유형의 출력 형식과 각 문서가 속하는 폴더.

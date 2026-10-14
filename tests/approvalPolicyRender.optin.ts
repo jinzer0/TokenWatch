@@ -620,12 +620,12 @@ function safety(snapshot: Snapshot, skill: Skill, route: Route, review: Review):
   if (ordinaryReview) {
     assertText(
       ordinaryReview,
-      /If `## Review Triage Log` at the resolved state\/evidence location already has rows/,
+      /If 리뷰 분류 기록 at the resolved state\/evidence location already has rows/,
       'rendered resume uses resolved log'
     );
     assertText(
       ordinaryReview,
-      /Every finding gets one row in the Review Triage Log at the resolved state\/evidence location/,
+      /Every finding gets one row in 리뷰 분류 기록 at the resolved state\/evidence location/,
       'rendered findings use resolved log'
     );
     assertText(
@@ -634,9 +634,22 @@ function safety(snapshot: Snapshot, skill: Skill, route: Route, review: Review):
       'rendered triage cannot mutate the human plan'
     );
     expect(
-      /Review Triage Log` section of `\{plan_file\}`/.test(ordinaryReview),
+      /(?:Review Triage Log|리뷰 분류 기록)` section of `\{plan_file\}`/.test(ordinaryReview),
       'no rendered forced triage section'
     ).toBe(false);
+  }
+  if (skill === 'bmad-build-auto') {
+    const guard =
+      files['step-04-review.md']
+        .split('## INSTRUCTIONS')[1]
+        ?.split('### State/evidence location')[0] ?? '';
+    assertText(guard, /read-only\/planning-only\/report-only/, 'rendered direct auto review modes');
+    assertText(
+      guard,
+      /STOP here before[\s\S]*Finalize/,
+      'rendered direct auto review terminal exit'
+    );
+    expect(/then apply Finalize/.test(guard), 'no rendered Finalize handoff').toBe(false);
   }
   const guardStart = step.indexOf('## Request-mode guard');
   const routingStart = step.indexOf('## Intent check');
@@ -934,7 +947,7 @@ function safety(snapshot: Snapshot, skill: Skill, route: Route, review: Review):
       );
       if (name === 'step-04-review.md') {
         const classify = text.split('### Classify\n')[1]?.split('\n## NEXT')[0] ?? '';
-        const carry = classify.match(/^ {3}If `## Review Triage Log`[^\n]+/m)?.[0] ?? '';
+        const carry = classify.match(/^ {3}If 리뷰 분류 기록[^\n]+/m)?.[0] ?? '';
         for (const pattern of [
           /Carry a prior verdict and route only when current code and relevant evidence still support them/,
           /Same location, claim or unchanged code alone is not sufficient/,
@@ -1277,6 +1290,59 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
     }
   }
   for (const skill of skills) {
+    it(`${skill} actually renders Korean canonical headings with unchanged native schema`, () => {
+      const f = fixture(skill);
+      try {
+        const snapshot = render(f, ['workflow.route=full']);
+        const plan = readBytes(join(snapshot.generation, 'plan-template.md')).toString('utf8');
+        for (const heading of [
+          '의도',
+          '경계와 제약',
+          'I/O 및 경계 사례 행렬',
+          '코드 맵',
+          '작업과 수용 기준',
+          '구현 기록',
+          '계획 변경 기록',
+          '리뷰 분류 기록',
+          '설계 기록',
+          '검증'
+        ]) {
+          expect(plan.includes(`## ${heading}`), 'Korean canonical output section').toBe(true);
+        }
+        expect(
+          /^## (?:Intent|Implementation Notes|Plan Change Log|Review Triage Log|Verification)$/m.test(
+            plan
+          ),
+          'obsolete emitted headings removed'
+        ).toBe(false);
+        for (const key of [
+          'title',
+          'type',
+          'ticket',
+          'created',
+          'status',
+          'baseline_revision',
+          'route',
+          'route_source',
+          'risk',
+          'review',
+          'review_source',
+          'lenses_ran',
+          'review_loop_iteration',
+          'context'
+        ]) {
+          expect(new RegExp(`^${key}:`, 'm').test(plan), 'fixed machine schema retained').toBe(
+            true
+          );
+        }
+        expect(
+          plan.includes(skill === 'bmad-build' ? '<frozen-after-approval' : '<intent-contract>'),
+          'native intent ownership marker retained'
+        ).toBe(true);
+      } finally {
+        cleanup(f.root);
+      }
+    });
     for (const surface of ['instruction', 'persistent', 'overrides'] as const) {
       for (const alias of [
         '{plan_file}',
@@ -1646,7 +1712,7 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
         }
       }
     }
-    // 92 spellings x four publication inputs x two skills = 736 negatives.
+    // 112 spellings x four publication inputs x two skills = 896 negatives.
     // Paths are invented sentinels, never actual machine/user locations.
     for (const [form, prose] of [
       ['posix', 'Read /synthetic-private-machine/work/file.md'],

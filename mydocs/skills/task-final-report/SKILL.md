@@ -18,6 +18,7 @@ description: |
 - root/nearest-child `AGENTS.md` Risk-Based Execution Policy·native phase/tool permission과 실제 사용자 scope를 확인한다. canonical 계획 또는 LOW existing context를 참조하고 별도 `_impl`/모든 stage report를 강제하지 않는다.
 - 현재 acceptance criteria·검증/evidence 상태를 확인한다. 실패/blocked 최종 상태 보고도 허용하되 성공 완료·publication 권한으로 바꾸지 않는다.
 - reviewed task-owned filename/hunk·baseline과 repo/remote/base/head·기존 PR를 확인한다. unrelated dirty/untracked와 사용자 계획은 보존한다. read-only/planning-only/report-only는 구현·commit/push/PR 위임이 아니다.
+- 새 HF 보고·보드·맥락 기록·PR·승인 요청의 제목·항목명·설명·예시는 한국어로 작성한다. 고정 기술 토큰·상태값·명령·경로·커밋 형식은 유지하고 기존 사용자 canonical 계획의 원문·의도는 번역하거나 강제 변환하지 않는다. 개인정보·원시 세션/경로·로그는 노출하지 않는다.
 
 ## Procedure
 
@@ -25,20 +26,25 @@ description: |
 2. 필요한 Issue 산출물만 `mydocs/report/task_m{milestone}_{N}_report.md`에 작성하고 LOW는 기존 context로 충분하다. 문서 위치 판단은 canonical/context에 기록하며 같은 scope 기록 갱신은 재승인하지 않는다.
    - Use central template `mydocs/_templates/final_report.md`.
    - Only if the template cannot be read, use these fallback sections:
-     - Work summary: Issue link, milestone, Stage count
-     - Changed files and impact area
-     - Quantitative before/after comparison when applicable, such as line count, token count, or verification pass count
-     - Verification results by acceptance criterion
-     - Residual risks and follow-up work
-     - 현재 완료/incomplete/blocked·risk/authority 상태와 다음 안전 행동/필요 위험 결정
+     - 작업 요약: 존재하는 Issue 링크·마일스톤·실제 단계 수
+     - 변경 파일과 영향 영역
+     - 문서 위치 검증
+     - 변경 전후 정량 비교: 해당할 때 줄 수·토큰 수·검증 통과 수 등 실제 수치
+     - 검증 결과: 인수 기준별 `AC`, `방법`, `결과`, `증거 / 한계` 표 헤더와 `단계 / 맥락 검증`; passed/failed/blocked/not-run 유지
+     - 잔여 위험과 후속 작업
+     - 검증된 작업 전용 공개
+     - 보존된 승인 경계와 다음 안전 행동: 현재 verified/incomplete/blocked·위험/권한 상태와 필요한 위험 결정
 3. 기존 보드가 필요한 작업만 `mydocs/orders/{yyyymmdd}.md`의 #{N} row를 갱신한다. 없는 Issue/보드를 만들지 않는다.
    - Use output format from `mydocs/_templates/orders.md`.
    - 검증된 완료에만 `Done`/`Done: HH:mm`를 기록한다. 실패·blocked·not-run은 해당 상태로 유지한다.
 4. Check changes.
+   - 현재 context에서 이미 확인한 실제 base/head ref 또는 revision을 사용한다. Issue 없는 작업에 `local/task{N}`이나 가짜 번호를 추정하지 않는다.
    ```bash
    git status --short
    git diff --check
-   git log --oneline main..local/task{N}
+   BASE_REF='{확인한 실제 base ref 또는 revision}'
+   HEAD_REF='{확인한 실제 작업 head ref 또는 revision}'
+   git log --oneline "${BASE_REF}..${HEAD_REF}" --
    ```
 5. 검증된 task 변경의 exact filename allowlist와 atomic concern/semantic subject를 확인한다. 실제 필요한 source/report/board만 포함하고 전체 diff/디렉터리를 stage하지 않는다. standing commit/push 위임과 현재 명확한 변경 scope를 적용한다. 아래는 실제 Issue 산출물이 존재하는 경우의 예다.
 
@@ -72,20 +78,20 @@ description: |
 
    - The PR title and body must be written in Korean while preserving fixed technical tokens such as labels, file paths, branch names, command names, and code identifiers where needed.
    - The PR body uses `.github/pull_request_template.md`.
-   - Include at most 4 summary bullets: target task, why, what, review focus.
+   - `요약`에는 대상 작업·이유·변경 내용·리뷰 초점의 한국어 항목을 최대 4개 작성한다.
    - 실제 필요한 stage/context별 변경·검증·잔여 한계를 요약한다. 고정 stage/report 수를 요구하지 않는다.
    - 존재하는 공개 가능한 stage 문서/commit만 링크한다. Issue 없는 context나 비공개 native 계획을 raw session/path와 함께 노출하거나 가짜 link/산출물을 만들지 않는다.
    - Link work documents with `HEAD_SHA` pinned URLs: `https://github.com/jinzer0/TokenWatch/blob/{HEAD_SHA}/mydocs/...`.
    - Use `[filename](URL)` instead of raw links.
    - Do not use relative links or `blob/publish/task{N}/...` links.
-   - Use the PR body verification subsections `Automated Verification`, `Manual/Scenario Verification`, `CI/Remote Verification`, and `Verification Limitations`.
-   - Automated verification uses a `Topic / Method / Result / Evidence` table, summarizing what acceptance criterion was checked and the key output or pass count.
-   - Manual/scenario verification uses a `Scenario / Check Procedure / Result / Evidence` table.
-   - CI/remote verification uses an `Item / Result / Evidence` table with GitHub Check names, run links, or check time.
-   - Do not leave unperformed verification in tables. Move it to `Verification Limitations` or `Remaining Risks`.
+   - PR 본문 `검증`의 하위 제목은 `자동 검증`, `수동·시나리오 검증`, `CI·원격 검증`, `검증 한계`를 사용한다.
+   - 자동 검증은 `주제 / 방법 / 결과 / 근거` 표로 확인한 인수 기준과 핵심 결과 또는 통과 수를 요약한다.
+   - 수동·시나리오 검증은 `시나리오 / 확인 절차 / 결과 / 근거` 표를 사용한다.
+   - CI·원격 검증은 GitHub Check 이름·실행 링크·확인 시각을 담은 `항목 / 결과 / 근거` 표를 사용한다.
+   - 미실행 검증은 통과 표에 남기지 않고 `검증 한계` 또는 `잔여 위험`에 기록한다. 실패·blocked·not-run은 passed와 구분한다.
    - Do not paste long logs into the PR body; link the final report or stage reports.
-   - Keep `Screenshots` only for visual changes.
-   - `Related Issues` is for prerequisite, follow-up, Epic, upstream, or reference Issues, not the target task.
+   - `스크린샷`은 시각적 변경에만 유지한다.
+   - `관련 Issue`는 대상 작업이 아니라 선행·후속·Epic·upstream·참고 Issue를 위한 항목이다.
 
 8. 생성/갱신한 PR URL과 review focus·검증/제약을 보고한다. Merge/Release·formal review/comment 게시·Issue close·tag·미위임 삭제/cleanup은 자동 PR 권한에 포함되지 않는다. HIGH는 다음 위험 행동/재개 직전에 targets/actions/impact/recovery_conditions/result/evidence와 실제 requester authority·scope의 한정 승인 묶음을 확인하며 같은 조건만 재사용하고 변경 결정만 재승인한다. missing/denied는 해당 위험 행동을 차단하고 독립 safe 작업은 계속한다. 과거 done/보고/plan status는 새 권한이나 현재 검증을 만들지 않는다.
 
@@ -93,10 +99,10 @@ description: |
 
 - 필요한 final/stage 산출물만 존재하고 canonical/context와 연결된다. LOW optional 산출물 부재를 실패로 판정하지 않는다.
 - 사용한 final report/context는 해당 scope·변경·검증 결과·잔여 한계를 채우고 실패/blocked/not-run을 passed와 분리한다.
-- 실제 PR의 Changes에는 존재하는 공개 가능 evidence/commit 링크만 사용한다.
+- 실제 PR의 `변경 사항`에는 존재하는 공개 가능 evidence/commit 링크만 사용한다.
 - Work document links use commit SHA-pinned URLs and `[filename](URL)` format.
 - Work document links do not contain raw GitHub blob URLs, relative links, or `blob/publish/task{N}`.
-- The PR body `Verification` section follows `Automated Verification`, `Manual/Scenario Verification`, `CI/Remote Verification`, and `Verification Limitations`.
+- PR 본문 `검증`은 `자동 검증`, `수동·시나리오 검증`, `CI·원격 검증`, `검증 한계`와 한국어 표 헤더를 따른다.
 - The PR body does not keep unperformed verification checklists in tables.
 - 기존 task board를 사용한 검증 완료 작업만 #{N} row가 `Done`/`Done: HH:mm`이다.
 - 위임된 verified commit은 reviewed task-owned 변경만 포함하고 semantic subject/TokenWatch attribution을 유지한다. clean은 task-owned pending changes 기준이며 unrelated working-tree dirty는 보존한다.

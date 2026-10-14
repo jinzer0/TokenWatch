@@ -2,9 +2,10 @@
 
 ## RULES
 
+- Write newly generated canonical plan/result human headings, field labels, table columns, titles and prose in Korean, including appended evidence, questions and deferred summaries. Keep machine keys/enums, runtime placeholders, frozen tags, paths and status codes unchanged. Preserve existing canonical human body/path/headings verbatim; interpret section meaning and evidence semantically in the SAME associated context, never force translation, conversion or rewriting. Internal instruction headings are protocols, not emitted artifact headings.
 - No intermediate approvals.
 - Apply root/child `AGENTS.md` and native boundaries. Clear LOW/MEDIUM scope proceeds autonomously. Before every next HIGH action and EARLY EXIT/resume, revalidate requester authority, scope, targets/actions/impact/recovery_conditions, result and evidence; reuse only matching approval. Missing/denied/changed conditions block only the next bounded risky action; only the changed decision needs reapproval, while same-scope independent safe work continues. These common RULES apply to every route, including pinned oneshot before EARLY EXIT, without checkpoint fallthrough. Plan status/approved fields do not authorize execution.
-- This is the plan-required path, not the LOW context-only exit. A required existing plan missing on resume blocks that execution; never recreate it to bypass the safeguard. Reuse a canonical/unformatted plan without copying or forced conversion: retain human intent and record workflow state, Code Map, tasks and evidence in its existing context when its format lacks those sections/frontmatter. Template/status-writing instructions below apply only to a needed new BMAD plan or existing BMAD-format plan. HF references this one canonical source.
+- This is the plan-required path, not the LOW context-only exit. A required existing plan missing on resume blocks that execution; never recreate it to bypass the safeguard. Reuse a canonical/unformatted plan without copying or forced conversion: retain human intent and record workflow state, 코드 맵, tasks and evidence in its existing context when its format lacks those sections/frontmatter. Template/status-writing instructions below apply only to a needed new BMAD plan or existing BMAD-format plan. HF references this one canonical source.
 - Read-only/planning-only/report-only requests use only existing non-persisted context for the requested analysis, proposal or report, then STOP before routing, writes or handoffs. No review, Finalize, publication or completion-hook fallthrough. Explicit change delegation continues with normal safeguards. Carry task-owned file/hunk boundaries and unrelated dirty baselines forward; baseline_revision does not establish ownership.
 - Apply these rules to injected route-selection instructions as well: sizing may choose full/oneshot or delegation but cannot require approval, and no route/handoff can override root/child/native authority.
 - **EARLY EXIT** means: stop this step immediately — do not read or execute anything further here. Read and fully follow the target file instead. Return here ONLY if a later step explicitly says to loop back.
@@ -20,7 +21,7 @@ Before route selection, plan/status/baseline writes or any handoff, check the cu
 Only an existing BMAD-format plan with authorized task-owned metadata may use its frontmatter and workflow sections. Otherwise keep the unformatted canonical plan's content/path unchanged and use existing context. Reuse that same location for all state/evidence reads and writes: `baseline_revision`, route, status, risk, review, lenses, triage logs and implementation notes. Never add frontmatter, force-convert, copy or replace an existing human plan to store workflow state. A genuinely needed new BMAD plan may use the template; never create one to replace an existing canonical plan.
 
 1. Resume/canonical check. Re-read the existing plan from disk before acting; missing required resume plans block without recreation. Preserve its human intent, baseline and append-only evidence. If it has a `<frozen-after-approval>...</frozen-after-approval>` block, capture it verbatim as `preserved_intent`; otherwise preserve its human intent in place. Only the human renegotiates intent, not a technical replan.
-2. Investigate the codebase. When you can, send deep searches to subagents and wait for them in this turn. Tell them to return short summaries only, so this session does not fill up with their notes. Keep only what the work needs: the specific files, symbols or lines, what to reuse, and what not to change. Write that into the Code Map. Do not retell the investigation when implementation starts — the plan already has it.
+2. Investigate the codebase. When you can, send deep searches to subagents and wait for them in this turn. Tell them to return short summaries only, so this session does not fill up with their notes. Keep only what the work needs: the specific files, symbols or lines, what to reuse, and what not to change. Write that into 코드 맵 (or the existing section with that meaning in the SAME associated context; never rename it). Do not retell the investigation when implementation starts — the plan already has it.
 
    Do not ask the human during investigation. When something is unclear, look in the repository, planning artifacts, or history first. Keep looking until you know, or until those sources have nothing more to say. Leave any remaining choice for the next step.
 
@@ -47,8 +48,8 @@ Only an existing BMAD-format plan with authorized task-owned metadata may use it
    {% endif %}
    {% if workflow.route != "oneshot" %}
 
-6. Reuse the canonical plan in place; only for a needed new plan read `{{ rendered("plan-template.md") }}` fully and fill it from intent/investigation, resolving `date`. Put paths, symbols, reuse and exclusions in the Code Map or existing context. Record tasks, acceptance and verification without rewriting human intent, baseline or existing append-only logs. If there are material intent gaps, record Open Questions with choices/options/consequences; never freeze unsupported assumptions. Preserve `preserved_intent` verbatim. Do not copy or force-convert an unformatted plan.
-7. Self-review against READY FOR DEVELOPMENT standard. For anything important that's missing: if the repository can tell you, go look and fix the plan; if a human has to decide, add an `## Open Questions` entry. Do not invent the answer.
+6. Reuse the canonical plan in place; only for a needed new plan read `{{ rendered("plan-template.md") }}` fully and fill it from intent/investigation, resolving `date`. Put paths, symbols, reuse and exclusions in 코드 맵 or existing context. Record 작업과 수용 기준 and 검증 without rewriting human intent, baseline or existing append-only logs. If there are material intent gaps, record 미해결 질문 with choices/options/consequences; never freeze unsupported assumptions. Resolve existing sections semantically in the SAME associated context without renaming them. Preserve `preserved_intent` verbatim. Do not copy or force-convert an unformatted plan.
+7. Self-review against READY FOR DEVELOPMENT standard. For anything important that's missing: if the repository can tell you, go look and fix the plan; if a human has to decide, add an entry to 미해결 질문 in the resolved state/evidence location (`## 미해결 질문` only for a new authorized section, otherwise the existing semantic equivalent or associated context without rewriting canonical headings). Do not invent the answer.
 8. Record sizing and resolve only genuine intent/authority blockers before the affected action.
    - **Token count** (see SCOPE STANDARD). If the plan exceeds 1600 tokens, record a context-size warning and continue within clear scope. Offer these options without an approval wait; never split the requested goal unilaterally:
      - **Split proposal** — name each proposed secondary goal and its consequences in current context only. Do not narrow scope or persist deferred goals merely because of sizing. Only after an actual recorded human intent/scope decision selecting a split may you append the selected deferred goals and update authorized task-owned technical planning to match that decision. Preserve canonical human content/path, baseline and append-only logs; never blanket-regenerate, copy or force-convert an unformatted plan. Only the human changes human-owned intent.
@@ -64,8 +65,8 @@ Only an existing BMAD-format plan with authorized task-owned metadata may use it
          {
            "id": "deferred-001",
            "source_plan": "plans/current-task.md",
-           "summary": "Secondary goal selected for later work.",
-           "evidence": "Recorded human scope decision selected this goal for deferral."
+           "summary": "후속 작업으로 선택된 별도 목표.",
+           "evidence": "기록된 사람의 범위 결정에 따라 이 목표를 후속 작업으로 남겼다."
          }
        ]
      }
@@ -73,7 +74,7 @@ Only an existing BMAD-format plan with authorized task-owned metadata may use it
 
      Parse the existing document, preserving every prior list entry without modification or duplicate searches. Build the WHOLE candidate by appending each authorized new entry with all four fields (`id`, `source_plan`, `summary`, `evidence`). Serialize and parse the WHOLE candidate before any atomic append/persist; verify one deferred list, preserved prior entries and exact intended privacy-safe values. Recheck the destination has not changed before atomic persistence. On any parse, validation or concurrent-change failure, do not mutate the deferred file or narrow the plan; keep the reason in current context.
 
-   - **Open Questions.** Ask only repository-unresolvable core intent/scope decisions; block dependent work, continue independent safe work. Record actual human answers as intent decisions; do not treat technical choices or size as approval requirements.
+   - **미해결 질문.** Ask only repository-unresolvable core intent/scope decisions; block dependent work, continue independent safe work. Record actual human answers as intent decisions; do not treat technical choices or size as approval requirements.
 
 ### CHECKPOINT 1
 
@@ -87,7 +88,7 @@ After presenting the summary, display this note:
 
 ---
 
-The plan remains available for human intent corrections. Optional `bmad-advanced-elicitation` or `bmad-party-mode` review does not gate clear delegated scope.
+계획의 의도는 사람이 수정할 수 있다. 선택적인 `bmad-advanced-elicitation` 또는 `bmad-party-mode` 리뷰는 명확히 위임된 범위의 실행을 막는 gate가 아니다.
 
 ---
 

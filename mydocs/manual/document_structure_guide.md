@@ -1,6 +1,8 @@
 # Document Structure and Naming Rules Manual
 
-This manual defines `mydocs/` folder roles, document filename rules, the central document template policy, GitHub platform template boundaries, external contributor PR review folder policy, and Agent Skills location policy. Read it before creating a new document or moving an existing one. Code style, Git branch operation, and task stage workflow are covered by related manuals, not this document. Write all documents in the selected Hyper-Waterfall locale for this repository.
+This manual defines `mydocs/` folder roles, document filename rules, the central document template policy, GitHub platform template boundaries, external contributor PR review folder policy, and Agent Skills location policy. Read it before creating a new document or moving an existing one. Code style, Git branch operation, and task stage workflow are covered by related manuals, not this document.
+
+새 Hyper-Waterfall 문서와 GitHub 플랫폼 산출물의 제목·본문 제목·항목명·설명·예시·승인 요청은 한국어로 작성한다. 기술 식별자·경로·설정 key·상태값·명령·고정 GitHub label과 TokenWatch의 영어 semantic commit 형식은 유지한다. 기존 인간 canonical 계획·역사 문서는 원래 경로·원문·의도를 그대로 보존·참조하며 번역·복제·강제 변환하지 않는다. 이 출력 정책은 선택 locale이나 source 언어로 대체하지 않는다.
 
 `mydocs/` is not a folder for accumulating arbitrary documents. It is a working memory system that lets a new AI session restore "what should be done now," "what was decided," "how far work progressed," "why that judgment was made," and "what pitfalls existed" by reading the repository.
 
@@ -128,6 +130,8 @@ When a manual needs to reference a specific event document, do not copy the even
 - Applied TokenWatch location: `mydocs/_templates/`
 - TokenWatch does not retain or symlink the upstream `templates/` source tree.
 
+이 문서의 upstream `locales/en` 경로와 version/locale 기록은 채택 당시 source·provenance를 설명하는 사실 기록일 뿐이다. 새 출력의 언어 권한이나 runtime fallback이 아니며, 해당 경로를 바꾸거나 upstream framework를 설치하지 않는다. 새 산출물은 위 한국어 출력 정책과 로컬 template를 따른다.
+
 Central templates:
 
 - Fix expected output shape and output format requirements as file structure.
@@ -199,7 +203,7 @@ Update policy meanings:
 
 New adoption uses strict manifest mode. Allowed targets are manifest `files[]` targets, `.hyper-waterfall/version.json`, and manifest-defined symlinks. Do not create or modify files outside the manifest during adoption. Target-project-specific artifacts such as product code, product docs, architecture docs, roadmap, API contracts, examples, and schemas are deferred task candidates, not adoption side effects.
 
-Hyper-Waterfall version update PRs are also GitHub platform artifacts, so do not create a separate document template for them in `mydocs/_templates/`. Use `.github/pull_request_template.md` for the PR body, and reflect manifest diff and migration guide evidence in the `Summary`, `Changes`, `Verification`, `Verification limits`, and `Remaining risks` sections.
+Hyper-Waterfall version update PRs are also GitHub platform artifacts, so do not create a separate document template for them in `mydocs/_templates/`. Use `.github/pull_request_template.md` for the PR body, and reflect manifest diff and migration guide evidence in the `요약`, `변경 사항`, `검증`, `검증 한계`, and `잔여 위험` sections.
 
 Lifecycle 판단 결과는 적용 전 보고 형식이지 `mydocs/` 장기 template가 아니다. 실제 적용의 승인/adoption 경계는 유지하며, 적용 작업 추적은 root 위험 정책에 따라 기존 canonical 계획/context와 필요한 Issue·stage/final evidence·PR 형식으로 비례 구성한다. 별도 구현 계획 원본이나 과거 파일의 소급 변환을 강제하지 않는다.
 
@@ -237,7 +241,7 @@ privacy-safe handoff는 reviewer뿐 아니라 implementation worker·외부 tool
 
 공개 URL 허용은 credential 저장 예외가 아니다. query/fragment의 token·API key·auth code·signed URL credential/signature parameter는 percent-encoded·HTML entity·nested 표현을 해석한 뒤 publication 전에 fixed HALT로 차단한다. entity는 fragment 분리 전에 bounded decode하며, 모호한 structured escape·encoded authority·decode 한도 초과는 거부한다. 안전한 공개 query/anchor는 유지하며 secret을 redaction해 성공으로 위장하거나 원본 설정을 고치지 않는다. reviewer child에는 raw invocation/canonical body·절대 경로를 전달하지 않고, leader가 보존한 authoritative intent에서 의미를 유지한 sanitized acceptance criteria·bounded source facts와 실제 repository-relative 참조만 전달한다. 안전한 handoff를 만들 수 없으면 해당 required review는 incomplete로 남긴다.
 
-credential 검증은 URL branch에만 두지 않는다. source·CLI assignment·기존 configuration·explicit override의 모든 consumed string은 template identity 계산과 `resolved_values` capture 전에 같은 text preflight를 거친다. 일반 key/value assignment, Authorization/Proxy-Authorization의 Bearer/Basic와 folded header, cookie 및 PEM/OpenPGP private-key material을 거부한다. quoted key와 인접 quoted/unquoted value segment를 완전히 검사하고, typed config는 diagnostic label의 마지막 조각이 아닌 실제 lookup key를 direct/short 경로 모두에서 값과 함께 검사한다. recursive mapping key에도 같은 검증을 적용한다. case/separator·percent/entity·NFKC·JSON key escape를 bounded 해석하며 공통 key classifier를 URL과 공유한다. 비어 있는 값·명시 unresolved placeholder/redacted marker와 token counter·일반 policy 설명·public-key armor는 credential payload와 구분한다. bare `null`/`none`/`unknown`/`redacted` 문자열을 credential 값의 허용 예외로 쓰지 않는다. 설정·이전 generation을 바꾸거나 secret hash를 남겨 우회하지 않는다. 이것은 명시된 carrier와 consumer 경계의 검증이며 임의의 unlabeled secret을 완전히 탐지하는 DLP 증명이 아니다.
+credential 검증은 URL branch에만 두지 않는다. source·CLI assignment·기존 configuration·explicit override의 모든 consumed string은 template identity 계산과 `resolved_values` capture 전에 같은 text preflight를 거친다. 일반 key/value assignment, Authorization/Proxy-Authorization의 Bearer/Basic와 folded header, cookie 및 PEM/OpenPGP private-key material을 거부한다. quoted key와 인접 quoted/unquoted value segment를 완전히 검사하고, typed config는 diagnostic label의 마지막 조각이 아닌 실제 lookup key를 direct/short 경로 모두에서 값과 함께 검사한다. recursive mapping key와 ancestor key에도 같은 검증을 적용한다. OAuth/OAuth2/PAT의 원형·접두형 및 camelCase·separator 별칭은 text assignment·URL query/fragment·typed mapping/ancestor에서 같은 공통 key classifier로 검사한다. case/separator·percent/entity·NFKC·JSON key escape를 bounded 해석한다. 비어 있는 값·명시 unresolved placeholder/redacted marker와 token counter·일반 policy 설명·public-key armor는 credential payload와 구분한다. bare `null`/`none`/`unknown`/`redacted` 문자열을 credential 값의 허용 예외로 쓰지 않는다. 설정·이전 generation을 바꾸거나 secret hash를 남겨 우회하지 않는다. 이것은 지원하는 credential labeling·carrier와 consumer 경계의 검증이며 임의의 unlabeled secret을 완전히 탐지하는 DLP 증명이 아니다.
 
 `output_folder`는 caller cwd가 아닌 승인된 checkout root 기준으로 resolve하고 실제 target이 root 안에 있어야 한다. `active_initiative`는 output-relative 경로 또는 빈 문자열이며 두 설정을 결합한 실제 target도 symlink resolve 후 checkout 안인지 확인한다. 상대 경로의 parent traversal(`..`), URI·drive-relative·home 표현, 외부/미생성 외부 target을 가리키는 symlink는 rendering/publication 전에 fixed HALT로 차단한다. 안전한 상대 경로·dot/native separator와 contained absolute target은 정규화하되 설정 파일·기존 generation·configured output directory를 만들거나 고쳐서 우회하지 않는다.
 
@@ -252,7 +256,7 @@ manifest schema 3의 `template_sha256`는 경로 privacy 정규화 후 실제 re
 - Skill bodies should be tool-independent (`gh`, `git`, file creation), and tool-specific invocation differences should live only in the "Invocation" section at the end of `SKILL.md`.
 - When a Skill writes a plan, report, or review document, it should first consult the corresponding template under `mydocs/_templates/`.
 
-Do not edit the symlink targets casually. If a Skill is added, removed, renamed, or its call timing changes, review README's core Skill table and `task_workflow_guide.md` Skill call display guidance in the same PR.
+Do not edit the symlink targets casually. If a Skill is added, removed, renamed, or its call timing changes, review the directly affected existing consumer guidance and `task_workflow_guide.md` Skill call display guidance in the same PR. Do not assume or create a missing README core Skill table; update an existing README reference only when it actually consumes the changed contract.
 
 ## Related Manuals
 

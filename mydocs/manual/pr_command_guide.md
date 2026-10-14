@@ -24,11 +24,13 @@ git push origin local/task24:publish/task24
 gh pr create \
   --base main \
   --head publish/task24 \
-  --title "Task #24: standardize PR template and PR creation rules" \
+  --title "Task #24: PR 서식과 생성 규칙 표준화" \
   --template .github/pull_request_template.md
 ```
 
 Use `--template` only as the starting point for the PR body.
+
+생성하는 PR 제목·본문은 반드시 한국어로 작성한다. 아래 명령의 경로·옵션·branch 등 고정 기술 토큰은 유지한다. 기존 canonical 사용자 문서는 번역·복제하지 않고 참조한다.
 
 When the PR body has been finalized from the final report and stage reports, prefer `--body-file`.
 
@@ -36,7 +38,7 @@ When the PR body has been finalized from the final report and stage reports, pre
 gh pr create \
   --base main \
   --head publish/task24 \
-  --title "Task #24: standardize PR template and PR creation rules" \
+  --title "Task #24: PR 서식과 생성 규칙 표준화" \
   --body-file /tmp/task24-pr-body.md
 ```
 
@@ -61,12 +63,13 @@ This keeps links valid after the `publish/task{number}` branch is deleted.
 
 ## Work Document Link Format
 
-In `Changes`, write work document links as `[filename](URL)` instead of raw URLs.
+In `변경 사항` → `작업 문서`, write work document links as `[filename](URL)` instead of raw URLs.
+
+아래는 기존 `_impl`가 실제 단일 canonical인 경우의 예다. 다른 canonical 계획/context가 있으면 그 참조 하나로 대체하고 원본은 변경하지 않는다. 최종 보고서는 실제 존재하고 공개 가능할 때만 포함한다.
 
 ```md
-- Task plan: [task_m010_61.md](https://github.com/jinzer0/TokenWatch/blob/{sha}/mydocs/plans/task_m010_61.md)
-- Canonical plan: [task_m010_61_impl.md](https://github.com/jinzer0/TokenWatch/blob/{sha}/mydocs/plans/task_m010_61_impl.md) (기존 `_impl`가 실제 canonical인 경우만; 별도 원본을 요구하지 않음)
-- Final report: [task_m010_61_report.md](https://github.com/jinzer0/TokenWatch/blob/{sha}/mydocs/report/task_m010_61_report.md)
+- 기준 계획·맥락: [task_m010_61_impl.md](https://github.com/jinzer0/TokenWatch/blob/{sha}/mydocs/plans/task_m010_61_impl.md)
+- 최종 보고서: [task_m010_61_report.md](https://github.com/jinzer0/TokenWatch/blob/{sha}/mydocs/report/task_m010_61_report.md)
 ```
 
 In Stage summaries, link the Stage title to the stage report and the short commit SHA next to it to the commit URL.
@@ -74,7 +77,7 @@ In Stage summaries, link the Stage title to the stage report and the short commi
 필요한 실제 문서/stage만 링크한다. LOW/context 작업에 계획·보고·Issue를 강제하거나 존재하지 않는 링크를 만들지 않는다. 비공개 native context의 raw path/session 자료는 PR에 노출하지 않는다.
 
 ```md
-- **[Stage 1](https://github.com/jinzer0/TokenWatch/blob/{sha}/mydocs/working/task_m010_61_stage1.md)** ([abc1234](https://github.com/jinzer0/TokenWatch/commit/{stage1_sha})): {Stage 1 one-line summary}
+- **[단계 1](https://github.com/jinzer0/TokenWatch/blob/{sha}/mydocs/working/task_m010_61_stage1.md)** ([abc1234](https://github.com/jinzer0/TokenWatch/commit/{stage1_sha})): {단계 1 한 줄 요약}
 ```
 
 ## Prohibited

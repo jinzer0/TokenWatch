@@ -26,12 +26,14 @@ Stage 기록이 필요하면 구현·검증 뒤 기존 context에 evidence를 �
 
 ## Required Content
 
-- Stage purpose
-- Artifacts
-- Body change scope or lossless preservation
-- Verification results
-- Residual risks
-- Impact on next Stage
+새 산출물의 제목·본문 제목·항목명·설명은 [한국어 출력 정책](../manual/document_structure_guide.md)을 따른다. 기술 식별자·경로·key·상태값·영어 semantic commit은 유지하고 기존 인간 canonical 계획·역사 기록의 원문·경로·의도는 그대로 보존·참조한다.
+
+- 단계 목적
+- 산출물
+- 본문 변경 범위 또는 무손실 보존
+- 검증 결과
+- 잔여 위험
+- 다음 단계에 미치는 영향
 - 다음 실제 HIGH 위험 결정이나 scope/핵심 intent 변경에만 필요한 한정 승인·재개 조건; 매 Stage 승인 요청은 필수가 아니다.
 
 ## Content Not Allowed

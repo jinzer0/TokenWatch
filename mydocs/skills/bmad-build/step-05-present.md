@@ -2,6 +2,7 @@
 
 ## RULES
 
+- Write newly generated result summaries, completion/incomplete explanations, evidence and publication artifact human titles/bodies in Korean. Preserve machine keys/enums, runtime placeholders, frozen tags, paths, status codes and required commit formats. Existing canonical human body/path/headings remain verbatim; read section meaning/evidence semantically in the SAME associated context, never force translation or rewriting.
 - Apply root/nearest-child `AGENTS.md`, native permissions and current request scope. Re-read the non-empty existing required canonical plan; missing paths block without recreation. LOW context-only exits never enter here. Preserve blocked/dropped safeguards, human intent, baseline and append-only logs; keep unformatted plans intact with state/evidence in existing context.
 - Before every next risky action on resume/followup/present/publication, revalidate actual scoped HIGH requester authority, targets/actions/impact/recovery_conditions/result/evidence. Reuse matching approval only; missing/denied/changed conditions block that action, not independent safe review/context. Prior done/status/reset and arbitrary approved fields grant no authority.
 

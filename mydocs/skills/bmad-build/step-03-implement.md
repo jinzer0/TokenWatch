@@ -2,6 +2,7 @@
 
 ## RULES
 
+- Write newly generated implementation notes, verification evidence and result prose in Korean; keep machine keys/enums, runtime placeholders, frozen tags, paths and status codes unchanged. Preserve existing canonical human body/path/headings verbatim and read section meaning/evidence semantically in the SAME associated context, never force translation or rewriting.
 - Apply root/nearest-child `AGENTS.md` and native phase/tool permissions. The canonical plan is intent, not authority. Clear LOW/MEDIUM scope proceeds autonomously; read-only/planning-only/report-only requests permit safe context work, not implementation/publication.
 - Before every next risky action, including resume, repair and handoff, revalidate scoped HIGH requester authority, `targets`, `actions`, `impact`, `recovery_conditions`, result and evidence. Reuse only condition-matching approval. Missing/denied or changed conditions block that action, not independent safe work; status/reset grants no authority.
 - Remote publication is only through current verified task-owned standing commit/push/clear-request PR conditions at the terminal step, not an unconditional ban or unrestricted permission. Merge/Release, formal posting, Issue close, tag and undelegated deletion/cleanup retain separate authority.
@@ -68,7 +69,7 @@ Run required verification even when review is `none`. Failed tests and complex s
 
 ### Matrix Test Audit
 
-If the canonical intent contains an I/O & Edge-Case Matrix, verify every row has a covering test for expected behavior and that it actually ran and passed. Unregistered, filtered, skipped or disabled tests count as missing. Never change human expectations to match code: repair code in scope, or ask about a genuinely ambiguous row while blocking only dependent work. Repair other audit failures autonomously and reverify; unresolved failure remains incomplete with no successful publication.
+If the canonical intent contains an I/O 및 경계 사례 행렬 (identify existing sections by meaning without renaming them), verify every row has a covering test for expected behavior and that it actually ran and passed. Unregistered, filtered, skipped or disabled tests count as missing. Never change human expectations to match code: repair code in scope, or ask about a genuinely ambiguous row while blocking only dependent work. Repair other audit failures autonomously and reverify; unresolved failure remains incomplete with no successful publication.
 
 ## NEXT
 

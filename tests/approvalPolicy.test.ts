@@ -160,7 +160,7 @@ function authority(text: string, label: string): void {
   has(text, /changed|변경|바뀐/i, `${label}: changed decision revalidation`);
   has(
     text,
-    /independent safe|safe independent|safe 작업|독립 안전|안전 독립/i,
+    /independent safe|safe independent|safe 작업|독립(?:적인)? 안전(?:한)?|안전(?:한)? 독립/i,
     `${label}: safe work continues`
   );
   has(text, /block|차단|실행하지/i, `${label}: missing/denied actions do not execute`);
@@ -169,26 +169,27 @@ function authority(text: string, label: string): void {
 }
 function terminal(text: string, label: string): void {
   for (const pattern of [
-    /task-owned|task-only/i,
-    /exact filename/i,
-    /pending/i,
-    /unrelated/i,
-    /read-only/i,
-    /planning-only/i,
+    /task-owned|task-only|작업 (?:소유|전용)/i,
+    /exact filename|정확한 파일명/i,
+    /pending|미반영/i,
+    /unrelated|무관한/i,
+    /read-only|조회/i,
+    /planning-only|계획 전용|조회[·/]계획/i,
+    /report-only|보고 전용|계획[·/]보고/i,
     /verification|검증/i,
     /fail|실패|미달/i,
-    /native|permission/i,
-    /remote/i,
+    /native|permission|네이티브 권한/i,
+    /remote|원격/i,
     /base/i,
     /head/i,
     /(?:existing|previous)[\s-]+(?:task[\s-]+)?PR\b|기존 PR/i,
     /commit/i,
     /push/i,
     /Merge\/?Release|Merge\/Release/i,
-    /formal/i,
+    /formal|공식/i,
     /Issue close/i,
     /tag/i,
-    /cleanup/i
+    /cleanup|정리/i
   ]) {
     has(text, pattern, `${label}: terminal ${pattern.source}`);
   }
@@ -366,7 +367,7 @@ describe('risk-based approval delivery source contracts (not native enforcement)
       has(policy, new RegExp(token), `root: ${token}`);
     }
     authority(policy, 'root');
-    terminal(policy, 'root');
+    terminal(read('AGENTS.md'), 'root including publication naming guards');
     has(
       policy,
       /파일\/줄\/token\/stage 수·복잡성[^\n]*승인 대기의 근거가 아니다/,
@@ -493,7 +494,10 @@ describe('risk-based approval delivery source contracts (not native enforcement)
       ]) {
         has(low, pattern, `${skill}: LOW ${pattern.source}`);
       }
-      terminal(low, `${skill} LOW exit`);
+      terminal(
+        low + section(step, '## Request-mode guard (before any routing)'),
+        `${skill} LOW exit under terminal request guard`
+      );
       has(
         step,
         /(?:(?:plan-required|required plan(?:\/state-based)?)[^\n]*missing|missing[^\n]*required plan)[^\n]*(?:block|HALT)/i,
@@ -545,7 +549,7 @@ describe('risk-based approval delivery source contracts (not native enforcement)
       if (skill === 'bmad-build') {
         requiredReviewerBoundary(review, 'ordinary full review');
         const classify = section(review, '### Classify');
-        const carry = classify.match(/^ {3}If `## Review Triage Log`[^\n]+/m)?.[0] ?? '';
+        const carry = classify.match(/^ {3}If 리뷰 분류 기록[^\n]+/m)?.[0] ?? '';
         has(
           carry,
           /Carry a prior verdict and route only when current code and relevant evidence still support them/,
@@ -923,6 +927,222 @@ describe('risk-based approval delivery source contracts (not native enforcement)
         `${skill}: old unsafe seed cannot be reused as clean`
       );
     }
+  });
+
+  it('P1 all active HF and adopted canonical generators emit Korean headings and pin language', () => {
+    const templates = [
+      '.github/pull_request_template.md',
+      ...[
+        'task_plan',
+        'task_impl_plan',
+        'stage_report',
+        'final_report',
+        'external_pr_review',
+        'external_pr_review_impl',
+        'external_pr_report',
+        'orders',
+        'feedback',
+        'tech_note',
+        'troubleshooting'
+      ].map((name) => `mydocs/_templates/${name}.md`),
+      ...Object.keys(bmadFiles).map((skill) => `mydocs/skills/${skill}/plan-template.md`)
+    ];
+    for (const file of templates) {
+      const text = read(file);
+      has(text, /한국어|Korean/i, `${file}: output language explicitly pinned`);
+      lacks(
+        text,
+        /selected Hyper-Waterfall locale|selected locale|chosen locale/i,
+        `${file}: no locale escape`
+      );
+      const headings = [...text.matchAll(/^#{1,6}\s+(.+)$/gm)].map((match) => match[1] ?? '');
+      expect(headings.length > 0, `${file}: real emitted headings`).toBe(true);
+      for (const heading of headings) {
+        expect(/\p{Script=Hangul}/u.test(heading), `${file}: Korean artifact heading`).toBe(true);
+      }
+    }
+    const registration = read('mydocs/skills/task-register/SKILL.md');
+    lacks(
+      registration,
+      /templates\/locales\/en/,
+      'Issue generation never falls back to English upstream'
+    );
+    for (const file of [
+      'mydocs/skills/task-final-report/SKILL.md',
+      'mydocs/manual/internal_pr_guide.md'
+    ]) {
+      const consumer = read(file);
+      for (const label of ['자동 검증', '수동·시나리오 검증', 'CI·원격 검증', '검증 한계']) {
+        expect(consumer.includes(label), `${file}: consumes exact localized PR headings`).toBe(
+          true
+        );
+      }
+      lacks(
+        consumer,
+        /`Automated Verification`|`Manual\/Scenario Verification`|`CI\/Remote Verification`|`Verification Limitations`/,
+        `${file}: no obsolete emitted-heading requirement`
+      );
+    }
+  });
+
+  it('P1 Issue form emits Korean labels while preserving stable platform field identities', () => {
+    const issue = read('.github/ISSUE_TEMPLATE/task.yml');
+    for (const property of ['name', 'description', 'title']) {
+      const value = issue.match(new RegExp(`^${property}: (.+)$`, 'm'))?.[1] ?? '';
+      expect(/\p{Script=Hangul}/u.test(value), `${property}: Korean platform output`).toBe(true);
+    }
+    const ids = [...issue.matchAll(/^\s+id: (\w+)$/gm)].map((match) => match[1]);
+    expect(ids).toEqual([
+      'background',
+      'goals',
+      'included_scope',
+      'excluded_scope',
+      'acceptance_criteria',
+      'validation',
+      'references',
+      'metadata',
+      'confirmations'
+    ]);
+    for (const label of issue.matchAll(/^\s+(?:-\s+)?label: (.+)$/gm)) {
+      expect(/\p{Script=Hangul}/u.test(label[1] ?? ''), 'Korean form heading').toBe(true);
+    }
+    const registration = read('mydocs/skills/task-register/SKILL.md');
+    for (const label of [
+      '배경',
+      '목표',
+      '범위 - 포함',
+      '범위 - 제외',
+      '인수 기준',
+      '검증 기준',
+      '참고 자료'
+    ]) {
+      expect(
+        registration.includes(label),
+        'Issue consumer fallback matches Korean field meaning'
+      ).toBe(true);
+    }
+  });
+
+  it('P2 HF canonical output defines acceptance before AC-specific verification without forcing BMAD schema', () => {
+    const plan = read('mydocs/_templates/task_plan.md');
+    const acceptance = plan.indexOf('## 작업과 수용 기준');
+    expect(acceptance >= 0 && plan.indexOf('## 검증 계획') > acceptance).toBe(true);
+    has(
+      plan,
+      /수용 기준 ID[\s\S]*관찰 가능한 완료 조건[\s\S]*검증 방법/,
+      'observable criteria and verification mapping'
+    );
+    has(
+      plan,
+      /BMAD 전용 전체 섹션 형식[\s\S]*강제하지 않는다/,
+      'HF plan remains proportional semantic canonical format'
+    );
+    has(
+      read('mydocs/skills/task-start/SKILL.md'),
+      /fallback 제목[^\n]*작업과 수용 기준[^\n]*수용 기준 ID[^\n]*관찰 가능한 완료 조건[^\n]*검증 방법/,
+      'fallback retains observable acceptance and verification mapping'
+    );
+  });
+
+  it('P2 skill consumer guidance does not invent absent README tables', () => {
+    const structure = read('mydocs/manual/document_structure_guide.md');
+    has(structure, /directly affected existing consumer guidance/, 'bounded actual consumers');
+    has(
+      structure,
+      /Do not assume or create a missing README core Skill table/,
+      'no fabricated README dependency'
+    );
+    has(
+      read('mydocs/manual/task_workflow_guide.md'),
+      /제품 README에 없는 Core SKILL Details 표를 가정하거나 새 표를 만들지 않는다/,
+      'existing workflow boundary agrees'
+    );
+  });
+
+  it('P2 Git publication examples use Korean titles and actual publication branches', () => {
+    const guide = read('mydocs/manual/git_workflow_guide.md');
+    has(
+      guide,
+      /Hyper-Waterfall \{fromVersion\} -> \{toVersion\} 버전 갱신/,
+      'Korean version update title'
+    );
+    has(guide, /git checkout -b local\/my-task/, 'fork work stays local');
+    has(
+      guide,
+      /git push origin local\/my-task:publish\/my-task/,
+      'fork uses publication destination'
+    );
+    has(guide, /--head \{contributor\}:publish\/my-task/, 'PR head matches publication');
+    lacks(guide, /feature\/my-task|version update`/, 'no obsolete generated examples');
+  });
+
+  it('P2 direct auto review stops nonmutating modes before Finalize', () => {
+    const review = read('mydocs/skills/bmad-build-auto/step-04-review.md');
+    const guard = review.split('## INSTRUCTIONS')[1]?.split('### State/evidence location')[0] ?? '';
+    for (const mode of ['read-only', 'planning-only', 'report-only'])
+      expect(guard.includes(mode)).toBe(true);
+    has(guard, /STOP here before[\s\S]*Finalize/, 'nonmutating direct entry terminates');
+    lacks(guard, /then apply Finalize/, 'no completion-path handoff');
+  });
+
+  it('P2 PR body preparation does not require an optional final report', () => {
+    const procedure = read('mydocs/manual/pr_process_guide.md');
+    lacks(procedure, /After `task-final-report`/, 'no unconditional report gate');
+    has(procedure, /최종 보고서가 실제 존재할 때만/, 'existing report reused optionally');
+    has(procedure, /현재 task의 검증 근거와 canonical\/context/, 'verified context is sufficient');
+  });
+
+  it('P2 report history and subject checks use the actual supported task identity', () => {
+    const final = read('mydocs/skills/task-final-report/SKILL.md');
+    has(
+      final,
+      /git log --oneline "\$\{BASE_REF\}\.\.\$\{HEAD_REF\}" --/,
+      'history uses confirmed base and head'
+    );
+    lacks(
+      final,
+      /git log --oneline main\.\.local\/task\{N\}/,
+      'no invented numbered history target'
+    );
+    const verification = section(
+      read('mydocs/skills/task-stage-report/SKILL.md'),
+      '## Verification'
+    );
+    for (const shape of [
+      '{type}: summary',
+      '{type}: Task #{N} Stage {S}: {summary}',
+      '{type}: Task #{N} [Stage {S.M}]: summary',
+      '{type}: Task #{N} Stage {S} + final report: summary'
+    ]) {
+      expect(verification.includes(shape), 'chosen allowed subject shape verified').toBe(true);
+    }
+    has(
+      verification,
+      /TokenWatch attribution body와 trailer/,
+      'attribution retained for every format'
+    );
+  });
+
+  it('P1 OAuth PAT aliases share text URL and typed classification without counter suffixes', () => {
+    const renderer = read('tools/bmad/render_skill.py');
+    const classifier =
+      renderer.split('def _credential_key(')[1]?.split('def _credential_placeholder(')[0] ?? '';
+    has(classifier, /"oauth", "oauth2", "pat"/, 'common credential family explicitly recognized');
+    has(
+      classifier,
+      /components\[-1\] in \{"oauth", "oauth2", "pat"\}/,
+      'platform/camel/separator aliases recognized without matching compat or oauth_count'
+    );
+    has(
+      renderer,
+      /if _credential_key\(key\) and not _credential_placeholder\(value\)/,
+      'typed mapping labels share final key classifier'
+    );
+    has(
+      renderer,
+      /if _credential_key\(match\[1\], url=True\)/,
+      'URL keys share final key classifier'
+    );
   });
 
   it('P1 consumed implementation overrides reject private aliases before input capture', () => {
@@ -1335,12 +1555,12 @@ describe('risk-based approval delivery source contracts (not native enforcement)
     const classify = section(text, '### Classify');
     has(
       classify,
-      /If `## Review Triage Log` at the resolved state\/evidence location already has rows/,
+      /If 리뷰 분류 기록 at the resolved state\/evidence location already has rows/,
       'resumed review reads the actual log location'
     );
     has(
       classify,
-      /Every finding gets one row in the Review Triage Log at the resolved state\/evidence location/,
+      /Every finding gets one row in 리뷰 분류 기록 at the resolved state\/evidence location/,
       'all findings append in resolved state'
     );
     has(
@@ -1350,7 +1570,7 @@ describe('risk-based approval delivery source contracts (not native enforcement)
     );
     lacks(
       classify,
-      /Review Triage Log` section of `\{plan_file\}`/,
+      /(?:Review Triage Log|리뷰 분류 기록)` section of `\{plan_file\}`/,
       'no forced triage section in canonical document'
     );
   });
@@ -1512,12 +1732,12 @@ describe('risk-based approval delivery source contracts (not native enforcement)
       );
       has(
         text,
-        /같은 scope[^\n]*안전한[^\n]*재승인[^\n]*자율/,
+        /같은 (?:scope|범위)[^\n]*안전한[^\n]*재승인[^\n]*자율/,
         `${path}: safe same-scope continuation`
       );
       has(
         text,
-        /untrusted[^\n]*native[^\n]*별도 위임/,
+        /(?:untrusted|신뢰할 수 없는 외부 코드)[^\n]*native[^\n]*별도 위임/,
         `${path}: untrusted execution still bounded`
       );
       has(
@@ -1578,8 +1798,8 @@ describe('risk-based approval delivery source contracts (not native enforcement)
       has(text, /LOW/, `${path}: LOW context`);
       has(text, /canonical/i, `${path}: canonical reference`);
       has(text, /incomplete/, `${path}: failed evidence`);
-      has(text, /native/, `${path}: native permission`);
-      has(text, /task-owned|task-only/i, `${path}: ownership`);
+      has(text, /native|네이티브 권한/, `${path}: native permission`);
+      has(text, /task-owned|task-only|작업 (?:소유|전용)/i, `${path}: ownership`);
       authority(text, path);
       terminal(text, path);
     }
@@ -1611,12 +1831,7 @@ describe('risk-based approval delivery source contracts (not native enforcement)
       }
     }
     const report = read('mydocs/_templates/final_report.md');
-    for (const token of [
-      'Automated Verification',
-      'Manual/Scenario Verification',
-      'CI/Remote Verification',
-      'Verification Limitations'
-    ]) {
+    for (const token of ['자동 검증', '수동·시나리오 검증', 'CI·원격 검증', '검증 한계']) {
       has(report, new RegExp(token), `report: ${token}`);
     }
   });
@@ -1679,27 +1894,5 @@ for any other purpose.`;
       )
     ).toBe(true);
     expect(agents.includes('Co-authored-by: Sisyphus <clio-agent@sisyphuslabs.ai>')).toBe(true);
-  });
-
-  it('P1 OAuth PAT aliases share text URL and typed classification without counter suffixes', () => {
-    const renderer = read('tools/bmad/render_skill.py');
-    const classifier =
-      renderer.split('def _credential_key(')[1]?.split('def _credential_placeholder(')[0] ?? '';
-    has(classifier, /"oauth", "oauth2", "pat"/, 'common credential family explicitly recognized');
-    has(
-      classifier,
-      /components\[-1\] in \{"oauth", "oauth2", "pat"\}/,
-      'platform/camel/separator aliases recognized without matching compat or oauth_count'
-    );
-    has(
-      renderer,
-      /if _credential_key\(key\) and not _credential_placeholder\(value\)/,
-      'typed mapping labels share final key classifier'
-    );
-    has(
-      renderer,
-      /if _credential_key\(match\[1\], url=True\)/,
-      'URL keys share final key classifier'
-    );
   });
 });

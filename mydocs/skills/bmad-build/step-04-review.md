@@ -14,6 +14,7 @@
 
 ## RULES
 
+- Write newly generated review logs, verdict explanations, evidence, deferred summaries and result prose in Korean. Keep machine keys/enums, verdict/route/status codes, runtime placeholders, frozen tags and paths unchanged. Preserve existing canonical human body/path/headings verbatim; read section meaning/evidence semantically in the SAME associated context, never force translation or rewriting.
 - This is plan-required execution: re-read the non-empty existing canonical plan; missing required paths block without recreation, and LOW context-only exits never enter here. Keep unformatted plans intact and record state/evidence in existing context. Preserve human intent, baseline and append-only logs, including blocked/dropped safeguards.
 - Apply root/nearest-child `AGENTS.md`, native permissions and current request scope. Seed every review/repair dispatch with those rules and task-owned file/hunk boundaries; customized plan-sole-SOT prose is intent only, never authority. Read-only/planning-only/report-only permits safe analysis/context, not source mutation/publication.
 - Before every next risky action on resume, review, repair or followup, revalidate scoped HIGH requester authority, targets/actions/impact/recovery_conditions/result/evidence. Matching approval is reusable; missing/denied/changed conditions block that action while independent safe work continues. Status/reset/past done grants no authority.
@@ -105,7 +106,7 @@ Before any implementation repair dispatch or worker re-engagement, including pat
 
 1. After native await settles available launched lanes, render a verdict on each actual finding, ahead of any deduplication or grouping. Record missing/unsuccessful required lanes as incomplete review, not successful zero-finding results; collecting or triaging available findings does not clear that condition. Disregard any severity a reviewing subagent assigned — they lack the context to grade.
 
-   If `## Review Triage Log` at the resolved state/evidence location already has rows — a loopback or a resumed review — check each finding against current code and evidence first. Carry a prior verdict and route only when current code and relevant evidence still support them; append a new row marked `carried` with that support, preserving prior evidence. Same location, claim or unchanged code alone is not sufficient. Stale, missing or irrelevant evidence requires validation below; a disproved prior verdict must be corrected with current evidence. Unresolved or unapplied repairs must still be processed through grouping and routing under current scope/ownership/authority, then reverified. Prior rows never waive required verification or acceptance, and no finding or evidence may be dropped.
+   If 리뷰 분류 기록 at the resolved state/evidence location already has rows — a loopback or a resumed review — check each finding against current code and evidence first. New plans emit `## 리뷰 분류 기록`; identify existing logs by meaning in the SAME associated context without renaming canonical headings. Carry a prior verdict and route only when current code and relevant evidence still support them; append a new row marked `carried` with that support, preserving prior evidence. Same location, claim or unchanged code alone is not sufficient. Stale, missing or irrelevant evidence requires validation below; a disproved prior verdict must be corrected with current evidence. Unresolved or unapplied repairs must still be processed through grouping and routing under current scope/ownership/authority, then reverified. Prior rows never waive required verification or acceptance, and no finding or evidence may be dropped.
 
    For each finding:
    - For a finding from the verification-gap lens, check that its filed evidence is current, relevant to the task-owned scope and supports the claimed gap in current code. Stale, missing or irrelevant evidence requires validation below; the lens label alone grants no verification exemption. Render the verdict and route from supported evidence, not an assumed pre-verified disposition. Its `Other findings` follow the same verification rules. Preserve every finding and its evidence; required verification and acceptance still apply.
@@ -115,7 +116,7 @@ Before any implementation repair dispatch or worker re-engagement, including pat
      - `false` — you checked, and the bad outcome does not happen at the cited location. Write what disproves this specific claim. A true fact about nearby code that does not disprove the claim does not count.
      - `maybe-false` — you could not tell whether the bad outcome happens. Write what you would need to check to find out. Use this only when the diff and surrounding code leave the question open; when they are enough to decide, pick `high`, `medium`, `low`, or `false`.
 
-   - Every finding gets one row in the Review Triage Log at the resolved state/evidence location — verdict plus its evidence in a sentence or two. Only authorized supported BMAD plans use their workflow section; for an unformatted canonical plan append rows to existing context without adding a section or editing the plan. Never drop, merge, or silently skip a finding or prior evidence.
+   - Every finding gets one row in 리뷰 분류 기록 at the resolved state/evidence location — verdict plus its evidence in a sentence or two. Only authorized supported BMAD plans use their workflow section; for an unformatted canonical plan append rows to existing context without adding a section or editing the plan. Never drop, merge, or silently skip a finding or prior evidence.
 
    Reject `false` findings on their refutation.
 
@@ -140,15 +141,15 @@ Before any implementation repair dispatch or worker re-engagement, including pat
    - **patch** — Auto-fix within current scope/ownership/authority using the resolved effective implementation route, not the lens depth. On oneshot, repair directly in this session; on full, re-engage the step-03 implementation subagent when available. Unknown/missing/conflicting needed route blocks only dependent repair. Seed the same root/child/native safety and ownership constraints before a full-route repair message:
 
      ```text
-     Review of your implementation found problems. Fix each one below with the smallest change that does the job.
+     구현 리뷰에서 문제가 발견되었다. 아래 각 문제를 해결하는 최소 변경을 적용한다.
 
-     Implementation contract: {implementation_contract}
-     Approved repository-relative source/hunk references: {implementation_files}
-     Use only approved safe ranges; never reopen canonical plans or private context. The leader owns canonical state, gates, formatters and publication.
+     구현 계약: {implementation_contract}
+     승인된 저장소 상대 소스/hunk 참조: {implementation_files}
+     승인된 안전한 범위만 사용하고 canonical 계획이나 비공개 context를 다시 열지 않는다. 리더가 canonical 상태, gate, formatter와 publication을 맡는다.
 
-     Follow native worker restrictions; the leader runs the union verification and applicable gates after you return. Reply with changes, unresolved findings and supporting evidence without claiming unrun checks.
+     native worker 제한을 따른다. 반환 후 리더가 통합 검증과 해당 gate를 실행한다. 실행하지 않은 검사를 주장하지 말고 변경 사항, 미해결 발견 사항과 근거를 한국어로 반환한다.
 
-     - <file> — <what is wrong> — <what the smallest fix must do>
+     - <파일> — <문제> — <최소 수정이 충족할 사항>
      ```
 
      If it cannot be continued, apply patches yourself within the same constraints. Run required verification and acceptance checks after changes, including when the plan omits commands. Failed checks trigger autonomous same-scope repair/reverify with evidence retained; unresolved failure/nonconvergence records incomplete/scoped blocked and escalates without publication. Refresh privacy-safe task-owned review inputs and repeat preflight after repairs.
@@ -163,8 +164,8 @@ Before any implementation repair dispatch or worker re-engagement, including pat
          {
            "id": "deferred-001",
            "source_plan": "plans/current-task.md",
-           "summary": "Verified advisory finding selected for later work.",
-           "evidence": "Current triage recorded the reason for this deferral."
+           "summary": "검증된 권고 사항을 후속 작업으로 남겼다.",
+           "evidence": "현재 리뷰 분류에 후속 작업으로 남긴 이유를 기록했다."
          }
        ]
      }
