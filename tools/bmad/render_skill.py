@@ -284,14 +284,17 @@ def _validate_output_destination(central: dict[str, Any], project_root: Path) ->
 
 
 def _credential_key(key: str, *, url: bool = False) -> bool:
-    normalized = "".join(character for character in _decode_credential_text(key).casefold() if character.isalnum())
+    decoded = _decode_credential_text(key)
+    normalized = "".join(character for character in decoded.casefold() if character.isalnum())
+    components = re.findall(r"[a-z0-9]+", re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", decoded).casefold())
     plain_keys = {
         "auth", "authorization", "authentication", "apikey", "accesskey", "privatekey",
         "jwt", "session", "sessionid", "cookie", "setcookie", "credential", "credentials",
-        "password", "passwd", "pwd", "token", "secret",
+        "password", "passwd", "pwd", "token", "secret", "oauth", "oauth2", "pat",
     }
     return (
         normalized in plain_keys
+        or (bool(components) and components[-1] in {"oauth", "oauth2", "pat"})
         or normalized.endswith(("token", "secret", "password", "signature", "credential", "credentials", "apikey", "accesskey", "authorization", "authentication"))
         or (url and (normalized in {"key", "code", "sig", "policy", "keypairid"} or normalized.startswith(("xamz", "xgoog"))))
     )

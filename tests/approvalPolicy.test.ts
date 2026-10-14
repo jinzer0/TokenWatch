@@ -1680,4 +1680,26 @@ for any other purpose.`;
     ).toBe(true);
     expect(agents.includes('Co-authored-by: Sisyphus <clio-agent@sisyphuslabs.ai>')).toBe(true);
   });
+
+  it('P1 OAuth PAT aliases share text URL and typed classification without counter suffixes', () => {
+    const renderer = read('tools/bmad/render_skill.py');
+    const classifier =
+      renderer.split('def _credential_key(')[1]?.split('def _credential_placeholder(')[0] ?? '';
+    has(classifier, /"oauth", "oauth2", "pat"/, 'common credential family explicitly recognized');
+    has(
+      classifier,
+      /components\[-1\] in \{"oauth", "oauth2", "pat"\}/,
+      'platform/camel/separator aliases recognized without matching compat or oauth_count'
+    );
+    has(
+      renderer,
+      /if _credential_key\(key\) and not _credential_placeholder\(value\)/,
+      'typed mapping labels share final key classifier'
+    );
+    has(
+      renderer,
+      /if _credential_key\(match\[1\], url=True\)/,
+      'URL keys share final key classifier'
+    );
+  });
 });

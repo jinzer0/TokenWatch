@@ -1534,7 +1534,11 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
         'password',
         'api%5Fkey',
         'ＡＰＩ＿ＫＥＹ',
-        'private.key'
+        'private.key',
+        'oauth',
+        'oauth2',
+        'pat',
+        'GitHub_PAT'
       ]) {
         for (const lookup of ['direct', 'short'] as const) {
           it(`${skill} rejects consumed typed credential ${layer} ${key} ${lookup} before input capture`, () => {
@@ -1591,7 +1595,7 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
       '_bmad/custom/config.toml',
       '_bmad/custom/config.user.toml'
     ]) {
-      for (const key of ['auth', 'password']) {
+      for (const key of ['auth', 'password', 'oauth', 'pat']) {
         for (const lookup of ['direct', 'short']) {
           it(`${skill} rejects selected nested typed credential ${layer} ${key} ${lookup}`, () => {
             const f = fixture(skill);
@@ -1734,6 +1738,29 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
       ],
       ['encoded-userinfo-uri', 'Read https://synthetic-user%3Asynthetic-secret%40example.com/work'],
       ['plaintext-bearer', 'Authorization: Bearer synthetic-secret'],
+      ['credential-alias-oauth', 'oauth=synthetic-secret'],
+      ['credential-alias-pat', 'pat=ghp_synthetic-secret'],
+      ['credential-alias-oauth2', 'oauth2=synthetic-secret'],
+      ['credential-alias-github-pat', 'GITHUB_PAT=ghp_synthetic-secret'],
+      ['credential-alias-gitlab-pat', 'GitLabPat=glpat-synthetic-secret'],
+      ['credential-alias-gh-pat', 'GH_PAT=ghp_synthetic-secret'],
+      ['credential-alias-json-oauth', '{"OAuth":"synthetic-secret"}'],
+      ['credential-alias-json-pat', '{"PAT":"ghp_synthetic-secret"}'],
+      ['credential-alias-percent-oauth', '%6Fauth=synthetic-secret'],
+      ['credential-alias-percent-pat', '%70%61%74=ghp_synthetic-secret'],
+      ['credential-alias-entity-oauth', 'o&#97;uth=synthetic-secret'],
+      ['credential-alias-entity-pat', 'p&#97;t=ghp_synthetic-secret'],
+      ['credential-alias-unicode-pat', '{"\\u0070at":"ghp_synthetic-secret"}'],
+      ['credential-alias-query-oauth', 'https://example.com/work?oauth=synthetic-secret'],
+      ['credential-alias-fragment-oauth', 'https://example.com/work#oauth=synthetic-secret'],
+      ['credential-alias-query-pat', 'https://example.com/work?pat=ghp_synthetic-secret'],
+      ['credential-alias-fragment-pat', 'https://example.com/work#pat=ghp_synthetic-secret'],
+      ['credential-alias-query-encoded-oauth', 'https://example.com/work?%6Fauth=synthetic-secret'],
+      [
+        'credential-alias-query-encoded-pat',
+        'https://example.com/work?%70%61%74=ghp_synthetic-secret'
+      ],
+      ['credential-alias-fullwidth-oauth', 'ｏａｕｔｈ=synthetic-secret'],
       ['plaintext-basic', 'Authorization: Basic c3ludGhldGljLXNlY3JldA=='],
       ['plaintext-api-assignment', 'Use api_key=synthetic-secret'],
       ['plaintext-api-header', 'X-Api-Key: synthetic-secret'],
@@ -1871,6 +1898,7 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
           'Read **https://example.com/docs is the public reference** ' +
           'and **http://example.org/docs is the public reference** ' +
           'token_count=12; code=public; token usage and API key policy are public descriptions; ' +
+          'oauth={synthetic_credential}; pat=<redacted>; oauth_count=4; compat=public; ' +
           'api_key={synthetic_credential}; Authorization: Bearer {synthetic_credential}; password=<redacted>; ' +
           'Proxy-Authorization: Basic {synthetic_credential}; ' +
           '\nBasic authentication is required.\nBearer tokens must never be logged.\n' +
@@ -1891,6 +1919,9 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
             output.includes('api_key={synthetic_credential}') &&
             output.includes('Authorization: Bearer {synthetic_credential}') &&
             output.includes('token_count=12') &&
+            output.includes('oauth={synthetic_credential}') &&
+            output.includes('pat=<redacted>') &&
+            output.includes('oauth_count=4; compat=public') &&
             output.includes('Basic authentication is required.') &&
             output.includes('Bearer tokens must never be logged.') &&
             output.includes('-----BEGIN PGP PUBLIC KEY BLOCK-----') &&
@@ -2347,6 +2378,76 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
         'user config unchanged'
       ).toBe(true);
     });
+
+    for (const layer of [
+      '_bmad/config.toml',
+      '_bmad/custom/config.toml',
+      '_bmad/custom/config.user.toml',
+      'persistent',
+      'persistent-user',
+      'explicit'
+    ]) {
+      for (const error of ['PermissionError', 'OSError']) {
+        it(`${skill} inaccessible optional ${layer} ${error} is not absence`, () => {
+          const f = fixture(skill);
+          const before = render(f);
+          const priorManifest = sha256(readBytes(join(before.generation, 'manifest.json')));
+          const priorEntry = sha256(readBytes(before.entry));
+          const generations = readdirSync(dirname(before.generation)).sort();
+          const target = layer.startsWith('persistent')
+            ? join(
+                f.root,
+                '_bmad/custom',
+                `${skill}${layer === 'persistent-user' ? '.user' : ''}.toml`
+              )
+            : join(f.root, layer === 'explicit' ? 'synthetic-override.toml' : layer);
+          mkdirSync(dirname(target), { recursive: true });
+          writeFileSync(target, '[core]\nactive_initiative = "synthetic-initiative"\n');
+          const inputHash = sha256(readBytes(target));
+          // Simulate Python 3.14 predicates suppressing a stat failure. This
+          // probes the actual CLI without depending on host/root permissions.
+          const wrapper = `import pathlib, runpy, sys
+renderer, root, skill, target, error, explicit = sys.argv[1:]
+original_stat = pathlib.Path.stat
+original_exists = pathlib.Path.exists
+original_symlink = pathlib.Path.is_symlink
+def blocked_stat(self, *args, **kwargs):
+    if str(self) == target:
+        raise PermissionError("synthetic unavailable layer") if error == "PermissionError" else OSError("synthetic unavailable layer")
+    return original_stat(self, *args, **kwargs)
+pathlib.Path.stat = blocked_stat
+pathlib.Path.exists = lambda self, *args, **kwargs: False if str(self) == target else original_exists(self, *args, **kwargs)
+pathlib.Path.is_symlink = lambda self: False if str(self) == target else original_symlink(self)
+sys.argv = [renderer, "--project-root", root, "--skill", skill]
+if explicit == "yes":
+    sys.argv += ["--overrides", target]
+runpy.run_path(renderer, run_name="__main__")
+`;
+          const result = existingPython(
+            [
+              '-c',
+              wrapper,
+              f.renderer,
+              f.root,
+              f.skillDir,
+              target,
+              error,
+              layer === 'explicit' ? 'yes' : 'no'
+            ],
+            f.root
+          );
+          expect(!result.error && result.status === 1, 'unavailable layer fails closed').toBe(true);
+          expect(result.stdout === 'HALT: BMAD rendering failed.\n').toBe(true);
+          expect(result.stderr === '').toBe(true);
+          expect(sha256(readBytes(target)) === inputHash, 'input preserved').toBe(true);
+          expect(
+            sha256(readBytes(join(before.generation, 'manifest.json'))) === priorManifest
+          ).toBe(true);
+          expect(sha256(readBytes(before.entry)) === priorEntry).toBe(true);
+          expect(readdirSync(dirname(before.generation)).sort()).toEqual(generations);
+        });
+      }
+    }
 
     it(`${skill} changing the helper invalidates generation identity`, () => {
       const f = fixture(skill);

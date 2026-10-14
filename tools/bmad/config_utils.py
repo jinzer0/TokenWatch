@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import stat
 import tomllib
 from collections.abc import Iterable
 from pathlib import Path
@@ -26,13 +27,17 @@ def contained_source(path: Path, directory: Path) -> Path:
 
 def load_toml(path: Path, *, required: bool = False) -> dict[str, Any]:
     """Load a TOML table, allowing absence only for optional layers."""
-    if not path.exists() and not path.is_symlink():
+    try:
+        path.lstat()
+    except FileNotFoundError:
         if required:
             raise ConfigError(f"required TOML file not found: {path}")
         return {}
-    if not path.is_file():
-        raise ConfigError(f"TOML layer is not a file: {path}")
+    except OSError as error:
+        raise ConfigError(f"failed to inspect {path}: {error}") from error
     try:
+        if not stat.S_ISREG(path.stat().st_mode):
+            raise ConfigError(f"TOML layer is not a file: {path}")
         with path.open("rb") as stream:
             parsed = tomllib.load(stream)
     except tomllib.TOMLDecodeError as error:
