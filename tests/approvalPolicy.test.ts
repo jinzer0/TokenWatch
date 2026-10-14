@@ -1151,7 +1151,7 @@ describe('risk-based approval delivery source contracts (not native enforcement)
       renderer.split('class _CustomizationTable(')[1]?.split('class _RenderContext')[0] ?? '';
     has(
       consumer,
-      /path == "workflow\.implementation_handoff"[\s\S]*_decode_credential_text\(instruction\)[\s\S]*raise RenderError\("private implementation placeholder"\)/,
+      /path == "workflow\.implementation_handoff"[\s\S]*_decode_privacy_text\(instruction\)[\s\S]*raise RenderError\("private implementation placeholder"\)/,
       'consumed wrapper rejects decoded obsolete aliases'
     );
     expect(
@@ -1241,10 +1241,10 @@ describe('risk-based approval delivery source contracts (not native enforcement)
     const guard =
       renderer.split('def _check_url_credentials(')[1]?.split('def _relative_text(')[0] ?? '';
     has(guard, /for component in \(query, fragment\)/, 'query and router fragment both inspected');
-    has(guard, /unquote\(decoded\)/, 'encoded credential keys cannot bypass validation');
+    has(guard, /_decode_privacy_text\(component\)/, 'URL components use shared privacy decoding');
     has(
-      guard,
-      /unescape\(unquote\(decoded\)\)/,
+      renderer,
+      /unicodedata\.normalize\("NFKC", unescape\(text\)\)/,
       'nested HTML entities decoded after percent escapes'
     );
     has(
@@ -1254,7 +1254,7 @@ describe('risk-based approval delivery source contracts (not native enforcement)
     );
     has(
       renderer,
-      /expanded = unescape\(decoded\)[\s\S]*uri = urlsplit\(decoded\)/,
+      /expanded = unescape\(decoded\)[\s\S]*_check_web_reference\(decoded\)/,
       'all entity layers decoded before fragment split'
     );
     has(
@@ -1270,7 +1270,7 @@ describe('risk-based approval delivery source contracts (not native enforcement)
     );
     has(
       renderer,
-      /_check_url_credentials\(uri\.query, uri\.fragment\)\n {12}return original/,
+      /_check_web_reference\(decoded\)\n {12}return original/,
       'guard runs before accepting original URI'
     );
   });
@@ -1393,8 +1393,43 @@ describe('risk-based approval delivery source contracts (not native enforcement)
     );
   });
 
+  it('P1 encoded paths use shared privacy decoding before input identity and publication', () => {
+    const renderer = read('tools/bmad/render_skill.py');
+    const text = renderer.split('def _relative_text(')[1]?.split('def _relative_values(')[0] ?? '';
+    has(
+      text,
+      /decoded = _decoded_reference_text\(normalized, project_root\)/,
+      'decoded semantics follow literal normalization with URI spans'
+    );
+    has(
+      text,
+      /_relative_reference_text\(decoded, project_root\)/,
+      'decoded paths use the same reference policy'
+    );
+    has(
+      text,
+      /encoded checkout reference/,
+      'encoded checkout references cannot fingerprint the checkout'
+    );
+    has(
+      renderer,
+      /for authority in re\.finditer\([\s\S]*credential-bearing or ambiguous URI authority[\s\S]*_check_uri_authorities\(authority_view\)[\s\S]*_expand_privacy_text\(unquote\(decoded\)\)/,
+      'each decode layer checks authority before structure can disappear'
+    );
+    has(
+      text,
+      /parsed = _check_web_reference\(uri\)/,
+      'complete URI validated before delimiter escaping'
+    );
+    const values =
+      renderer.split('def _relative_values(')[1]?.split('def _find_config_values(')[0] ?? '';
+    has(values, /_relative_text\(key, project_root\)/, 'mapping keys share path validation');
+  });
+
   it('P1 machine path rejection includes foreign source and customization values', () => {
     const renderer = read('tools/bmad/render_skill.py');
+    const webPolicy =
+      renderer.split('def _check_web_reference(')[1]?.split('def _relative_text(')[0] ?? '';
     const normalization =
       renderer.split('def _relative_text(')[1]?.split('def _relative_values(')[0] ?? '';
     has(
@@ -1403,12 +1438,12 @@ describe('risk-based approval delivery source contracts (not native enforcement)
       'foreign paths fail closed rather than persisting unchanged'
     );
     has(
-      normalization,
+      webPolicy,
       /uri\.scheme\.lower\(\) not in \{"http", "https"\}/,
       'only complete public web references are eligible'
     );
     has(
-      normalization,
+      webPolicy,
       /uri\.username is not None[\s\S]*uri\.password is not None/,
       'credential-bearing URI is not a public-path bypass'
     );

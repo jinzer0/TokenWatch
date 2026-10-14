@@ -30,7 +30,7 @@ from datetime import date, time
 from html import unescape
 from pathlib import Path
 from typing import Any
-from urllib.parse import unquote, urlsplit
+from urllib.parse import quote, unquote, urlsplit
 import unicodedata
 
 # Runtime sources are not a location for interpreter caches.
@@ -242,6 +242,11 @@ def _resolve_config_value(value: Any, label: str, project_root: Path, *, key: st
     _check_credential_value(key, value)
     text = _require_string(value, label, allow_empty=label == "config.core.active_initiative")
     _check_text_credentials(text)
+    decoded = _decode_privacy_text(text)
+    if decoded != text:
+        _relative_text(text, project_root)
+        if key in {"output_folder", "active_initiative"} and ".." in decoded.replace("\\", "/").split("/"):
+            raise RenderError("encoded config parent traversal")
     expanded = text.replace("{project-root}", project_root.as_posix())
     portable = expanded.replace("\\", "/")
     if key in {"output_folder", "active_initiative"}:
@@ -284,7 +289,7 @@ def _validate_output_destination(central: dict[str, Any], project_root: Path) ->
 
 
 def _credential_key(key: str, *, url: bool = False) -> bool:
-    decoded = _decode_credential_text(key)
+    decoded = _decode_privacy_text(key)
     normalized = "".join(character for character in decoded.casefold() if character.isalnum())
     components = re.findall(r"[a-z0-9]+", re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", decoded).casefold())
     plain_keys = {
@@ -323,21 +328,52 @@ def _check_credential_value(key: str, value: Any) -> None:
         raise RenderError("credential-bearing value")
 
 
-def _decode_credential_text(text: str) -> str:
+def _check_uri_authorities(text: str) -> None:
+    for authority in re.finditer(r"([A-Za-z0-9+.%\-]+)://([^/\s?#]+)", text):
+        scheme = authority[1]
+        for _ in range(8):
+            expanded = _expand_privacy_text(unquote(scheme))
+            if expanded == scheme:
+                break
+            scheme = expanded
+        else:
+            raise RenderError("ambiguous encoded URI scheme")
+        if re.fullmatch(r"[A-Za-z][A-Za-z0-9+.-]*", scheme) is None:
+            continue
+        if "@" in authority[2] or "%" in authority[2]:
+            raise RenderError("credential-bearing or ambiguous URI authority")
+
+
+def _expand_privacy_text(text: str) -> str:
+    expanded = unicodedata.normalize("NFKC", unescape(text))
+    return re.sub(r"\\u([0-9A-Fa-f]{4})", lambda match: chr(int(match[1], 16)), expanded)
+
+
+def _decode_privacy_text(text: str) -> str:
     decoded = text
     for _ in range(8):
-        expanded = unicodedata.normalize("NFKC", unescape(unquote(decoded)))
-        expanded = re.sub(r"\\u([0-9A-Fa-f]{4})", lambda match: chr(int(match[1], 16)), expanded)
+        # A later decode can turn userinfo data into a slash or markup boundary.
+        # Reveal entity/Unicode schemes before percent-decoding authority data.
+        authority_view = decoded
+        for _ in range(8):
+            _check_uri_authorities(authority_view)
+            expanded = _expand_privacy_text(authority_view)
+            if expanded == authority_view:
+                break
+            authority_view = expanded
+        else:
+            raise RenderError("ambiguous encoded authority text")
+        expanded = _expand_privacy_text(unquote(decoded))
         if expanded == decoded:
             break
         decoded = expanded
     else:
-        raise RenderError("ambiguous encoded credential text")
+        raise RenderError("ambiguous encoded privacy text")
     return decoded
 
 
 def _check_text_credentials(text: str) -> None:
-    decoded = _decode_credential_text(text).replace("\r\n", "\n").replace("\r", "\n")
+    decoded = _decode_privacy_text(text).replace("\r\n", "\n").replace("\r", "\n")
     if re.search(r"-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----", decoded):
         raise RenderError("private key material")
     # Capture the complete adjacent shell/quoted value, not an empty or
@@ -366,14 +402,7 @@ def _check_text_credentials(text: str) -> None:
 
 def _check_url_credentials(query: str, fragment: str) -> None:
     for component in (query, fragment):
-        decoded = component
-        for _ in range(8):
-            expanded = unicodedata.normalize("NFKC", unescape(unquote(decoded)))
-            if expanded == decoded:
-                break
-            decoded = expanded
-        else:
-            raise RenderError("ambiguous encoded URI parameters")
+        decoded = _decode_privacy_text(component)
         if "\\" in decoded:
             raise RenderError("ambiguous structured URI escape")
         # Include router fragments, HTML/semicolon separators and nested URL or
@@ -383,9 +412,97 @@ def _check_url_credentials(query: str, fragment: str) -> None:
                 raise RenderError("credential-bearing URI parameters")
 
 
+def _check_web_reference(text: str) -> str:
+    uri = urlsplit(text)
+    if (
+        uri.scheme.lower() not in {"http", "https"}
+        or not uri.netloc
+        or not uri.hostname
+        or uri.username is not None
+        or uri.password is not None
+        or "%" in uri.netloc
+        or "\\" in text
+    ):
+        raise RenderError("unsupported URI reference")
+    _check_url_credentials(uri.query, uri.fragment)
+    return uri.geturl()
+
+
 def _relative_text(text: str, project_root: Path) -> str:
     """Normalize canonical checkout tokens; reject machine paths, preserve public web links."""
     _check_text_credentials(text)
+    normalized = _relative_reference_text(text, project_root)
+    decoded = _decoded_reference_text(normalized, project_root)
+    if decoded != normalized and _relative_reference_text(decoded, project_root) != decoded:
+        raise RenderError("encoded checkout reference")
+    return normalized
+
+
+def _checkout_reference_pattern(project_root: Path) -> str:
+    root = project_root.as_posix()
+    separators = r"[/\\]+(?:\.[/\\]+)*"
+    patterns = []
+    for spelling in {root, unicodedata.normalize("NFKC", root)}:
+        pattern = separators.join(re.escape(part) for part in spelling.strip("/").split("/"))
+        patterns.append(separators + pattern if spelling.startswith("/") else pattern)
+    return "(?:" + "|".join(sorted(patterns)) + ")"
+
+
+def _decoded_reference_text(text: str, project_root: Path) -> str:
+    def validate_uri(uri: str) -> None:
+        parsed = _check_web_reference(uri)
+        if any(re.search(_checkout_reference_pattern(project_root), value) for value in (uri, parsed)):
+            raise RenderError("checkout reference in URI")
+
+    def token(match: re.Match[str]) -> str:
+        decoded = _decode_privacy_text(match[0])
+
+        def uri_span(uri: re.Match[str]) -> str:
+            validate_uri(uri[0])
+            return re.sub(r'''[\s`"'<>]''', lambda delimiter: quote(delimiter[0], safe=""), uri[0])
+
+        return re.sub(r"https?://.*", uri_span, decoded, flags=re.IGNORECASE | re.DOTALL)
+
+    def carrier(match: re.Match[str]) -> str:
+        # Check the full carrier before markup segmentation so mixed raw and
+        # encoded quotes cannot hide a credential query after a quoted value.
+        decoded = _decode_privacy_text(match[0])
+        uri = re.search(r"https?://.*", decoded, flags=re.IGNORECASE | re.DOTALL)
+        if uri is not None:
+            validate_uri(uri[0])
+        return re.sub(r'''[^\s`"'<>]+''', token, match[0])
+
+    # Valid JSON containers have their own string boundaries. Do not append a
+    # URL's public sibling fields to its query merely because spaces are absent.
+    def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise RenderError("duplicate structured key")
+            result[key] = value
+        return result
+
+    decoder = json.JSONDecoder(object_pairs_hook=unique_object)
+    parts: list[str] = []
+    start = 0
+    for match in re.finditer(r"[\[{]", text):
+        if match.start() < start or (match.start() and not text[match.start() - 1].isspace()):
+            continue
+        try:
+            value, end = decoder.raw_decode(text, match.start())
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(value, (dict, list)):
+            continue
+        if _relative_values(value, project_root) != value:
+            raise RenderError("noncanonical structured reference")
+        parts.extend((re.sub(r"[^\s]+", carrier, text[start:match.start()]), text[match.start():end]))
+        start = end
+    parts.append(re.sub(r"[^\s]+", carrier, text[start:]))
+    return "".join(parts)
+
+
+def _relative_reference_text(text: str, project_root: Path) -> str:
     root = project_root.as_posix()
     home_prefix = r"(?:\$HOME|\$\{HOME\}|%USERPROFILE%|%HOMEPATH%)[/\\]"
 
@@ -427,18 +544,7 @@ def _relative_text(text: str, project_root: Path) -> str:
                 decoded = expanded
             else:
                 raise RenderError("ambiguous encoded URI entities")
-            uri = urlsplit(decoded)
-            if (
-                uri.scheme.lower() not in {"http", "https"}
-                or not uri.netloc
-                or not uri.hostname
-                or uri.username is not None
-                or uri.password is not None
-                or "%" in uri.netloc
-                or "\\" in decoded
-            ):
-                raise RenderError("unsupported URI reference")
-            _check_url_credentials(uri.query, uri.fragment)
+            _check_web_reference(decoded)
             return original
         if original.startswith(("~", "$HOME", "${HOME}", "%USERPROFILE%", "%HOMEPATH%")):
             raise RenderError("home-relative machine reference")
@@ -485,13 +591,9 @@ def _relative_text(text: str, project_root: Path) -> str:
         reference,
         text,
     )
-    separators = r"[/\\]+(?:\.[/\\]+)*"
-    root_pattern = separators.join(re.escape(part) for part in root.strip("/").split("/"))
-    if root.startswith("/"):
-        root_pattern = separators + root_pattern
     # A checkout spelling split by prose delimiters (for example spaces in a
     # directory name) is not a safely recognizable token: reject, do not guess.
-    if re.search(root_pattern, result) is not None:
+    if re.search(_checkout_reference_pattern(project_root), result) is not None:
         raise RenderError("unrepresentable checkout reference")
     return result
 
@@ -504,27 +606,33 @@ def _relative_values(value: Any, project_root: Path) -> Any:
     if isinstance(value, dict):
         for key, item in value.items():
             _check_credential_value(key, item)
+            if _relative_text(key, project_root) != key:
+                raise RenderError("noncanonical mapping key")
         return {key: _relative_values(item, project_root) for key, item in value.items()}
     return value
 
 
-def _find_config_values(data: Any, key: str, prefix: str = "") -> list[tuple[str, Any]]:
+def _find_config_values(data: Any, key: str, project_root: Path, prefix: str = "") -> list[tuple[str, Any]]:
     matches: list[tuple[str, Any]] = []
     if not isinstance(data, dict):
         return matches
     for name, value in data.items():
         path = f"{prefix}.{name}" if prefix else name
         if name == key and not isinstance(value, (dict, list)):
+            if _relative_text(name, project_root) != name:
+                raise RenderError("noncanonical config name")
             matches.append((path, value))
-        nested = _find_config_values(value, key, path)
+        nested = _find_config_values(value, key, project_root, path)
         if nested:
             _check_credential_value(name, value)
+            if _relative_text(name, project_root) != name:
+                raise RenderError("noncanonical config ancestor")
         matches.extend(nested)
     return matches
 
 
 def _resolve_short_config(central: dict[str, Any], key: str, project_root: Path) -> tuple[str, str]:
-    matches = _find_config_values(central, key)
+    matches = _find_config_values(central, key, project_root)
     if not matches:
         raise RenderError(f"missing config value `{key}`")
     if len(matches) > 1:
@@ -651,6 +759,8 @@ class _ConfigTable(_Table):
         self._ctx = ctx
 
     def _resolve(self, name: str) -> Any:
+        if _relative_text(name, self._ctx.project_root) != name:
+            raise RenderError("noncanonical config name")
         if self._path == "config" and name not in self._table:
             path, resolved = _resolve_short_config(self._central, name, self._ctx.project_root)
             self._ctx.inputs[f"config.{path}"] = resolved
@@ -677,6 +787,8 @@ class _CustomizationTable(_Table):
         self._ctx = ctx
 
     def _resolve(self, name: str) -> Any:
+        if _relative_text(name, self._ctx.project_root) != name:
+            raise RenderError("noncanonical customization name")
         path = self._child(name)
         if self._defaults is None:
             raise RenderError(f"`{path}` requires customize.toml")
@@ -692,7 +804,7 @@ class _CustomizationTable(_Table):
             return _CustomizationTable(default, value, path, self._ctx)
         if path == "workflow.implementation_handoff":
             instruction = _require_string(value, label, allow_empty=True)
-            if re.search(r"\{\s*(?:plan_file|plan_path|verbatim_intent|claims_file|diff_file|project-root|skill-root)\s*\}", _decode_credential_text(instruction)):
+            if re.search(r"\{\s*(?:plan_file|plan_path|verbatim_intent|claims_file|diff_file|project-root|skill-root)\s*\}", _decode_privacy_text(instruction)):
                 raise RenderError("private implementation placeholder")
         resolved = _relative_values(_resolve_customization_value(value, default, label), self._ctx.project_root)
         self._ctx.inputs[label] = resolved
@@ -896,7 +1008,7 @@ def render(
     ):
         raise RenderError("skill is not a canonical BMAD directory")
 
-    sources = {name: _relative_text(content, project_root) for name, content in _load_sources(skill_dir).items()}
+    sources = _relative_values(_load_sources(skill_dir), project_root)
     for prompt in ("review-prompts/edge-case-hunter.md", "review-prompts/verification-gap.md"):
         if prompt not in sources or not sources[prompt].strip():
             raise RenderError("required review prompt is missing or empty")

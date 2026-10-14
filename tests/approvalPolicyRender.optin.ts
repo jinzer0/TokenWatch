@@ -197,6 +197,44 @@ function privacyProse(f: Fixture, skill: Skill, surface: ProseSurface, prose: st
   }
   return { assignments, overrides, input };
 }
+function privateRejection(
+  f: Fixture,
+  prior: Snapshot,
+  inputs: string[],
+  assignments: string[] = [],
+  cwd = f.root
+): void {
+  const before = new Map(inputs.map((path) => [path, readBytes(path)]));
+  const oldOutputs = new Map(
+    ['manifest.json', ...Object.keys(prior.outputs)].map((name) => [
+      name,
+      readBytes(join(prior.generation, name))
+    ])
+  );
+  const generations = readdirSync(dirname(prior.generation)).sort();
+  const result = invoke(
+    f.renderer,
+    [
+      '--project-root',
+      f.root,
+      '--skill',
+      f.skillDir,
+      ...assignments.flatMap((value) => ['--set', value])
+    ],
+    cwd
+  );
+  expect(!result.error && result.status === 1, 'encoded private input fails closed').toBe(true);
+  expect(result.stdout === 'HALT: BMAD rendering failed.\n' && result.stderr === '').toBe(true);
+  expect(
+    [...before].every(([path, bytes]) => readBytes(path).equals(bytes)),
+    'inputs unchanged'
+  ).toBe(true);
+  expect(
+    [...oldOutputs].every(([name, bytes]) => readBytes(join(prior.generation, name)).equals(bytes)),
+    'prior snapshot and manifest unchanged'
+  ).toBe(true);
+  expect(readdirSync(dirname(prior.generation)).sort()).toEqual(generations);
+}
 function render(
   f: Fixture,
   assignments: string[] = [],
@@ -1290,6 +1328,182 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
     }
   }
   for (const skill of skills) {
+    for (const prefix of ['case-ＳＹＮＴＨＥＴＩＣ-', 'case-é-']) {
+      it(`${skill} encoded path Unicode checkout identity ${prefix}`, () => {
+        const f = fixture(skill, prefix);
+        const literal = privacyProse(f, skill, 'instruction', `Read ${f.root}/AGENTS.md`);
+        const prior = render(f, literal.assignments);
+        expect(prior.outputs['step-04-review.md'].includes('Read ./AGENTS.md')).toBe(true);
+        const candidate = privacyProse(
+          f,
+          skill,
+          'instruction',
+          `Read https://example.com/view?source=${encodeURIComponent(`${f.root}/private.md`)}`
+        );
+        privateRejection(f, prior, [], candidate.assignments);
+      });
+    }
+    it(`${skill} encoded path root and nested cwd preserve public bytes and reject private input`, () => {
+      const f = fixture(skill);
+      const nested = join(f.root, 'synthetic/nested');
+      mkdirSync(nested, { recursive: true });
+      const safe = privacyProse(
+        f,
+        skill,
+        'instruction',
+        'Read https://example.com/assets/a%20%2Fb.svg'
+      );
+      const root = render(f, safe.assignments);
+      const child = render(f, safe.assignments, undefined, nested);
+      expect(
+        root.entry === child.entry &&
+          JSON.stringify(root.manifest) === JSON.stringify(child.manifest)
+      ).toBe(true);
+      const unsafe = privacyProse(
+        f,
+        skill,
+        'instruction',
+        'Read %2Fhome%2Fsynthetic-owner%2Fprivate.md'
+      );
+      privateRejection(f, root, [], unsafe.assignments);
+      privateRejection(f, root, [], unsafe.assignments, nested);
+    });
+    for (const layer of [
+      '_bmad/config.toml',
+      '_bmad/custom/config.toml',
+      '_bmad/custom/config.user.toml'
+    ]) {
+      for (const ancestor of [
+        '/home/synthetic-owner',
+        '%2Fhome%2Fsynthetic-owner',
+        'synthetic_public'
+      ]) {
+        for (const lookup of ['direct', 'short']) {
+          it(`${skill} encoded path selected identity ${layer} ${ancestor} ${lookup}`, () => {
+            const f = fixture(skill);
+            const prior = render(f);
+            const input = join(f.root, layer);
+            mkdirSync(dirname(input), { recursive: true });
+            writeFileSync(input, `[${JSON.stringify(ancestor)}]\ntask_label = "public"\n`);
+            const source = join(f.skillDir, 'plan-template.md');
+            const expression =
+              lookup === 'short'
+                ? 'config.task_label'
+                : `config[${JSON.stringify(ancestor)}].task_label`;
+            const text = `${readBytes(source).toString('utf8')}\n{{ ${expression} }}\n`;
+            writeFileSync(source, text);
+            if (ancestor === 'synthetic_public') {
+              f.sourceHashes['plan-template.md'] = sha256(text);
+              f.templateHashes['plan-template.md'] = sha256(text);
+              const snapshot = render(f);
+              expect(
+                snapshot.manifest.inputs.resolved_values['config.synthetic_public.task_label'] ===
+                  'public'
+              ).toBe(true);
+              expect(snapshot.outputs['plan-template.md'].includes('public')).toBe(true);
+            } else privateRejection(f, prior, [input, source]);
+          });
+        }
+      }
+    }
+    it(`${skill} preserves encoded path public relative output mapping keys`, () => {
+      const f = fixture(skill);
+      const name = 'public%20notes.md';
+      const text = '# 공개 합성 자료\n';
+      writeFileSync(join(f.skillDir, name), text);
+      f.sourceHashes[name] = sha256(text);
+      f.templateHashes[name] = sha256(text);
+      const snapshot = render(f);
+      expect(snapshot.outputs[name] === text, 'safe encoded filename and bytes preserved').toBe(
+        true
+      );
+    });
+    for (const layer of [
+      '_bmad/config.toml',
+      '_bmad/custom/config.toml',
+      '_bmad/custom/config.user.toml'
+    ]) {
+      for (const key of ['output_folder', 'active_initiative']) {
+        it(`${skill} preserves encoded path safe relative setting ${layer} ${key}`, () => {
+          const f = fixture(skill);
+          const input = join(f.root, layer);
+          mkdirSync(dirname(input), { recursive: true });
+          const text = `[core]\n${key} = "reports%20draft"\n`;
+          writeFileSync(input, text);
+          const snapshot = render(f);
+          expect(
+            snapshot.manifest.inputs.resolved_values[`config.core.${key}`] === 'reports%20draft'
+          ).toBe(true);
+          expect(readBytes(input).toString('utf8') === text, 'safe relative input preserved').toBe(
+            true
+          );
+        });
+      }
+    }
+    for (const spelling of [
+      '%2Fhome%2Fsynthetic-owner%2Fprivate.md',
+      '&#47;home&#47;synthetic-owner&#47;private.md',
+      '／home／synthetic-owner／private.md',
+      '%5Cu002fhome%5Cu002fsynthetic-owner%5Cu002fprivate.md'
+    ]) {
+      it(`${skill} rejects encoded path in consumed shipped defaults ${spelling}`, () => {
+        const f = fixture(skill);
+        const prior = render(f);
+        const defaults = join(f.skillDir, 'customize.toml');
+        const source = join(f.skillDir, 'plan-template.md');
+        const text = readBytes(defaults).toString('utf8');
+        expect(text.includes('[workflow]\n')).toBe(true);
+        writeFileSync(
+          defaults,
+          text.replace(
+            '[workflow]\n',
+            `[workflow]\nsynthetic_privacy = ${JSON.stringify(`Read ${spelling}`)}\n`
+          )
+        );
+        writeFileSync(
+          source,
+          `${readBytes(source).toString('utf8')}\n{{ workflow.synthetic_privacy }}\n`
+        );
+        privateRejection(f, prior, [defaults, source]);
+      });
+    }
+    for (const layer of [
+      '_bmad/config.toml',
+      '_bmad/custom/config.toml',
+      '_bmad/custom/config.user.toml'
+    ]) {
+      for (const key of ['output_folder', 'active_initiative']) {
+        for (const spelling of [
+          '%2Fhome%2Fsynthetic-owner',
+          '%2E%2E%2Fsynthetic-private',
+          '%7E%2Fsynthetic-private',
+          '&#47;home&#47;synthetic-owner',
+          '／home／synthetic-owner',
+          '\\u002fhome\\u002fsynthetic-owner'
+        ]) {
+          it(`${skill} rejects encoded path setting ${layer} ${key} ${spelling}`, () => {
+            const f = fixture(skill);
+            const prior = render(f);
+            const input = join(f.root, layer);
+            mkdirSync(dirname(input), { recursive: true });
+            writeFileSync(input, `[core]\n${key} = ${JSON.stringify(spelling)}\n`);
+            privateRejection(f, prior, [input]);
+          });
+        }
+      }
+    }
+    for (const filename of [
+      '%2Fhome%2Fsynthetic-owner%2Fprivate.md',
+      '&#47;home&#47;synthetic-owner&#47;private.md'
+    ]) {
+      it(`${skill} rejects encoded path in output mapping key ${filename}`, () => {
+        const f = fixture(skill);
+        const prior = render(f);
+        const source = join(f.skillDir, filename);
+        writeFileSync(source, '# 합성 검증 자료\n');
+        privateRejection(f, prior, [source]);
+      });
+    }
     it(`${skill} actually renders Korean canonical headings with unchanged native schema`, () => {
       const f = fixture(skill);
       try {
@@ -1716,6 +1930,117 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
     // Paths are invented sentinels, never actual machine/user locations.
     for (const [form, prose] of [
       ['posix', 'Read /synthetic-private-machine/work/file.md'],
+      ['encoded-path-posix', 'Read %2Fhome%2Fsynthetic-owner%2Fprivate.md'],
+      [
+        'encoded-path-json-duplicate',
+        '{"note":"%2Fhome%2Fsynthetic-owner%2Fprivate.md","note":"public"}'
+      ],
+      [
+        'encoded-path-json-nested-duplicate',
+        '{"data":{"note":"%2Fhome%2Fsynthetic-owner%2Fprivate.md","note":"public"}}'
+      ],
+      [
+        'encoded-path-json-escaped-duplicate',
+        '{"note":"%2Fhome%2Fsynthetic-owner%2Fprivate.md","\\u006eote":"public"}'
+      ],
+      ['encoded-path-lowercase', 'Read %2fhome%2fsynthetic-owner%2fprivate.md'],
+      ['encoded-path-nested-percent', 'Read %252Fhome%252Fsynthetic-owner%252Fprivate.md'],
+      ['encoded-path-drive', 'Read Z%3A%5Csynthetic-owner%5Cprivate.md'],
+      ['encoded-path-drive-relative', 'Read Z%3Asynthetic-private.md'],
+      ['encoded-path-unc', 'Read %5C%5Csynthetic-server%5Cprivate%5Cfile.md'],
+      ['encoded-path-home', 'Read %7E%2Fsynthetic-private%2Ffile.md'],
+      ['encoded-path-home-variable', 'Read %24HOME%2Fsynthetic-private%2Ffile.md'],
+      ['encoded-path-home-braced', 'Read %24%7BHOME%7D%2Fsynthetic-private%2Ffile.md'],
+      ['encoded-path-windows-home', 'Read %25USERPROFILE%25%5Csynthetic-private%5Cfile.md'],
+      ['encoded-path-decimal-entity', 'Read &#47;home&#47;synthetic-owner&#47;private.md'],
+      ['encoded-path-hex-entity', 'Read &#x2f;home&#x2f;synthetic-owner&#x2f;private.md'],
+      ['encoded-path-named-entity', 'Read &sol;home&sol;synthetic-owner&sol;private.md'],
+      [
+        'encoded-path-nested-entity',
+        'Read &amp;sol;home&amp;sol;synthetic-owner&amp;sol;private.md'
+      ],
+      [
+        'encoded-path-percent-entity',
+        'Read %26%23x2f%3Bhome%26%23x2f%3Bsynthetic-owner%26%23x2f%3Bprivate.md'
+      ],
+      ['encoded-path-entity-percent', 'Read &#37;2Fhome&#37;2Fsynthetic-owner&#37;2Fprivate.md'],
+      ['encoded-path-fullwidth', 'Read ／home／synthetic-owner／private.md'],
+      ['encoded-path-fullwidth-drive', 'Read Ｚ：＼synthetic-owner＼private.md'],
+      [
+        'encoded-path-percent-fullwidth',
+        'Read %EF%BC%8Fhome%EF%BC%8Fsynthetic-owner%EF%BC%8Fprivate.md'
+      ],
+      ['encoded-path-json-unicode', 'Read \\u002fhome\\u002fsynthetic-owner\\u002fprivate.md'],
+      [
+        'encoded-path-percent-unicode',
+        'Read %5Cu002fhome%5Cu002fsynthetic-owner%5Cu002fprivate.md'
+      ],
+      ['encoded-path-file-uri', 'Read file%3A%2F%2F%2Fhome%2Fsynthetic-owner%2Fprivate.md'],
+      ['encoded-path-emphasis', 'Read **%2Fhome%2Fsynthetic-owner%2Fprivate.md**'],
+      ['encoded-path-markdown', 'Read [synthetic](%2Fhome%2Fsynthetic-owner%2Fprivate.md)'],
+      ['encoded-path-angle', 'Read <%2Fhome%2Fsynthetic-owner%2Fprivate.md>'],
+      [
+        'encoded-path-uri-userinfo',
+        'Read https%3A%2F%2Fsynthetic-user%3Asynthetic-secret%40example.com%2Fwork'
+      ],
+      [
+        'encoded-path-uri-quote-userinfo',
+        'Read https%3A%2F%2Fsynthetic-user%27%3Asynthetic-secret%40example.com%2Fwork'
+      ],
+      [
+        'encoded-path-uri-raw-quote-userinfo',
+        "Read https://synthetic-user':synthetic-secret@example.com/work"
+      ],
+      [
+        'encoded-path-uri-intermediate-userinfo',
+        'Read https%3A%2F%2Fsynthetic-user%3Asynthetic%252Fsecret%40example.com%2Fwork'
+      ],
+      [
+        'encoded-path-uri-mixed-operator-userinfo',
+        'Read https&#58;&#47;&#47;synthetic-user%2F:synthetic-secret@public.example/guide'
+      ],
+      [
+        'encoded-path-uri-encoded-scheme-ssh',
+        'Read https://example.com/work?next=%73%73%68&#58;&#47;&#47;synthetic-owner%2Fsynthetic-secret%40public.example%2Fguide'
+      ],
+      [
+        'encoded-path-uri-real-nested-authority',
+        'Read https://example.com/work?next=%73%73%68%3A%2F%2Fsynthetic-owner%252Fsynthetic-secret%40public.example%2Fguide'
+      ],
+      [
+        'encoded-path-uri-encoded-scheme-http',
+        'Read https://example.com/work?next=%68%74%74%70%73&#58;&#47;&#47;synthetic-owner%2Fsynthetic-secret%40public.example%2Fguide'
+      ],
+      [
+        'encoded-path-uri-quoted-code',
+        'Read https%3A%2F%2Fexample.com%2Fwork%3Fq%3D%22public%22%26code%3Dsynthetic-secret'
+      ],
+      [
+        'encoded-path-uri-raw-quote-code',
+        'Read https%3A%2F%2Fexample.com%2Fwork%3Fq%3D"public%20query"%26code%3Dsynthetic-secret'
+      ],
+      [
+        'encoded-path-uri-nested-userinfo',
+        'Read https%3A%2F%2Fexample.com%2Fwork%3Fnext%3Dhttps%3A%2F%2Fsynthetic-user%3Asynthetic-secret%40public.example%2Fguide'
+      ],
+      [
+        'encoded-path-uri-nested-raw-userinfo',
+        'Read https://example.com/work?next=https://synthetic-user:synthetic-secret@public.example/guide'
+      ],
+      [
+        'encoded-path-uri-nested-ssh-userinfo',
+        'Read https://example.com/work?next=ssh%3A%2F%2Fsynthetic-user%3Asynthetic-secret%40public.example%2Fguide'
+      ],
+      [
+        'encoded-path-known-root-uri-controls',
+        'synthetic dynamic root hidden by URI parser normalization'
+      ],
+      ['encoded-path-known-root-url', 'synthetic dynamic encoded root in public URL'],
+      [
+        'encoded-path-over-budget',
+        `Read ${Array.from({ length: 10 }).reduce<string>((value) => encodeURIComponent(value), '/home/synthetic-owner/private.md')}`
+      ],
+      ['encoded-path-contained-root', 'synthetic dynamic encoded checkout reference'],
       ['windows-drive', 'Read Z:\\synthetic-private-machine\\work\\file.md'],
       ['windows-forward', 'Read Z:/synthetic-private-machine/work/file.md'],
       ['drive-relative', 'Read Z:synthetic-private-machine\\file.md'],
@@ -1891,7 +2216,15 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
           );
           const generations = readdirSync(dirname(prior.generation));
           const candidateProse =
-            form === 'quoted-inroot-spaces' ? `Read "${f.root}/synthetic path/file.md"` : prose;
+            form === 'quoted-inroot-spaces'
+              ? `Read "${f.root}/synthetic path/file.md"`
+              : form === 'encoded-path-contained-root'
+                ? `Read ${encodeURIComponent(`${f.root}/AGENTS.md`)}`
+                : form === 'encoded-path-known-root-uri-controls'
+                  ? `Read https://example.com/view?source=${encodeURIComponent(`${f.root.replace('case-', 'ca\nse-')}/private.md`)}`
+                  : form === 'encoded-path-known-root-url'
+                    ? `Read https://example.com/view?source=${encodeURIComponent(`${f.root}/private.md`)}`
+                    : prose;
           const { assignments, overrides, input } = privacyProse(f, skill, surface, candidateProse);
           const readonlyInputs = new Map(
             [
@@ -1951,6 +2284,18 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
         const prose =
           'Read [public](https://example.com/docs/reference?mode=public#section), ' +
           '<http://example.org/docs/reference> and [local](mydocs/skills/reference.md), ' +
+          '[encoded public](https://example.com/public%20docs/%E2%9C%93?mode=public%2Fview), ' +
+          'https://example.com/assets/a%20%2Fb.svg https://example.com/docs/%2Fguide.md ' +
+          'https://example.com/search?q=%22a%20%2Fb%22 https://example.com/view?data=%7B%22route%22%3A%22%2Fpublic%22%7D ' +
+          'https://example.com/redirect?next=https%3A%2F%2Fpublic.example%2Fguide ' +
+          'https://example.com/redirect?next=git%3A%2F%2Fpublic.example%2Fguide ' +
+          'https&#58;&#47;&#47;public.example/guide%2Fsection ' +
+          'https://example.com/work?next=%73%73%68&#58;&#47;&#47;public.example/guide%2Fsection ' +
+          'https://example.com/work?next=%73%73%68%3A%2F%2Fpublic.example%2Fpublic%40route%2Fguide ' +
+          '{"url":"https://example.com/work?q=public","code":"public-example"} ' +
+          '{"url": "https://example.com/work?q=public", "code": "public-example"} ' +
+          'https%3A%2F%2Fexample.com%2Fpublic%3Fmode%3Dpublic ' +
+          'mydocs/public%20notes.md and mydocs/public&#32;notes.md; 75% complete; ' +
           '[IPv6](https://[2001:db8::1]/docs/reference), ' +
           '[relative](./AGENTS.md), ../shared/reference.md and {skill-root}/review-prompts/edge-case-hunter.md. ' +
           '<intent-contract>synthetic intent</intent-contract> ' +
@@ -1982,6 +2327,36 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
           snapshot.outputs[surface === 'source' ? 'plan-template.md' : 'step-04-review.md'];
         expect(
           output.includes('https://example.com/docs/reference?mode=public#section') &&
+            output.includes('https://example.com/public%20docs/%E2%9C%93?mode=public%2Fview') &&
+            output.includes(
+              'https://example.com/assets/a%20%2Fb.svg https://example.com/docs/%2Fguide.md'
+            ) &&
+            output.includes(
+              'https://example.com/search?q=%22a%20%2Fb%22 https://example.com/view?data=%7B%22route%22%3A%22%2Fpublic%22%7D'
+            ) &&
+            output.includes(
+              'https://example.com/redirect?next=https%3A%2F%2Fpublic.example%2Fguide'
+            ) &&
+            output.includes(
+              'https://example.com/redirect?next=git%3A%2F%2Fpublic.example%2Fguide'
+            ) &&
+            output.includes('https&#58;&#47;&#47;public.example/guide%2Fsection') &&
+            output.includes(
+              'https://example.com/work?next=%73%73%68&#58;&#47;&#47;public.example/guide%2Fsection'
+            ) &&
+            output.includes(
+              'https://example.com/work?next=%73%73%68%3A%2F%2Fpublic.example%2Fpublic%40route%2Fguide'
+            ) &&
+            output.includes(
+              '{"url":"https://example.com/work?q=public","code":"public-example"}'
+            ) &&
+            output.includes(
+              '{"url": "https://example.com/work?q=public", "code": "public-example"}'
+            ) &&
+            output.includes('https%3A%2F%2Fexample.com%2Fpublic%3Fmode%3Dpublic') &&
+            output.includes(
+              'mydocs/public%20notes.md and mydocs/public&#32;notes.md; 75% complete;'
+            ) &&
             output.includes('api_key={synthetic_credential}') &&
             output.includes('Authorization: Bearer {synthetic_credential}') &&
             output.includes('token_count=12') &&
