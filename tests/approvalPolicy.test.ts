@@ -251,8 +251,8 @@ describe('risk-based approval delivery source contracts (not native enforcement)
       );
       has(
         defaults,
-        /unformatted plan never needs new frontmatter/,
-        `${skill}: actual handoff canonical boundary`
+        /Never read canonical plans, private context, raw human intent[\s\S]*The leader owns integration, verification, HIGH decisions and canonical continuity/,
+        `${skill}: actual worker cannot consume or rewrite canonical intent`
       );
       const workflow = read(`mydocs/skills/${skill}/workflow.md`);
       lacks(
@@ -863,6 +863,81 @@ describe('risk-based approval delivery source contracts (not native enforcement)
       /_validate_output_destination\(central, project_root\)\n {4}_publish\(/,
       'containment rechecked before immutable publication'
     );
+  });
+
+  it('P1 implementation handoff defaults and every consumer keep canonical intent leader only', () => {
+    for (const skill of Object.keys(bmadFiles)) {
+      const implementation = read(`mydocs/skills/${skill}/step-03-implement.md`);
+      const contract =
+        implementation
+          .split('### Privacy-safe implementation handoff')[1]
+          ?.split('### Implement')[0] ?? '';
+      for (const pattern of [
+        /Outside-repository canonical intent remains leader-only/,
+        /Before ANY child\/tool implementation dispatch[\s\S]*entire substituted instruction and every referenced input/,
+        /require exact-root containment, safe task ownership, safe path strings and sanitized contents\/ranges/,
+        /If a safe payload cannot preserve material acceptance meaning[\s\S]*block dependent completion\/publication/,
+        /unknown or unsafe prior context makes it ineligible for reuse/,
+        /Workers implement only their bounded slices[\s\S]*never edit canonical state, run gates\/formatters or further delegate/
+      ])
+        has(contract, pattern, `${skill}: complete implementation boundary ${pattern.source}`);
+      has(
+        implementation,
+        /Substitute only `\{implementation_contract\}` and `\{implementation_files\}`/,
+        `${skill}: only safe runtime fields enter actual dispatch`
+      );
+      lacks(
+        implementation,
+        /handoff directs the subagent to load the plan's `context:` files itself/,
+        `${skill}: no private metadata reading fallback`
+      );
+      const defaults =
+        read(`mydocs/skills/${skill}/customize.toml`)
+          .split('implementation_handoff = """')[1]
+          ?.split('"""')[0] ?? '';
+      has(
+        defaults,
+        /Implementation contract: \{implementation_contract\}/,
+        `${skill}: actual wrapper accepts safe contract`
+      );
+      has(
+        defaults,
+        /Approved repository-relative source\/hunk references: \{implementation_files\}/,
+        `${skill}: actual wrapper accepts safe refs`
+      );
+      lacks(
+        defaults,
+        /\{(?:plan_file|plan_path|verbatim_intent|claims_file|diff_file|project-root|skill-root)\}|Load authorized context|Read .*fully as the canonical/,
+        `${skill}: no canonical body/path exported by defaults`
+      );
+      const repair =
+        read(`mydocs/skills/${skill}/step-04-review.md`).split('### Classify')[1] ?? '';
+      has(
+        repair,
+        /Before any implementation repair dispatch or worker re-engagement[\s\S]*preflight the entire repair instruction and every referenced input/,
+        `${skill}: repaired existing workers have same export boundary`
+      );
+      has(
+        repair,
+        /unknown or unsafe prior context makes it ineligible for reuse/,
+        `${skill}: old unsafe seed cannot be reused as clean`
+      );
+    }
+  });
+
+  it('P1 consumed implementation overrides reject private aliases before input capture', () => {
+    const renderer = read('tools/bmad/render_skill.py');
+    const consumer =
+      renderer.split('class _CustomizationTable(')[1]?.split('class _RenderContext')[0] ?? '';
+    has(
+      consumer,
+      /path == "workflow\.implementation_handoff"[\s\S]*_decode_credential_text\(instruction\)[\s\S]*raise RenderError\("private implementation placeholder"\)/,
+      'consumed wrapper rejects decoded obsolete aliases'
+    );
+    expect(
+      consumer.indexOf('private implementation placeholder') <
+        consumer.indexOf('self._ctx.inputs[label] = resolved')
+    ).toBe(true);
   });
 
   it('P1 every reviewer consumer and default exports only sanitized acceptance and safe references', () => {

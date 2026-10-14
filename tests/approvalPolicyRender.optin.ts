@@ -332,6 +332,60 @@ function render(
 }
 function safety(snapshot: Snapshot, skill: Skill, route: Route, review: Review): void {
   const files = snapshot.outputs;
+  const implementation = files['step-03-implement.md'];
+  const boundary =
+    implementation.split('### Privacy-safe implementation handoff')[1]?.split('### Implement')[0] ??
+    '';
+  for (const pattern of [
+    /Outside-repository canonical intent remains leader-only/,
+    /Before ANY child\/tool implementation dispatch[\s\S]*entire substituted instruction and every referenced input/,
+    /require exact-root containment, safe task ownership, safe path strings and sanitized contents\/ranges/,
+    /If a safe payload cannot preserve material acceptance meaning[\s\S]*block dependent completion\/publication/,
+    /unknown or unsafe prior context makes it ineligible for reuse/,
+    /Workers implement only their bounded slices[\s\S]*never edit canonical state, run gates\/formatters or further delegate/
+  ])
+    assertText(
+      boundary,
+      pattern,
+      `${skill}: actual rendered implementation preflight ${pattern.source}`
+    );
+  if (skill !== 'bmad-build-auto' || route !== 'oneshot') {
+    expect(
+      implementation.indexOf('Before ANY child/tool implementation dispatch, preflight') <
+        implementation.indexOf('Launch a subagent with no prior conversation context'),
+      'entire payload preflight before implementation recipe'
+    ).toBe(true);
+    const tail =
+      implementation.split(
+        'Launch a subagent with no prior conversation context, with this prompt:'
+      )[1] ?? '';
+    const end =
+      'Missing material criteria block the affected implementation, never imply acceptance or scope reduction.';
+    expect(tail.includes(end), 'actual default child contract end is present').toBe(true);
+    const worker = tail.split(end)[0];
+    assertText(
+      worker,
+      /Implementation contract: \{implementation_contract\}/,
+      'rendered worker receives safe contract'
+    );
+    assertText(
+      worker,
+      /Approved repository-relative source\/hunk references: \{implementation_files\}/,
+      'rendered worker receives only approved refs'
+    );
+    expect(
+      /\{(?:plan_file|plan_path|verbatim_intent|claims_file|diff_file|project-root|skill-root)\}/.test(
+        worker
+      ),
+      'actual child prompt does not export leader runtime aliases'
+    ).toBe(false);
+  }
+  if (review !== 'none')
+    assertText(
+      files['step-04-review.md'],
+      /Before any implementation repair dispatch or worker re-engagement[\s\S]*preflight the entire repair instruction and every referenced input/,
+      'resumed repair reapplies payload and reference preflight'
+    );
   for (const name of ['step-04-review.md', 'step-oneshot.md']) {
     const text = files[name];
     if (!text || !text.includes('Runtime review placeholders')) continue;
@@ -1223,6 +1277,113 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
     }
   }
   for (const skill of skills) {
+    for (const surface of ['instruction', 'persistent', 'overrides'] as const) {
+      for (const alias of [
+        '{plan_file}',
+        '{plan_path}',
+        '{verbatim_intent}',
+        '{claims_file}',
+        '{diff_file}',
+        '{project-root}',
+        '{skill-root}',
+        '{ plan_file }',
+        '%7Bplan_file%7D',
+        '&#123;plan_file&#125;'
+      ]) {
+        it(`${skill} implementation handoff rejects private alias ${alias} on ${surface}`, () => {
+          const f = fixture(skill);
+          const prior = render(f, ['workflow.route=full']);
+          const previous = new Map(
+            ['manifest.json', ...Object.keys(prior.outputs)].map((name) => [
+              name,
+              readBytes(join(prior.generation, name))
+            ])
+          );
+          const generations = readdirSync(dirname(prior.generation));
+          const defaults = readBytes(join(f.skillDir, 'customize.toml'));
+          const instruction = `Load ${alias}; synthetic forbidden worker instruction.`;
+          let input: string | undefined;
+          let overrides: string | undefined;
+          const assignments = ['workflow.route=full'];
+          if (surface === 'instruction')
+            assignments.push(`workflow.implementation_handoff=${JSON.stringify(instruction)}`);
+          else {
+            input =
+              surface === 'persistent'
+                ? join(f.root, '_bmad/custom', `${skill}.user.toml`)
+                : join(fixture(skill).root, 'synthetic-implementation-override.toml');
+            mkdirSync(dirname(input), { recursive: true });
+            writeFileSync(
+              input,
+              `[workflow]\nimplementation_handoff = ${JSON.stringify(instruction)}\n`
+            );
+            if (surface === 'overrides') overrides = input;
+          }
+          const before = input ? readBytes(input) : undefined;
+          const result = invoke(
+            f.renderer,
+            [
+              '--project-root',
+              f.root,
+              '--skill',
+              f.skillDir,
+              ...(overrides ? ['--overrides', overrides] : []),
+              ...assignments.flatMap((value) => ['--set', value])
+            ],
+            f.root
+          );
+          expect(
+            !result.error &&
+              result.status === 1 &&
+              result.stdout === 'HALT: BMAD rendering failed.\n' &&
+              result.stderr === '',
+            'consumed unsafe implementation recipe rejected before capture/publication'
+          ).toBe(true);
+          expect(readBytes(join(f.skillDir, 'customize.toml')).equals(defaults)).toBe(true);
+          if (input) expect(readBytes(input).equals(before!)).toBe(true);
+          expect(readdirSync(dirname(prior.generation))).toEqual(generations);
+          expect(
+            [...previous].every(([name, bytes]) =>
+              readBytes(join(prior.generation, name)).equals(bytes)
+            )
+          ).toBe(true);
+        });
+      }
+      it(`${skill} implementation handoff preserves safe customized fields on ${surface}`, () => {
+        const f = fixture(skill);
+        const instruction =
+          'Synthetic safe implementation contract: {implementation_contract}\nApproved source/hunk references: {implementation_files}';
+        let input: string | undefined;
+        let overrides: string | undefined;
+        const assignments = ['workflow.route=full'];
+        if (surface === 'instruction')
+          assignments.push(`workflow.implementation_handoff=${JSON.stringify(instruction)}`);
+        else {
+          input =
+            surface === 'persistent'
+              ? join(f.root, '_bmad/custom', `${skill}.user.toml`)
+              : join(fixture(skill).root, 'synthetic-safe-implementation-override.toml');
+          mkdirSync(dirname(input), { recursive: true });
+          writeFileSync(
+            input,
+            `[workflow]\nimplementation_handoff = ${JSON.stringify(instruction)}\n`
+          );
+          if (surface === 'overrides') overrides = input;
+        }
+        const before = input ? readBytes(input) : undefined;
+        const snapshot = render(f, assignments, overrides);
+        expect(snapshot.outputs['step-03-implement.md'].includes(instruction)).toBe(true);
+        expect(
+          snapshot.manifest.inputs.resolved_values['customization.workflow.implementation_handoff']
+        ).toBe(instruction);
+        assertText(
+          snapshot.outputs['step-03-implement.md'],
+          /preflight the entire substituted instruction and every referenced input/,
+          'safe override still governed by consumer boundary'
+        );
+        if (input) expect(readBytes(input).equals(before!)).toBe(true);
+      });
+    }
     for (const layer of [
       '_bmad/config.toml',
       '_bmad/custom/config.toml',

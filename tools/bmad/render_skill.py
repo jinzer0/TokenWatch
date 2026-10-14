@@ -687,6 +687,10 @@ class _CustomizationTable(_Table):
             if not isinstance(value, dict):
                 raise RenderError(f"{label} must be a table, got {type(value).__name__}")
             return _CustomizationTable(default, value, path, self._ctx)
+        if path == "workflow.implementation_handoff":
+            instruction = _require_string(value, label, allow_empty=True)
+            if re.search(r"\{\s*(?:plan_file|plan_path|verbatim_intent|claims_file|diff_file|project-root|skill-root)\s*\}", _decode_credential_text(instruction)):
+                raise RenderError("private implementation placeholder")
         resolved = _relative_values(_resolve_customization_value(value, default, label), self._ctx.project_root)
         self._ctx.inputs[label] = resolved
         return _bind_customization(resolved, label, self._ctx.destination)

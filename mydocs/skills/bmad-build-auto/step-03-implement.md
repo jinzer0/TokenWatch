@@ -42,6 +42,22 @@ Record `baseline_revision` (current HEAD, or `NO_VCS` if version control is unav
 
 Separately identify task-owned files/hunks and captured pre-edit user baselines versus unrelated staged/dirty/untracked content. Revision differences are not ownership. Preserve userwork; inseparable overlap blocks only the affected target. Carry ownership evidence into review/repair/Finalize.
 
+### Privacy-safe implementation handoff
+
+This boundary applies before ANY child/tool implementation dispatch, including initial launch, resume, repair, re-engagement, follow-up and unknown customized instructions. A dormant full branch or leader-only implementation requires no child payload or capability.
+
+The leader alone reads the authoritative canonical plan and associated context. Keep original human intent/body/path, baseline, state and append-only logs in that permitted existing context. Outside-repository canonical intent remains leader-only. Never copy, relocate, force-convert or create a prompt/plan artifact to prepare a worker.
+
+Derive `{implementation_contract}` as privacy-safe observable acceptance criteria, assigned task-owned scope/steps, relevant sanitized technical facts and current safety/ownership constraints. Preserve every material requirement without copying raw invocation, canonical human body, private records or identifiers. `{implementation_files}` contains only approved safe repository-relative source/hunk references and exact allowed ranges, never canonical plan/context or private temporary files. Do not expand `context:` into a worker reading list or permit full-file reads outside approved safe ranges.
+
+Before ANY child/tool implementation dispatch, preflight the entire substituted instruction and every referenced input, including defaults, arbitrary overrides and resumed-worker messages. Re-resolve realpaths of the exact authorized repository root, each reference and existing parent; require exact-root containment, safe task ownership, safe path strings and sanitized contents/ranges. Explicit documented fake provenance is required for synthetic content. Reject unresolved or obsolete private placeholders, traversal/symlink aliases, raw paths/hashes/session metadata, credentials, raw prompts/records, SQL, stacks and arbitrary dumps. A safe wrapper does not exempt its file contents or custom instruction.
+
+If a safe payload cannot preserve material acceptance meaning, block the affected implementation dispatch before export; keep implementation incomplete and block dependent completion/publication. Continue independent permitted work, never silently narrow scope, invent acceptance, export private context or substitute a private reading fallback. Refresh and revalidate the contract/references on every repair or re-engagement; a prior launch is not current evidence.
+
+The leader owns canonical state/baseline/log continuity, integration, verification, formatters, HIGH/native decisions and Git/publication. Workers implement only their bounded slices and return privacy-safe results/limitations; they never edit canonical state, run gates/formatters or further delegate. Only the leader may read a permitted non-empty `context:` list for implementation and derive safe facts from it.
+
+A reused worker must have a verified privacy-safe initial seed and subsequent inputs; unknown or unsafe prior context makes it ineligible for reuse. Preserve that limitation, do not reshare private material or treat a fresh launch as proof that the earlier lane succeeded. Any permitted leader-only fallback retains current route, scope and native authority without exporting private inputs.
+
 ### Implement
 
 Only after effective-route resolution, record status `in-progress` in that same state/evidence location before starting implementation, never in an unformatted human plan. Execute only the matching runtime route below, then continue with Both routes.
@@ -59,7 +75,7 @@ Stop if the intent left out something the user would notice in the result. Recor
 
 #### Full (active ONLY when `{effective_route} = full`)
 
-Seed the actual dispatch with root/nearest-child/native safety, current request scope/mode, task-owned files/hunks and next-risk HIGH revalidation. Substitute runtime placeholders into the handoff below, then follow it within those constraints. Customized plan-sole-SOT prose applies to intent only, never authority or ownership. Resolve technical conflicts autonomously; genuine intent/integrity conflicts block dependent actions with evidence.
+Seed root/nearest-child/native safety, current scope/request mode, task-owned boundaries and current scoped authority. Substitute only `{implementation_contract}` and `{implementation_files}`, complete the privacy-safe implementation handoff preflight above, then follow the handoff only within those boundaries. Never substitute `{plan_file}` or raw context into a worker payload. Customized plan-sole-SOT prose applies to leader-held intent only, never authority or ownership. Genuine material conflicts block dependent actions without exporting private context.
 
 {{ workflow.implementation_handoff }}
 

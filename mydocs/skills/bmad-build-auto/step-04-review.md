@@ -106,6 +106,8 @@ For initial review and every loopback/resume/follow-up, retain each applicable r
 
 ### Classify
 
+Before any implementation repair dispatch or worker re-engagement, including patch and bad_plan loopbacks, apply step 03's privacy-safe implementation handoff boundary again. The leader derives a current sanitized `{implementation_contract}` and approved `{implementation_files}` from the verified findings; preflight the entire repair instruction and every referenced input before sending it. Never forward canonical intent/body/path, raw findings/diff/context or private temporary files. A reused worker must have a verified privacy-safe initial seed and subsequent inputs; unknown or unsafe prior context makes it ineligible for reuse, not permission to resend private material. Missing safe material criteria block dependent repair/completion/publication while independent permitted work continues. A permitted leader-only fallback does not export private inputs or change recorded route.
+
 1.  After native await settles available launched lanes, render a verdict on each actual finding, ahead of any deduplication or grouping. Record missing/unsuccessful required lanes as incomplete review, not successful zero-finding results; collecting or triaging available findings does not clear that condition. Disregard any severity a reviewing subagent assigned — they lack the context to grade.
 
     Check prior triage rows on loopback/resume/follow-up against current code and evidence. Carry a verdict only when still supported, append `carried` with current evidence, and avoid duplicate deferred entries or already-applied patches. Never skip current verification/AC or unresolved defects because rows, prior done or reset exist.

@@ -101,6 +101,8 @@ For initial review and every loopback/resume/follow-up, retain each applicable r
 
 ### Classify
 
+Before any implementation repair dispatch or worker re-engagement, including patch and bad_plan loopbacks, apply step 03's privacy-safe implementation handoff boundary again. The leader derives a current sanitized `{implementation_contract}` and approved `{implementation_files}` from the verified findings; preflight the entire repair instruction and every referenced input before sending it. Never forward canonical intent/body/path, raw findings/diff/context or private temporary files. A reused worker must have a verified privacy-safe initial seed and subsequent inputs; unknown or unsafe prior context makes it ineligible for reuse, not permission to resend private material. Missing safe material criteria block dependent repair/completion/publication while independent permitted work continues. A permitted leader-only fallback does not export private inputs or change recorded route.
+
 1. After native await settles available launched lanes, render a verdict on each actual finding, ahead of any deduplication or grouping. Record missing/unsuccessful required lanes as incomplete review, not successful zero-finding results; collecting or triaging available findings does not clear that condition. Disregard any severity a reviewing subagent assigned — they lack the context to grade.
 
    If `## Review Triage Log` at the resolved state/evidence location already has rows — a loopback or a resumed review — check each finding against current code and evidence first. Carry a prior verdict and route only when current code and relevant evidence still support them; append a new row marked `carried` with that support, preserving prior evidence. Same location, claim or unchanged code alone is not sufficient. Stale, missing or irrelevant evidence requires validation below; a disproved prior verdict must be corrected with current evidence. Unresolved or unapplied repairs must still be processed through grouping and routing under current scope/ownership/authority, then reverified. Prior rows never waive required verification or acceptance, and no finding or evidence may be dropped.
@@ -139,6 +141,10 @@ For initial review and every loopback/resume/follow-up, retain each applicable r
 
      ```text
      Review of your implementation found problems. Fix each one below with the smallest change that does the job.
+
+     Implementation contract: {implementation_contract}
+     Approved repository-relative source/hunk references: {implementation_files}
+     Use only approved safe ranges; never reopen canonical plans or private context. The leader owns canonical state, gates, formatters and publication.
 
      Follow native worker restrictions; the leader runs the union verification and applicable gates after you return. Reply with changes, unresolved findings and supporting evidence without claiming unrun checks.
 
