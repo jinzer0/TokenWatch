@@ -1,47 +1,47 @@
-# External PR Final Report Template
+# 외부 PR 최종 보고서 서식
 
-This central template is for `mydocs/pr/pr_{number}_report.md`. It records the final judgment for an external PR review, verification results, and the GitHub PR comment or review body.
+이 중앙 서식은 `mydocs/pr/pr_{number}_report.md`용이다. 외부 PR 검토의 최종 판단·검증 결과와 GitHub PR 댓글 또는 검토 본문을 기록한다.
 
-## Usage
+## 사용 안내
 
-- Actual file: `mydocs/pr/pr_{number}_report.md`
-- When to write: after external PR review and required verification, before posting the comment/review to GitHub
-- Writing language: use the selected Hyper-Waterfall locale for this repository.
+- 실제 파일: `mydocs/pr/pr_{number}_report.md`
+- 작성 시점: 외부 PR 검토와 필요한 검증을 마친 후, GitHub 댓글·검토 게시 전. 검증 실패·차단·미실행은 한계로 구분해 기록한다.
+- 작성 언어: 생성하는 HF 문서와 GitHub 제목·본문·검토·댓글은 반드시 한국어로 작성한다. 경로·명령·기술 키·상태 코드 등 고정 기술 토큰은 유지한다. 기존 canonical 사용자 문서는 번역·복제하지 않고 참조한다.
 
-## Review Result Summary
+## 검토 결과 요약
 
 - PR: #{number}
-- Final recommendation: {merge / request changes / close}
-- Key reason: {one-line summary}
+- 최종 권고: {병합 / 변경 요청 / 종료}
+- 핵심 이유: {한 줄 요약}
 
-## Verification Results
+## 검증 결과
 
-Command run:
+수행한 명령:
 
 ```bash
-{verification command}
+{검증 명령; 미실행이면 미실행으로 기록}
 ```
 
-Result:
+결과:
 
-- {OK/MISS and key output summary}
+- {OK/MISS와 핵심 출력 요약; passed/failed/blocked/not-run을 구분하고 미실행·실패를 성공으로 표시하지 않음}
 
-## Key Findings
+## 주요 발견 사항
 
-| Category            | Finding   | Handling                               |
-| ------------------- | --------- | -------------------------------------- |
-| {bug/risk/doc/note} | {finding} | {fix before merge/follow-up/reference} |
+| 분류                  | 발견 사항   | 처리                          |
+| --------------------- | ----------- | ----------------------------- |
+| {버그/위험/문서/참고} | {발견 사항} | {병합 전 수정/후속 작업/참고} |
 
-## Final Recommendation
+## 최종 권고
 
-State one of merge, request changes, or close, and explain why.
+병합·변경 요청·종료 중 하나를 명시하고 이유를 설명한다. 권고는 실제 Merge/Release·종료 행동의 승인이 아니다.
 
-## GitHub PR Comment Body
+## GitHub PR 댓글 본문
 
 ```md
-{comment or review body to post on the GitHub PR}
+{GitHub PR에 게시할 한국어 댓글 또는 검토 본문}
 ```
 
-## Approval Request to Task Requester
+## 작업 요청자에게 게시 승인 요청
 
-- If you approve the recommendation and GitHub PR comment body above, it will be posted to the PR.
+- 위 권고나 본문에 대한 동의만으로 게시하지 않는다. 현재 사용자가 GitHub PR 댓글·formal review 게시 행동을 별도로 명시 승인한 경우에만 게시한다. Merge/Release·Issue close·tag·미위임 cleanup 권한은 별도다.

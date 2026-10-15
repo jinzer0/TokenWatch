@@ -1,146 +1,150 @@
 ---
 name: todo
 description: |
-  Create and update the Hyper-Waterfall daily task board (`mydocs/orders/yyyymmdd.md`).
-  Apply milestone table format, status update rules, and backlog section rules.
-  When task-start, task-stage-report, task-final-report, or pr-merge-cleanup
-  updates the daily task board, it follows this SKILL's format.
+  필요한 Hyper-Waterfall 일일 작업 보드(`mydocs/orders/yyyymmdd.md`)를 생성·갱신한다.
+  마일스톤 표 형식, 상태 갱신 규칙, 백로그 섹션 규칙을 적용한다.
+  task-start, task-stage-report, task-final-report, pr-merge-cleanup이
+  일일 작업 보드를 갱신할 때 이 SKILL의 형식을 따른다.
 ---
 
-# Daily Task Board Writing
+# 일일 작업 보드 작성
 
-## Purpose
+## 목적
 
-`mydocs/orders/{yyyymmdd}.md` is a one-page work board for the day. It is not a task plan, report, or technical note. It shows progress by milestone at a glance and records completion time.
+`mydocs/orders/{yyyymmdd}.md`는 하루 작업을 한 페이지로 보여주는 보드다. 작업 계획, 보고서, 기술 노트가 아니다. 마일스톤별 진행 상황을 한눈에 보여주고 완료 시간을 기록한다. 모든 작업에 보드나 Issue 생성을 강제하지 않는다.
 
-## Trigger
+## 실행 조건
 
-- The task requester explicitly says "write today's tasks", "update orders", or "close today's tasks."
-- Apply this SKILL's format when `task-start`, `task-stage-report`, `task-final-report`, or `pr-merge-cleanup` updates the daily task board.
-- This SKILL is invoked directly.
+- 작업 요청자가 명시적으로 "오늘 작업 작성", "작업 보드 갱신", "오늘 작업 마감"을 요청한다.
+- `task-start`, `task-stage-report`, `task-final-report`, `pr-merge-cleanup`이 필요한 일일 작업 보드를 갱신할 때 이 SKILL의 형식을 적용한다.
+- 이 SKILL을 직접 호출한다.
 
-## Artifact
+## 산출물
 
-- Target file: `mydocs/orders/{yyyymmdd}.md`
-- Writing language: use the selected Hyper-Waterfall locale for this repository.
-- Output format source: `mydocs/_templates/orders.md`
+- 대상 파일: `mydocs/orders/{yyyymmdd}.md`
+- 작성 언어: 한국어. 파일명·명령·native key·상태 코드 등 고정 기술 토큰은 유지한다.
+- 출력 형식 원본: `mydocs/_templates/orders.md`
 
-## Standard Format
+## 표준 형식
 
-Use central template `mydocs/_templates/orders.md` first. The following is the minimal fallback format for cases where the template cannot be read.
+중앙 템플릿 `mydocs/_templates/orders.md`를 우선 사용한다. 다음은 템플릿을 읽을 수 없을 때 사용할 최소 대체 형식이다.
 
-- Filename: `yyyymmdd.md`
-- Title: `# Daily Tasks - YYYY-MM-DD`
-- Body: at least one milestone section, plus a common operations section when needed
-- Each milestone section uses this table:
-
-```md
-## M{milestone} - {milestone name}
-
-| Issue     | Task   | Status      | Notes  |
-| --------- | ------ | ----------- | ------ |
-| #{number} | {task} | Planned     | {note} |
-| #{number} | {task} | In progress | {note} |
-| #{number} | {task} | Done        | {note} |
-```
-
-## Milestone Decision Rules
-
-Before writing work, decide which milestone section it belongs to.
-
-1. Explicit task requester instruction
-2. If no explicit instruction exists, reuse the milestone structure already present in the same date's `mydocs/orders/{yyyymmdd}.md`
-3. If no same-date file exists, use an explicit milestone label from the target repository `README.md` roadmap or release notation
-4. If neither source decides it, do not invent a milestone name; ask the task requester
-
-Cautions:
-
-- Distinguish roadmap transition notation from milestone names. For example, `0.5 -> 1.0` is a transition notation, not a section title.
-- Do not place work in a future milestone unless the task requester clearly specified it.
-- If `README.md` marks one milestone as current, use it as the default section for ambiguous work.
-
-## Common Operations Section
-
-For cross-cutting, operational, or unclassified work that does not clearly belong to one milestone, do not force it into the wrong milestone. Put it in a common section.
+- 파일명: `yyyymmdd.md`
+- 제목: `# 일일 작업 - YYYY-MM-DD`
+- 본문: 해당하는 마일스톤 섹션 또는 공통 운영 섹션. 분류를 위해 가짜 마일스톤을 만들지 않는다.
+- 각 마일스톤 섹션에는 다음 표를 사용한다.
 
 ```md
-## Common - Operations
+## M{milestone} - {마일스톤 이름}
 
-| Issue       | Task   | Status  | Notes  |
-| ----------- | ------ | ------- | ------ |
-| Needs issue | {task} | Planned | {note} |
+| Issue   | 작업   | 상태        | 비고   |
+| ------- | ------ | ----------- | ------ |
+| #{번호} | {작업} | Planned     | {비고} |
+| #{번호} | {작업} | In progress | {비고} |
+| #{번호} | {작업} | Done        | {비고} |
 ```
 
-Use this for:
+## 마일스톤 결정 규칙
 
-- Milestone definition or roadmap cleanup
-- Release or CI/CD planning
-- Repository-wide operations work
-- Work that needs Issue creation before classification
+작업을 적기 전에 어느 마일스톤 섹션에 속하는지 판단한다.
 
-## Backlog (Optional)
+1. 작업 요청자의 명시 지시를 따른다.
+2. 명시 지시가 없으면 같은 날짜의 `mydocs/orders/{yyyymmdd}.md`에 있는 마일스톤 구조를 재사용한다.
+3. 같은 날짜의 파일이 없으면 대상 저장소 `README.md`의 로드맵이나 릴리스 표기에 있는 명시적 마일스톤을 사용한다.
+4. 어느 근거로도 정해지지 않으면 마일스톤 이름을 만들지 않는다. 분류가 꼭 필요하면 작업 요청자에게 확인하고, 분류되지 않은 독립 작업은 공통 섹션에 기록한다.
 
-Add only when there are unresolved items that are not today's main work but should not be forgotten.
+주의 사항:
+
+- 로드맵 전환 표기와 마일스톤 이름을 구분한다. 예를 들어 `0.5 -> 1.0`은 전환 표기이지 섹션 제목이 아니다.
+- 작업 요청자가 명확히 지정하지 않은 미래 마일스톤에 작업을 넣지 않는다.
+- `README.md`가 현재 마일스톤을 명시하면 모호한 작업의 기본 섹션으로 사용한다.
+
+## 공통 운영 섹션
+
+여러 영역에 걸친 작업, 운영 작업, 특정 마일스톤에 명확히 속하지 않는 미분류 작업을 잘못된 마일스톤에 억지로 넣지 않는다. 공통 섹션에 기록한다.
 
 ```md
-## Backlog
+## 공통 - 운영
 
-| No    | Content | Found On   | Status | Notes  |
-| ----- | ------- | ---------- | ------ | ------ |
-| B-001 | {item}  | YYYY-MM-DD | Open   | {note} |
+| Issue      | 작업   | 상태    | 비고   |
+| ---------- | ------ | ------- | ------ |
+| Issue 없음 | {작업} | Planned | {비고} |
 ```
 
-## Writing Rules
+다음 작업에 사용한다.
 
-- If a GitHub Issue number exists, write it as `#number`.
-- If no Issue exists yet, write `Needs issue` instead of an arbitrary number or `TBD`.
-- Keep `Task` as a one-line summary.
-- Keep `Notes` short. Prioritize purpose, current stage, verification point, linked document, or blocker.
-- When changing status to `Done`, add `Done: HH:mm` to the notes.
-- Default statuses: `Planned`, `In progress`, `Done`, `On hold`.
-- Omit the backlog section when there is no backlog.
-- If multiple milestones are active on the same date, split sections by milestone.
-- Do not place templates, temporary notes, or non-date files in `mydocs/orders/`.
+- 마일스톤 정의 또는 로드맵 정리
+- 릴리스 또는 CI/CD 계획
+- 저장소 전체 운영 작업
+- Issue 없이 기존 맥락으로 추적하거나 아직 분류되지 않은 작업
 
-## Verification
+## 백로그 (선택)
 
-- Filename follows `yyyymmdd.md`.
-- Title follows `# Daily Tasks - YYYY-MM-DD`.
-- Every work row is inside an `Issue | Task | Status | Notes` table.
-- Status value is one of `Planned`, `In progress`, `Done`, `On hold`.
-- Completed work notes include `Done: HH:mm`.
-
-## Never Do
-
-- Write task plans, reports, or technical notes in `orders/`.
-- Invent a milestone name because the milestone is ambiguous.
-- Ignore an existing same-date milestone structure and force a new structure.
-- Place work in a future milestone without task requester approval.
-- Leave a row as `Needs issue` when an Issue exists.
-
-## Minimal Template
-
-This is a shortened version of `mydocs/_templates/orders.md`. When creating a new date file, check the central template first.
+오늘의 주요 작업은 아니지만 잊지 않아야 할 미해결 항목이 있을 때만 추가한다.
 
 ```md
-# Daily Tasks - YYYY-MM-DD
+## 백로그
 
-## M{milestone} - {milestone name}
+| 번호  | 내용   | 발견일     | 상태 | 비고   |
+| ----- | ------ | ---------- | ---- | ------ |
+| B-001 | {항목} | YYYY-MM-DD | Open | {비고} |
+```
 
-| Issue     | Task   | Status  | Notes  |
-| --------- | ------ | ------- | ------ |
-| #{number} | {task} | Planned | {note} |
+## 작성 규칙
+
+- GitHub Issue 번호가 있으면 `#번호`로 적는다.
+- Issue가 아직 없으면 임의 번호나 `TBD` 대신 `Issue 없음`을 적는다. Issue 생성 요구나 위임으로 해석하지 않는다.
+- `작업`은 한 줄 요약으로 작성한다.
+- `비고`는 짧게 유지한다. 목적, 현재 단계, 검증 지점, 연결 문서, 차단 요인을 우선한다.
+- 검증된 완료만 `Done`으로 변경하고 비고에 고정 완료 표기 `Done: HH:mm`을 추가한다. 실패·차단·미실행을 완료로 표시하지 않는다.
+- 기본 상태 코드: `Planned`, `In progress`, `Done`, `On hold`. 백로그 예시의 `Open`도 고정 상태 코드로 유지한다.
+- 백로그가 없으면 백로그 섹션을 생략한다.
+- 같은 날짜에 여러 마일스톤이 활성 상태면 마일스톤별로 섹션을 나눈다.
+- `mydocs/orders/`에는 템플릿, 임시 메모, 날짜가 아닌 파일을 두지 않는다.
+- 원시 로그·경로·세션 ID·프롬프트·응답·인증정보·SQL 내용·스택 추적·임의 메타데이터 덤프를 노출하지 않는다. 저장소 상대 참조와 비식별 요약만 기록한다.
+- 기존 사용자 작업과 canonical 계획의 의도를 번역·변형하거나 복제·강제 변환하지 않는다.
+- root/가장 가까운 `AGENTS.md`, native permission과 현재 요청 scope를 따른다. 보드 작성·상태는 구현이나 Git 공개 권한을 만들지 않는다. Git 작업은 실제 위임과 검증 범위에서만 수행하며 Merge/Release·공식 게시·Issue 종료·삭제/정리는 별도 권한을 유지한다.
+
+## 확인 기준
+
+- 파일명은 `yyyymmdd.md`를 따른다.
+- 제목은 `# 일일 작업 - YYYY-MM-DD`를 따른다.
+- 모든 작업 행은 `Issue | 작업 | 상태 | 비고` 표 안에 있다.
+- 작업 상태 값은 `Planned`, `In progress`, `Done`, `On hold` 중 하나다.
+- 완료 작업 비고에는 `Done: HH:mm`이 있다.
+- 중앙 템플릿과 섹션 제목·표 열 이름·한국어 작성 규칙이 일치한다.
+
+## 금지 사항
+
+- `orders/`에 작업 계획, 보고서, 기술 노트를 작성하지 않는다.
+- 마일스톤이 모호하다는 이유로 이름을 만들지 않는다.
+- 같은 날짜의 기존 마일스톤 구조를 무시하고 새 구조를 강제하지 않는다.
+- 작업 요청자의 승인 없이 미래 마일스톤에 작업을 넣지 않는다.
+- Issue가 있는데 행을 `Issue 없음`으로 남겨두지 않는다.
+
+## 최소 템플릿
+
+`mydocs/_templates/orders.md`의 축약본이다. 새 날짜 파일을 만들 때 중앙 템플릿을 먼저 확인한다.
+
+```md
+# 일일 작업 - YYYY-MM-DD
+
+## M{milestone} - {마일스톤 이름}
+
+| Issue   | 작업   | 상태    | 비고   |
+| ------- | ------ | ------- | ------ |
+| #{번호} | {작업} | Planned | {비고} |
 ```
 
 ```md
-## Common - Operations
+## 공통 - 운영
 
-| Issue       | Task   | Status  | Notes  |
-| ----------- | ------ | ------- | ------ |
-| Needs issue | {task} | Planned | {note} |
+| Issue      | 작업   | 상태    | 비고   |
+| ---------- | ------ | ------- | ------ |
+| Issue 없음 | {작업} | Planned | {비고} |
 ```
 
-## Invocation
+## 호출
 
-- Codex: `$todo` or select `todo` from the `/skills` menu
+- Codex: `$todo` 또는 `/skills` 메뉴에서 `todo` 선택
 - Claude Code: `/todo`

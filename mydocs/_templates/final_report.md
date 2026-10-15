@@ -1,61 +1,60 @@
-# Final Report Template
+# 최종 보고 서식
 
-This central template is for `mydocs/report/task_{milestone}_{issue}_report.md`. The final report closes the full plan-implementation-verification cycle, records acceptance criteria and residual risk for long-term retention, and requests approval before PR publication.
+필요한 최종 증거의 서식이다. 루트 및 가장 가까운 하위 `AGENTS.md`의 위험 기반 실행 정책과 네이티브 권한을 따른다. 기존 기준(canonical) 계획/맥락에 연결하며 LOW는 기존 맥락으로 충분하다. Issue·보드·모든 단계 보고·별도 `_impl`를 강제하거나 기존 사용자 계획을 변환하지 않는다.
 
-GitHub Issue: [#{issue}](https://github.com/jinzer0/TokenWatch/issues/{issue})
-Milestone: M{milestone}
+생성하는 제목·항목명·설명·예시·승인 요청은 한국어로 작성한다. 고정 식별자·기술 키·상태값·명령·경로·커밋 형식은 유지한다. 기존 사용자 기준 문서의 내용·의도는 번역하거나 강제 변환하지 않는다. 프롬프트·응답·자격 증명·원시 경로/세션 ID/레코드·SQL·스택 추적·임의 메타데이터 덤프는 기록하지 않는다. 긴 원시 로그 대신 안전한 결과 요약과 증거 참조를 남긴다.
 
-## Work Summary
+- 기준 계획/맥락: {실제 참조}
+- Issue/마일스톤: {있을 때만 실제 값; 없으면 해당 없음}
+- 상태: {verified/incomplete/blocked; 과거 done이나 보고 자체는 권한이 아님}
 
-- Target Issue: #{issue}
-- Milestone: M{milestone}
-- Stage count: {N}
-- Work purpose: {one-line summary}
+## 작업 요약
 
-## Changed Files and Impact Area
+- 목적/범위: {명확한 위임과 제외}
+- 변경/영향: {주요 결과}
+- 단계: {실제 필요했던 단계만; 고정 최솟값 없음}
 
-| Path     | Change Summary   | Impact Area   |
-| -------- | ---------------- | ------------- |
-| `{path}` | {change summary} | {impact area} |
+## 변경 파일과 영향 영역
 
-## Document Location Verification
+| 경로     | 변경 요약   | 영향 / 소유권         |
+| -------- | ----------- | --------------------- |
+| `{path}` | {변경 요약} | {작업 소유 근거·영향} |
 
-If this task created, moved, or edited product, user, contributor, external integration, API, architecture, or roadmap documentation, verify that the actual artifact location matches the "Document Location Judgment" in the task plan. If no such document changed, write `Not applicable` and explain why.
+## 문서 위치 검증
 
-| File                       | Planned Location | Actual Location | Result  | Evidence                           |
-| -------------------------- | ---------------- | --------------- | ------- | ---------------------------------- |
-| `{path or not applicable}` | `{path}`         | `{path}`        | OK/MISS | {evidence from task plan and diff} |
+{기준 계획/맥락의 위치 판단과 실제 수정 위치를 대조한다. 같은 범위의 기존 위치/증거 갱신은 재승인하지 않는다. 실질적인 새 공식 루트/독자/아키텍처/범위 결정만 확인한다. 문서 변경이 없으면 해당 없음과 이유를 기록한다.}
 
-## Quantitative Before/After Comparison
+| 파일     | 계획 / 실제 위치 | 결과      | 증거          |
+| -------- | ---------------- | --------- | ------------- |
+| `{path}` | `{path}`         | {OK/MISS} | {관찰한 근거} |
 
-| Metric   | Before  | After   |
-| -------- | ------- | ------- |
-| {metric} | {value} | {value} |
+## 변경 전후 정량 비교
 
-If no quantitative metric applies, write "Not applicable" and explain why.
+{적용 가능한 실제 수치만 기록한다. 의미 있는 수치가 없으면 해당 없음과 이유를 쓰고 토큰/파일 수를 위험 승인 기준으로 사용하지 않는다.}
 
-## Verification Results
+## 검증 결과
 
-| Acceptance Criterion | Result               |
-| -------------------- | -------------------- |
-| {criterion}          | OK/MISS - {evidence} |
+| AC     | 방법             | 결과                            | 증거 / 한계             |
+| ------ | ---------------- | ------------------------------- | ----------------------- |
+| {기준} | {실제 명령/절차} | {passed/failed/blocked/not-run} | {관찰한 결과·증거 참조} |
 
-### Stage Verification Results
+### 단계 / 맥락 검증
 
-- Stage 1: {report link or verification summary}
-- Stage 2: {report link or verification summary}
-- Stage 3: {report link or verification summary}
+- {존재하는 단계/맥락별 검증·증거만 연결한다. 고정 Stage 1/2/3 또는 보고 파일 수를 요구하지 않는다.}
+- {실패 증거를 보존하고 incomplete로 유지하며 같은 범위에서 수정·재검증한다. 미실행·blocked·CI/네이티브 한계를 passed와 분리한다.}
 
-## Residual Risks and Follow-up Work
+## 잔여 위험과 후속 작업
 
-### Residual Risks
+- 잔여 위험/실제 차단: {없으면 없음}
+- 후속 후보: {실제 문제만; 원 범위 밖 작업을 자동 개시하지 않음}
+- 권한: {실제 요청·위임/네이티브 권한; HIGH가 있으면 한정 targets/actions/impact/recovery_conditions/result/evidence와 재개 조건 확인}
 
-- {remaining risk. Write `None` if there are none.}
+## 검증된 작업 전용 공개
 
-### Follow-up Candidates
+{검증·검토된 작업 변경만 정확한 파일명 허용 목록으로 상시 commit/push 위임을 적용한다. 명확한 변경 요청의 PR는 정확한 repo/remote/base/head와 기존 PR 확인 후 생성/갱신하며 main -> main 또는 중복 PR를 만들지 않는다. 조회·계획·보고 전용 요청·실패/미달·미위임/권한 차단 공개는 실행하지 않는다. 변경 없음은 빈 commit 없이 결과만 기록한다. clean은 작업 소유 미반영 변경 기준이며 무관한 추적/미추적 자료·사용자 작업은 보존한다.}
 
-- {follow-up Issue candidate. Write `None` if there are none.}
+{실제 공개된 PR/commit/증거만 링크하며 비공개 네이티브 맥락의 원시 경로/세션 자료나 가짜 산출물을 노출하지 않는다. PR는 자동 검증 / 수동·시나리오 검증 / CI·원격 검증 / 검증 한계를 구분하고 실제 `.github/pull_request_template.md`의 한국어 제목을 따른다. 미실행 항목은 한계로 기록하고 통과 표에 남기지 않는다.}
 
-## Approval Request to Task Requester
+## 보존된 승인 경계와 다음 안전 행동
 
-- If you approve the final report and acceptance criteria verification, proceed to PR publication.
+{같은 범위의 검증·보고·단계 전환은 사람 대기 관문이 아니다. HIGH의 다음 위험 행동/재개는 한정 승인 조건을 확인한다. 동일 조건은 재사용하고 변경 결정만 승인받으며 missing/denied는 위험 행동을 실행하지 않고 독립적인 안전 작업은 계속한다. Merge/Release·공식 게시·Issue close·tag·미위임 삭제/정리는 자동 PR 권한에 포함되지 않는다.}

@@ -1,98 +1,84 @@
-# Task Plan Template
+# 작업 계획 서식
 
-This central template is for `mydocs/plans/task_{milestone}_{issue}.md`. The task plan fixes the purpose, scope, design direction, and verification criteria before implementation and requests task requester approval.
+필요한 **단일 기준(canonical) 계획**의 서식이다. 루트 및 가장 가까운 하위 `AGENTS.md`의 위험 기반 실행 정책과 네이티브 단계·도구 권한을 우선한다. 기존 활성 사용자 계획을 재사용하고 BMAD가 필요한 새 계획을 하나만 작성하며 HF는 실행 맥락·증거를 연결한다. LOW는 기존 맥락 기록으로 충분하며 이 서식이나 Issue/보드를 강제하지 않는다. 기존 `_impl` 계획은 보존·참조하고 새 별도 원본/빈 계획/강제 변환을 만들지 않는다.
 
-GitHub Issue: [#{issue}](https://github.com/jinzer0/TokenWatch/issues/{issue})
-Milestone: M{milestone}
+생성하는 제목·항목명·설명·예시·승인 요청은 한국어로 작성한다. 고정 식별자·기술 키·상태값·명령·경로·커밋 형식은 유지한다. 기존 사용자 기준 문서의 내용·의도는 번역하거나 강제 변환하지 않는다. 프롬프트·응답·자격 증명·원시 경로/세션 ID/레코드·SQL·스택 추적·임의 메타데이터 덤프는 기록하지 않는다.
 
-## Purpose
+- 기준 계획: {기존 계획/맥락 참조 또는 필요한 새 BMAD 계획 위치}
+- 요청/범위: {실제 사용자 요청과 포함·제외 범위}
+- GitHub Issue / 마일스톤: {존재할 때만 실제 번호·마일스톤·링크; 없으면 해당 없음}
+- 상태: {planned/in-progress/incomplete/blocked/verified; 상태 자체는 권한이 아님}
 
-{Describe the result this task must achieve in 1-3 paragraphs.}
+## 목적
 
-## Background
+{작업이 달성해야 하는 관찰 가능한 결과}
 
-{Explain why this work is needed, what is wrong with the current state, and which official documents, existing Issues, or previous artifacts were referenced.}
+## 배경
 
-## Scope
+{문제와 확인한 기존 구조·자료·의도. 과거 계획/사용자 자료는 보존한다.}
 
-### Included
+## 범위
 
-- {Items this task must cover}
+### 포함
 
-### Excluded
+- {위임된 작업과 검증}
 
-- {Items this task explicitly does not cover}
+### 제외
 
-## Design Direction
+- {범위 밖 변경·외부 행동}
 
-- {Structure, policy, file placement, compatibility judgment, or other points that must be agreed before implementation}
-- {Which existing patterns are followed and which parts are newly defined}
+## 설계 방향
 
-## Document Location Judgment
+- {기존 패턴·설계와 실제 변경 판단}
+- {MEDIUM의 명확한 요청과 같은 범위는 자율 진행; 크기/토큰 수/복잡성은 규모 산정 자료이지 승인 관문이 아님}
 
-If this task creates, moves, or edits product, user, contributor, external integration, API, architecture, or roadmap documentation, first decide whether the official documentation root or `mydocs/` should be used. If no document changes are involved, write `Not applicable` and explain why.
+## 문서 위치 판단
 
-Hyper-Waterfall does not fix the official documentation root name. The target project may explicitly choose `docs/`, `specs/`, `site/`, `website/`, `adr/`, `book/`, GitHub Wiki, or another location, but this plan must approve the reason.
+{문서 변경이 있으면 독자·공식 문서 루트 또는 mydocs 위치와 이유를 여기 기록한다. 같은 범위의 기존 위치 수정은 재승인하지 않는다. 실질적인 새 공식 루트/독자/아키텍처/범위 결정만 확인한다. 문서 변경이 없으면 해당 없음과 이유를 기록한다.}
 
-| File                       | Classification                                                   | Audience                                 | Selected Location | Alternative Location | Reason                         |
-| -------------------------- | ---------------------------------------------------------------- | ---------------------------------------- | ----------------- | -------------------- | ------------------------------ |
-| `{path or not applicable}` | {official doc/technical research/operating manual/work artifact} | {user/contributor/agent/internal worker} | `{path}`          | `{path}`             | {why this location is correct} |
+| 파일     | 분류                       | 독자   | 선택 위치 | 대안        | 이유        |
+| -------- | -------------------------- | ------ | --------- | ----------- | ----------- |
+| `{path}` | {문서/조사/운영/작업 기록} | {독자} | `{path}`  | {해당할 때} | {위치 판단} |
 
-## Expected Changed Files
+## 예상 변경 파일
 
-New:
+- {정확한 작업 소유 파일/수정 구간과 기준 상태; 신규·수정 구분}
+- {필요한 기존 맥락/증거 산출물만. Issue/보드/단계별·최종 보고를 일괄 생성하지 않음}
+- {무관한 수정/미추적 파일/사용자 작업은 보존; 기준 상태 이후 전체 차이는 소유 근거가 아님}
 
-- `{path}`
+## 실행 구성과 비례 단계
 
-Modified:
+{필요한 실행 상세를 **이 기준 계획의 섹션**에 기록한다. 필요하면 task_impl_plan.md 서식의 섹션을 사용하되 별도 원본을 만들지 않는다. 단계는 영향·의존성에 비례하며 고정 최솟값 없이 한 단계도 가능하다.}
 
-- `{path}`
+| 단계       | 산출물        | 검증             | 의존성 / 증거         |
+| ---------- | ------------- | ---------------- | --------------------- |
+| {필요한 N} | {실제 산출물} | {검증 명령/방법} | {선행 조건·맥락/증거} |
 
-Task artifacts:
+## 작업과 수용 기준
 
-- `mydocs/orders/{yyyymmdd}.md`
-- `mydocs/plans/task_{milestone}_{issue}.md`
-- `mydocs/plans/task_{milestone}_{issue}_impl.md`
-- `mydocs/working/task_{milestone}_{issue}_stage{N}.md`
-- `mydocs/report/task_{milestone}_{issue}_report.md`
+{실제 위임된 작업과 완료 시 관찰 가능한 결과를 연결한다. 기존 기준 계획의 수용 기준이 있으면 그대로 참조하며 새 기준이나 범위 축소를 꾸며 만들지 않는다. BMAD 전용 전체 섹션 형식을 이 HF 서식이나 기존 사용자 계획에 강제하지 않는다.}
 
-## Tentative Stages
+| 작업        | 수용 기준 ID | 관찰 가능한 완료 조건                                     | 검증 방법 / 근거                    |
+| ----------- | ------------ | --------------------------------------------------------- | ----------------------------------- |
+| {실제 작업} | {AC ID}      | {입력·상태·행동에 따른 기대 결과와 필요한 오류/경계 조건} | {아래 검증 계획에 연결할 실제 검사} |
 
-{Split into 3-6 stages by default. Each stage should be small enough to implement, verify, and report in one cycle.}
+## 검증 계획
 
-- **Stage 1 - {title}**
-  - {artifact}
-  - {verification perspective}
-- **Stage 2 - {title}**
-  - {artifact}
-  - {verification perspective}
-- **Stage 3 - {title}**
-  - {artifact}
-  - {verification perspective}
+- {AC별 관찰 가능한 검증과 명령}
+- {실패 증거를 보존하고 incomplete로 유지하며 같은 범위에서 수정·재검증}
+- {passed/failed/blocked/not-run과 자동화·수동 시나리오·CI/네이티브 한계 구분}
+- `git diff --check`
+- {공개 전 작업 소유 미반영 변경 기준으로 clean 판단; 무관한 작업 트리 변경은 보존}
 
-## Verification Plan
+## 위험과 한정 결정
 
-### Stage Verification
+- 위험도/이유: {LOW/MEDIUM/HIGH; 영향·가역성·보안·데이터·외부 부작용 기준}
+- 권한: {실제 권한 있는 요청/승인 증거와 네이티브 권한; 계획 상태/임의 approved 필드는 권한 아님}
+- HIGH가 필요할 때만: {decision/scope/targets/actions/impact/recovery_conditions/result/evidence}
+- {위험 행동 직전·EARLY EXIT/수정/재개/후속 작업에 조건 확인; 동일 조건은 재사용, 변경 결정만 승인; missing/denied 행동은 실행하지 않고 독립적인 안전 작업 계속}
 
-- Stage 1
-  - `{verification command or check method}`
-- Stage 2
-  - `{verification command or check method}`
-- Stage 3
-  - `{verification command or check method}`
+## 체크포인트와 공개
 
-### Integrated Verification
+{현재 범위/기준 계획/맥락·상태·검증/증거·위험 결과·다음 안전 행동을 기록한다. 체크포인트와 문서/계획/단계 갱신은 사람 대기 관문이 아니다.}
 
-- `{final acceptance criterion}`
-- `git status --short` is empty before PR preparation.
-- `git diff --check` passes without warnings.
-
-## Risks
-
-- **{risk name}**: {impact and response}
-
-## Approval Request
-
-- {Scope, design direction, and exclusions that the task requester must approve}
-
-After approval, `task_{milestone}_{issue}_impl.md` will define Stage artifacts, verification commands, and commit messages in detail.
+{검증된 작업 소유 변경만 정확한 파일명 허용 목록으로 상시 commit/push 위임을 적용한다. 명확한 변경 요청의 PR는 정확한 repo/remote/base/head와 기존 PR를 확인한 뒤 생성/갱신한다. 조회·계획·보고 전용 요청·검증 실패/미달·미위임/권한 차단 공개는 실행하지 않는다. Merge/Release·공식 게시·Issue close·tag·미위임 삭제/정리는 별도 권한을 유지한다.}

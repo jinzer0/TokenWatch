@@ -1,53 +1,56 @@
-# Troubleshooting Template
+# 문제 해결 템플릿
 
-This central template is for recording failures, failed verification, reproducible errors, and recurrence prevention in `mydocs/troubleshootings/`. A troubleshooting document is not a simple failure log. It preserves the cause and fix so the next AI session does not repeat the same problem.
+이 중앙 템플릿은 `mydocs/troubleshootings/`에 실패, 검증 실패, 재현 가능한 오류, 재발 방지를 기록하는 서식이다. 문제 해결 문서는 단순한 실패 로그가 아니다. 다음 AI 세션이 같은 문제를 반복하지 않도록 원인과 해결책을 보존한다.
 
-## Usage
+## 사용 방법
 
-- Actual file: `mydocs/troubleshootings/{yyyymmdd}_{topic}.md` or `mydocs/troubleshootings/task_{milestone}_{issue}_{topic}.md`
-- When to write: when the same error may recur or the solution process is important context for later work
-- Writing language: use the selected Hyper-Waterfall locale for this repository.
+- 실제 파일: `mydocs/troubleshootings/{yyyymmdd}_{topic}.md` 또는 `mydocs/troubleshootings/task_{milestone}_{issue}_{topic}.md`
+- 작성 시점: 같은 오류가 재발할 수 있거나 해결 과정이 후속 작업의 중요한 맥락일 때만 작성한다.
+- 작성 언어: 한국어. 파일명·명령·상태 코드 등 고정 기술 토큰은 유지한다. 기존 canonical 사용자 의도는 번역·변형하지 않고 그대로 보존한다.
+- 개인정보 보호: 원시 로그·경로·세션 ID·프롬프트·응답·인증정보·SQL 내용·스택 추적·임의 메타데이터 덤프를 기록하지 않는다. 명령과 입력은 비식별 예시로, 오류와 결과는 안전한 요약으로 기록한다.
+- 권한: root/가장 가까운 `AGENTS.md`, native permission과 실제 요청 scope를 따른다. 실패는 미완료로 기록하고 같은 scope에서 수정·재검증한다. 이 기록이 Git 작업·Merge/Release·외부 게시·삭제 권한을 만들지는 않는다.
 
-## Symptom
+## 증상
 
-{Describe the visible failure, error message, or wrong result.}
+{관찰한 실패, 오류 메시지의 비식별 요약, 잘못된 결과를 설명한다.}
 
-## Reproduction Conditions
-
-```bash
-{reproduction command or procedure}
-```
-
-- Environment: {OS, tool versions, branch, relevant settings}
-- Input: {files or data required to reproduce}
-
-## Cause
-
-{Describe the confirmed cause. If it is an inference, say so.}
-
-## Resolution
+## 재현 조건
 
 ```bash
-{resolution command or change summary}
+{비식별 재현 명령 또는 절차}
 ```
 
-- Changed files: `{path}`
-- Key fix: {what changed}
+- 환경: {OS, 도구 버전, branch, 관련 설정의 안전한 요약}
+- 입력: {재현에 필요한 비식별 파일 참조 또는 데이터 요약}
 
-## Recurrence Prevention
+## 원인
 
-- {verification command added, documentation reinforced, procedure changed, etc.}
+{확인된 원인을 설명한다. 추론이면 추론임을 명시한다.}
 
-## Verification
+## 해결 방법
 
 ```bash
-{verification command}
+{비식별 해결 명령 또는 변경 요약}
 ```
 
-Result:
+- 변경 파일: `{저장소 상대 참조}`
+- 핵심 수정: {변경한 내용}
 
-- {OK/MISS and key output summary}
+## 재발 방지
 
-## References
+- {추가한 검증 명령, 보강한 문서, 변경한 절차 등}
 
-- [{title}]({URL or path})
+## 검증
+
+```bash
+{비식별 검증 명령}
+```
+
+결과:
+
+- {OK/MISS 및 핵심 결과의 비식별 요약}
+- {실패·차단·미실행 검증과 남은 한계가 있으면 기록}
+
+## 참고 자료
+
+- [{제목}]({공개 URL 또는 저장소 상대 참조})

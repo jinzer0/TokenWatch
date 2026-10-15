@@ -1,61 +1,63 @@
-# Daily Task Board Template
+# 일일 작업 보드 템플릿
 
-This central template is for `mydocs/orders/{yyyymmdd}.md`. Actual daily task board files use date filenames in the `orders/` folder. Do not copy this template file into `orders/` as a saved artifact.
+이 중앙 템플릿은 `mydocs/orders/{yyyymmdd}.md`의 서식이다. 실제 일일 작업 보드 파일은 `orders/` 폴더에서 날짜 파일명을 사용한다. 이 템플릿 파일 자체를 산출물로 `orders/`에 복사하지 않는다.
 
-## Usage
+## 사용 방법
 
-- Actual file: `mydocs/orders/{yyyymmdd}.md`
-- When to write: task start, status changes at stage boundaries, final report, and post-merge cleanup
-- Writing language: use the selected Hyper-Waterfall locale for this repository.
+- 실제 파일: `mydocs/orders/{yyyymmdd}.md`
+- 작성 시점: 보드가 필요한 작업의 시작, 단계 경계의 상태 변경, 최종 보고, 별도로 위임된 병합 후 정리 시점. 보드 생성이나 단계별 갱신을 모든 작업에 강제하지 않는다.
+- 작성 언어: 한국어. 파일명·명령·상태 코드 등 서식에 필요한 고정 기술 토큰은 유지한다.
 
-## Body Template
-
-```md
-# Daily Tasks - YYYY-MM-DD
-
-## M{milestone} - {milestone name}
-
-| Issue     | Task                    | Status      | Notes                             |
-| --------- | ----------------------- | ----------- | --------------------------------- |
-| #{number} | {one-line task summary} | Planned     | {note}                            |
-| #{number} | {one-line task summary} | In progress | {note}                            |
-| #{number} | {one-line task summary} | Done        | Done: HH:mm, {completion summary} |
-```
-
-## Common Operations Section Template
-
-Use only for operational work that does not belong to a specific milestone.
+## 본문 템플릿
 
 ```md
-## Common - Operations
+# 일일 작업 - YYYY-MM-DD
 
-| Issue       | Task                    | Status  | Notes  |
-| ----------- | ----------------------- | ------- | ------ |
-| Needs issue | {one-line task summary} | Planned | {note} |
+## M{milestone} - {마일스톤 이름}
+
+| Issue   | 작업              | 상태        | 비고                     |
+| ------- | ----------------- | ----------- | ------------------------ |
+| #{번호} | {한 줄 작업 요약} | Planned     | {비고}                   |
+| #{번호} | {한 줄 작업 요약} | In progress | {비고}                   |
+| #{번호} | {한 줄 작업 요약} | Done        | Done: HH:mm, {완료 요약} |
 ```
 
-## Backlog Template
+## 공통 운영 섹션 템플릿
 
-Use only when there is an item that is not today's main work but should not be forgotten.
+특정 마일스톤에 속하지 않는 운영 작업에만 사용한다.
 
 ```md
-## Backlog
+## 공통 - 운영
 
-| No    | Content | Found On   | Status | Notes  |
-| ----- | ------- | ---------- | ------ | ------ |
-| B-001 | {item}  | YYYY-MM-DD | Open   | {note} |
+| Issue      | 작업              | 상태    | 비고   |
+| ---------- | ----------------- | ------- | ------ |
+| Issue 없음 | {한 줄 작업 요약} | Planned | {비고} |
 ```
 
-## Status Values
+## 백로그 템플릿
+
+오늘의 주요 작업은 아니지만 잊지 않아야 할 항목이 있을 때만 사용한다.
+
+```md
+## 백로그
+
+| 번호  | 내용   | 발견일     | 상태 | 비고   |
+| ----- | ------ | ---------- | ---- | ------ |
+| B-001 | {항목} | YYYY-MM-DD | Open | {비고} |
+```
+
+## 상태 값
 
 - `Planned`
 - `In progress`
 - `Done`
 - `On hold`
 
-## Writing Rules
+## 작성 규칙
 
-- If a GitHub Issue number exists, write it as `#number`.
-- If there is no Issue yet, write `Needs issue` instead of an arbitrary number or `TBD`.
-- For completed work, include `Done: HH:mm` in the notes.
-- Do not write detailed analysis, verification logs, or technical research in `orders/`; place them in the appropriate document folder.
+- GitHub Issue 번호가 있으면 `#번호`로 적는다.
+- Issue가 없으면 임의 번호나 `TBD` 대신 `Issue 없음`을 적는다. 이것이 Issue 생성 요구나 위임을 뜻하지는 않는다.
+- 검증된 완료 작업의 비고에는 고정 완료 표기 `Done: HH:mm`을 포함한다.
+- `orders/`에는 상세 분석, 검증 로그, 기술 연구를 적지 않는다. 필요한 요약은 적절한 문서 폴더에 기록한다.
+- 원시 로그·경로·세션 ID·프롬프트·응답·인증정보·SQL 내용·스택 추적·임의 메타데이터 덤프를 노출하지 않는다. 저장소 상대 파일 참조와 비식별 검증 요약만 사용한다.
+- 기존 사용자 작업과 canonical 계획의 의도는 그대로 보존한다. 보드 상태는 Git 작업·Merge/Release·Issue 종료·삭제 권한을 만들지 않으며 root/가장 가까운 `AGENTS.md`, native permission과 현재 요청 scope를 따른다.
