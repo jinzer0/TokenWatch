@@ -29,7 +29,7 @@ import tomllib
 from datetime import date, time
 from html import unescape
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import quote, unquote, urlsplit
 import unicodedata
 
@@ -84,6 +84,23 @@ class _ArgumentParser(argparse.ArgumentParser):
 
 
 _PARAMETER = r"[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*"
+
+# Recognizable opaque credential formats, not entropy-based arbitrary-secret
+# inference. Public keys, identifiers and explicit symbolic examples are not
+# secret formats. Payloads in tests are generated synthetic sentinels.
+_SELF_IDENTIFYING_CREDENTIAL = re.compile(
+    r"gh[pou]_[A-Za-z0-9]{36}|ghs_[A-Za-z0-9]{36}|ghr_[A-Za-z0-9]{76}|"
+    r"ghs_[A-Za-z0-9]+_eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|"
+    r"github_pat_[A-Za-z0-9]{22}_[A-Za-z0-9]{59}|"
+    r"glpat-[A-Za-z0-9_-]{20,}|npm_[A-Za-z0-9]{36}|"
+    r"pypi-AgEIcHlwaS5vcmc[A-Za-z0-9_-]{50,}|"
+    r"sk-[A-Za-z0-9]{20}T3BlbkFJ[A-Za-z0-9]{20}|"
+    r"sk-(?:proj|svcacct)-[A-Za-z0-9_-]{32,}|"
+    r"sk-ant-(?:api|sid)[0-9]{2}-[A-Za-z0-9_-]{32,}|"
+    r"[sr]k_(?:live|test)_[A-Za-z0-9]{24,}|"
+    r"xox[baprs]-[0-9]{10,13}-[0-9]{10,13}-[A-Za-z0-9-]{20,}|"
+    r"AIza[A-Za-z0-9_-]{35}"
+)
 
 
 def _hash_bytes(content: bytes) -> str:
@@ -314,7 +331,7 @@ def _credential_placeholder(value: Any) -> bool:
         return True
     if not isinstance(value, str):
         return False
-    text = value.strip()
+    text = _decode_privacy_text(value).strip()
     for quote in ('"""', "'''", '"', "'", '`'):
         if len(text) >= 2 * len(quote) and text.startswith(quote) and text.endswith(quote):
             text = text[len(quote):-len(quote)].strip()
@@ -349,7 +366,7 @@ def _expand_privacy_text(text: str) -> str:
     return re.sub(r"\\u([0-9A-Fa-f]{4})", lambda match: chr(int(match[1], 16)), expanded)
 
 
-def _decode_privacy_text(text: str) -> str:
+def _decode_privacy_text(text: str, *, validate: Callable[[str], None] | None = None) -> str:
     decoded = text
     for _ in range(8):
         # A later decode can turn userinfo data into a slash or markup boundary.
@@ -357,6 +374,8 @@ def _decode_privacy_text(text: str) -> str:
         authority_view = decoded
         for _ in range(8):
             _check_uri_authorities(authority_view)
+            if validate is not None:
+                validate(authority_view)
             expanded = _expand_privacy_text(authority_view)
             if expanded == authority_view:
                 break
@@ -373,13 +392,41 @@ def _decode_privacy_text(text: str) -> str:
 
 
 def _check_text_credentials(text: str) -> None:
-    decoded = _decode_privacy_text(text).replace("\r\n", "\n").replace("\r", "\n")
+    _decode_privacy_text(text, validate=_check_credential_text_view)
+
+    def carrier(view: str) -> None:
+        # Decoding a key/operator and its value's whitespace together must not
+        # turn an attached payload into unrelated prose after a placeholder.
+        # Only whitespace absent from the original raw carrier is protected;
+        # this view is validation-only and never becomes persisted text.
+        protected = re.sub(r"\s", "%20", view)
+        _check_credential_text_view(protected)
+
+    parts: list[str] = []
+    start = 0
+    for match in re.finditer(r"\S+", text):
+        word = match[0]
+        if "%" in word or "&" in word or "\\u" in word or (not word.isascii() and unicodedata.normalize("NFKC", word) != word):
+            decoded = _decode_privacy_text(word, validate=carrier)
+            protected = re.sub(r"\s", "%20", decoded)
+            if protected != word:
+                parts.extend((text[start:match.start()], protected))
+                start = match.end()
+    if parts:
+        parts.append(text[start:])
+        _check_credential_text_view("".join(parts))
+
+
+def _check_credential_text_view(text: str) -> None:
+    decoded = text.replace("\r\n", "\n").replace("\r", "\n")
+    if _SELF_IDENTIFYING_CREDENTIAL.search(decoded):
+        raise RenderError("recognizable standalone credential")
     if re.search(r"-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----", decoded):
         raise RenderError("private key material")
     # Capture the complete adjacent shell/quoted value, not an empty or
     # placeholder prefix that can be followed by credential bytes.
-    value_pattern = r'''(?:"""[\s\S]*?"""|''' + "'''[\\s\\S]*?'''" + r'''|\$?\{[A-Za-z_][A-Za-z0-9_.]*\}|"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;}\]"']++)++'''
-    assignments = r'''(?<!\w)(?:"(?P<double>[^"\r\n]+)"|'(?P<single>[^'\r\n]+)'|`(?P<code>[^`\r\n]+)`|(?P<bare>[A-Za-z][A-Za-z0-9_.\[\]-]*))\s*(?P<operator>[:=])\s*''' + f"(?P<value>{value_pattern})"
+    value_pattern = r'''(?:"""[\s\S]*?"""|''' + "'''[\\s\\S]*?'''" + r'''|\$?\{[A-Za-z_][A-Za-z0-9_.]*\}|"[^"\r\n]*"|'[^'\r\n]*'|&(?:\#[xX][0-9A-Fa-f]+|\#[0-9]+|[A-Za-z][A-Za-z0-9]+);|[^\s,;}\]"'&]++|&)++'''
+    assignments = r'''(?<!\w)(?:"(?P<double>[^"\r\n]+)"|'(?P<single>[^'\r\n]+)'|`(?P<code>[^`\r\n]+)`|(?P<bare>[A-Za-z][A-Za-z0-9_.\[\]-]*))(?:\s|%20)*(?P<operator>[:=])(?:\s|%20)*''' + f"(?P<value>{value_pattern})"
     # Overlap so a nonsensitive enclosing literal cannot hide a supported
     # assignment inside it. Possessive value runs avoid partition backtracking.
     for match in re.finditer(f"(?={assignments})", decoded):
@@ -412,7 +459,103 @@ def _check_url_credentials(query: str, fragment: str) -> None:
                 raise RenderError("credential-bearing URI parameters")
 
 
-def _check_web_reference(text: str) -> str:
+def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise RenderError("duplicate structured key")
+        result[key] = value
+    return result
+
+
+def _check_url_machine_references(path: str, query: str, fragment: str, project_root: Path) -> None:
+    native_keys = {
+        "path", "file", "filepath", "filename", "directory", "folder", "dir", "cwd",
+        "workdir", "root", "homedir", "localpath", "sourcepath", "configpath",
+        "outputfolder", "activeinitiative",
+    }
+    decoder = json.JSONDecoder(object_pairs_hook=_unique_json_object)
+
+    def native_value(value: Any) -> None:
+        if isinstance(value, dict):
+            for key, item in value.items():
+                native_value(key)
+                native_value(item)
+        elif isinstance(value, list):
+            for item in value:
+                native_value(item)
+        elif isinstance(value, str):
+            native = _decode_privacy_text(value).strip()
+            if native.startswith(('"', "[", "{")):
+                try:
+                    parsed, end = decoder.raw_decode(native)
+                except json.JSONDecodeError:
+                    pass
+                else:
+                    if end == len(native) and isinstance(parsed, (str, dict, list)):
+                        native_value(parsed)
+                        return
+            # In an explicit path field, angle brackets wrap a reference; a
+            # one-component absolute path must not become an XML closing tag.
+            if native.startswith("<") and native.endswith(">"):
+                native = native.lstrip("<").rstrip(">")
+            # Nested URI syntax is checked by the bounded component scans,
+            # not recursive parsing of attacker-controlled URI depth.
+            if re.match(r"[A-Za-z][A-Za-z0-9+.-]+://", native):
+                return
+            if _relative_text(native, project_root) != native:
+                raise RenderError("noncanonical machine reference in URI")
+
+    def check(view: str) -> None:
+        # A web route is not automatically a filesystem path. Explicit native
+        # syntax, native-path parameters and host filesystem namespaces are.
+        if re.search(
+            r"(?i)(?<!\w)(?:file:|[A-Za-z]:[/\\]|~[^/\s]*[/\\]|"
+            r"(?:\$HOME|\$\{HOME\}|%USERPROFILE%|%HOMEPATH%)[/\\])",
+            view,
+        ) or "\\" in view:
+            raise RenderError("machine reference in URI")
+        def web_authority(match: re.Match[str]) -> str:
+            scheme = _decode_privacy_text(match[1])
+            return " " if re.fullmatch(r"[A-Za-z][A-Za-z0-9+.-]+", scheme) else match[0]
+
+        portable = re.sub(r"([A-Za-z0-9+.%\-]+)://[^/\s?#]*", web_authority, view)
+        for match in re.finditer(r'''(?:^|[=:\s"'`<>,\[({?&#;])(/[^\s"'`<>&,;}\]]*)''', portable):
+            for candidate in (match[1], posixpath.normpath(match[1])):
+                if re.match(
+                    r"(?i)^/(?:/(?!$)|(?:home|users)/[^/]+(?:/|$)|"
+                    r"(?:root|private|var|tmp|etc|opt|srv|mnt|media|volumes|run|proc|sys|dev|usr)(?:/|$))",
+                    candidate,
+                ):
+                    raise RenderError("machine reference in URI")
+        for match in re.finditer(r"(?:^|[?&#;/{,])([^?&#;/{,=:]+)[=:]", view):
+            key = "".join(character for character in _decode_privacy_text(match[1]).casefold() if character.isalnum())
+            if key not in native_keys:
+                continue
+            # JSON strings/containers end at their actual boundary, not at a
+            # sibling field or the first quote/markup token inside the value.
+            tail = view[match.end():].lstrip()
+            field = re.split(r"[&#;]", tail, maxsplit=1)[0].strip()
+            member = view[match.end() - 1] == ":" and _decode_privacy_text(match[1]).strip().startswith('"') and match[0][0] in "{,"
+            value: Any = field
+            for encoded in (False, True):
+                candidate = _decode_privacy_text(field) if encoded else tail
+                try:
+                    parsed, end = decoder.raw_decode(candidate)
+                except json.JSONDecodeError:
+                    continue
+                rest = candidate[end:].lstrip()
+                allowed = (",}]" if member else "") + ("" if encoded else "&#;")
+                if isinstance(parsed, (str, dict, list)) and (not rest or rest[0] in allowed):
+                    value = parsed
+                    break
+            native_value(value)
+
+    for component in (path, query, fragment):
+        _decode_privacy_text(component, validate=check)
+
+
+def _check_web_reference(text: str, project_root: Path) -> str:
     uri = urlsplit(text)
     if (
         uri.scheme.lower() not in {"http", "https"}
@@ -425,6 +568,7 @@ def _check_web_reference(text: str) -> str:
     ):
         raise RenderError("unsupported URI reference")
     _check_url_credentials(uri.query, uri.fragment)
+    _check_url_machine_references(uri.path, uri.query, uri.fragment, project_root)
     return uri.geturl()
 
 
@@ -450,7 +594,7 @@ def _checkout_reference_pattern(project_root: Path) -> str:
 
 def _decoded_reference_text(text: str, project_root: Path) -> str:
     def validate_uri(uri: str) -> None:
-        parsed = _check_web_reference(uri)
+        parsed = _check_web_reference(uri, project_root)
         if any(re.search(_checkout_reference_pattern(project_root), value) for value in (uri, parsed)):
             raise RenderError("checkout reference in URI")
 
@@ -474,15 +618,7 @@ def _decoded_reference_text(text: str, project_root: Path) -> str:
 
     # Valid JSON containers have their own string boundaries. Do not append a
     # URL's public sibling fields to its query merely because spaces are absent.
-    def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-        result: dict[str, Any] = {}
-        for key, value in pairs:
-            if key in result:
-                raise RenderError("duplicate structured key")
-            result[key] = value
-        return result
-
-    decoder = json.JSONDecoder(object_pairs_hook=unique_object)
+    decoder = json.JSONDecoder(object_pairs_hook=_unique_json_object)
     parts: list[str] = []
     start = 0
     for match in re.finditer(r"[\[{]", text):
@@ -544,7 +680,7 @@ def _relative_reference_text(text: str, project_root: Path) -> str:
                 decoded = expanded
             else:
                 raise RenderError("ambiguous encoded URI entities")
-            _check_web_reference(decoded)
+            _check_web_reference(decoded, project_root)
             return original
         if original.startswith(("~", "$HOME", "${HOME}", "%USERPROFILE%", "%HOMEPATH%")):
             raise RenderError("home-relative machine reference")

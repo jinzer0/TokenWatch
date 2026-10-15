@@ -1376,6 +1376,8 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
       for (const ancestor of [
         '/home/synthetic-owner',
         '%2Fhome%2Fsynthetic-owner',
+        `ghp_${'A'.repeat(36)}`,
+        `%67hp_${'A'.repeat(36)}`,
         'synthetic_public'
       ]) {
         for (const lookup of ['direct', 'short']) {
@@ -1389,7 +1391,7 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
             const expression =
               lookup === 'short'
                 ? 'config.task_label'
-                : `config[${JSON.stringify(ancestor)}].task_label`;
+                : `config[${JSON.stringify(ancestor.slice(0, 4))} ~ ${JSON.stringify(ancestor.slice(4))}].task_label`;
             const text = `${readBytes(source).toString('utf8')}\n{{ ${expression} }}\n`;
             writeFileSync(source, text);
             if (ancestor === 'synthetic_public') {
@@ -1444,7 +1446,10 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
       '%2Fhome%2Fsynthetic-owner%2Fprivate.md',
       '&#47;home&#47;synthetic-owner&#47;private.md',
       '／home／synthetic-owner／private.md',
-      '%5Cu002fhome%5Cu002fsynthetic-owner%5Cu002fprivate.md'
+      '%5Cu002fhome%5Cu002fsynthetic-owner%5Cu002fprivate.md',
+      'https://example.com/report?path=/home/synthetic-owner/private.md',
+      `ghp_${'A'.repeat(36)}`,
+      `github_pat_${'A'.repeat(22)}_${'B'.repeat(59)}`
     ]) {
       it(`${skill} rejects encoded path in consumed shipped defaults ${spelling}`, () => {
         const f = fixture(skill);
@@ -1494,7 +1499,9 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
     }
     for (const filename of [
       '%2Fhome%2Fsynthetic-owner%2Fprivate.md',
-      '&#47;home&#47;synthetic-owner&#47;private.md'
+      '&#47;home&#47;synthetic-owner&#47;private.md',
+      `ghp_${'A'.repeat(36)}.md`,
+      `github_pat_${'A'.repeat(22)}_${'B'.repeat(59)}.md`
     ]) {
       it(`${skill} rejects encoded path in output mapping key ${filename}`, () => {
         const f = fixture(skill);
@@ -1502,6 +1509,83 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
         const source = join(f.skillDir, filename);
         writeFileSync(source, '# 합성 검증 자료\n');
         privateRejection(f, prior, [source]);
+      });
+    }
+    for (const layer of [
+      'tools/bmad/config.toml',
+      '_bmad/config.toml',
+      '_bmad/custom/config.toml',
+      '_bmad/custom/config.user.toml'
+    ]) {
+      for (const [form, value] of [
+        ['uri', 'https://example.com/report?path=/home/synthetic-owner/private.md'],
+        ['token', `ghp_${'A'.repeat(36)}`]
+      ]) {
+        for (const lookup of ['direct', 'short']) {
+          it(`${skill} rejects neutral typed privacy ${layer} ${form} ${lookup}`, () => {
+            const f = fixture(skill);
+            const source = join(f.skillDir, 'plan-template.md');
+            const text = `${readBytes(source).toString('utf8')}\n{{ ${lookup === 'short' ? 'config.task_label' : 'config.public.task_label'} }}\n`;
+            writeFileSync(source, text);
+            f.sourceHashes['plan-template.md'] = sha256(text);
+            f.templateHashes['plan-template.md'] = sha256(text);
+            const input = join(f.root, layer);
+            mkdirSync(dirname(input), { recursive: true });
+            const base = existsSync(input) ? readBytes(input).toString('utf8') : '';
+            writeFileSync(input, `${base}\n[public]\ntask_label = "public"\n`);
+            const prior = render(f);
+            expect(prior.outputs['plan-template.md'].includes('public')).toBe(true);
+            writeFileSync(input, `${base}\n[public]\ntask_label = ${JSON.stringify(value)}\n`);
+            privateRejection(f, prior, [source, input]);
+          });
+        }
+      }
+    }
+    for (const [form, expression, prose] of [
+      ['token', `"ghp_" ~ "${'A'.repeat(36)}"`, `ghp_${'A'.repeat(36)}`],
+      [
+        'uri',
+        '"https://example.com/report?path=" ~ "/" ~ "home" ~ "/" ~ "synthetic-owner" ~ "/" ~ "private.md"',
+        'https://example.com/report?path=/home/synthetic-owner/private.md'
+      ]
+    ]) {
+      it(`${skill} rejects late assembled privacy ${form} with valid concatenation control`, () => {
+        const f = fixture(skill);
+        const source = join(f.skillDir, 'plan-template.md');
+        const base = readBytes(source).toString('utf8');
+        const control = `${base}\n{{ "public-" ~ "reference" }}\n`;
+        writeFileSync(source, control);
+        f.sourceHashes['plan-template.md'] = sha256(control);
+        f.templateHashes['plan-template.md'] = sha256(control);
+        const prior = render(f);
+        expect(prior.outputs['plan-template.md'].includes('public-reference')).toBe(true);
+        writeFileSync(source, `${base}\n{{ ${expression} }}\n`);
+        privateRejection(f, prior, [source]);
+      });
+      it(`${skill} rejects fresh privacy ${form} without publication artifacts`, () => {
+        const f = fixture(skill);
+        const source = join(f.skillDir, 'workflow.md');
+        const before = readBytes(source);
+        const result = invoke(
+          f.renderer,
+          [
+            '--project-root',
+            f.root,
+            '--skill',
+            f.skillDir,
+            '--set',
+            `workflow.persistent_facts=[${JSON.stringify(prose)}]`
+          ],
+          f.root
+        );
+        expect(
+          !result.error &&
+            result.status === 1 &&
+            result.stdout === 'HALT: BMAD rendering failed.\n' &&
+            result.stderr === ''
+        ).toBe(true);
+        expect(existsSync(join(f.root, '_bmad/render'))).toBe(false);
+        expect(readBytes(source).equals(before)).toBe(true);
       });
     }
     it(`${skill} actually renders Korean canonical headings with unchanged native schema`, () => {
@@ -1926,10 +2010,171 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
         }
       }
     }
-    // 112 spellings x four publication inputs x two skills = 896 negatives.
+    // Carrier/format rows cross four publication inputs and both skills.
     // Paths are invented sentinels, never actual machine/user locations.
     for (const [form, prose] of [
       ['posix', 'Read /synthetic-private-machine/work/file.md'],
+      [
+        'web-machine-path-query',
+        'Read https://example.com/report?path=/home/synthetic-owner/private.md'
+      ],
+      [
+        'web-machine-path-arbitrary',
+        'Read https://example.com/report?file=/synthetic-private-machine/private.md'
+      ],
+      [
+        'web-machine-path-angle-value',
+        'Read https://example.com/report?path=%3C%2Fforeign-owner%2Fprivate.md%3E'
+      ],
+      [
+        'web-machine-path-array-value',
+        'Read https://example.com/report?path=%5B%22%2Fforeign-owner%2Fprivate.md%22%5D'
+      ],
+      [
+        'web-machine-path-single-angle',
+        'Read https://example.com/report?path=%3C%2Fforeign-owner%3E'
+      ],
+      [
+        'web-machine-path-json-native',
+        `Read https://example.com/report?meta=${encodeURIComponent(JSON.stringify({ path: '/foreign-owner/private.md', q: 'a /b' }))}`
+      ],
+      [
+        'web-machine-path-json-array',
+        `Read https://example.com/report?meta=${encodeURIComponent(JSON.stringify([{ path: '/foreign-owner/private.md', q: 'a /b' }]))}`
+      ],
+      [
+        'web-machine-path-json-duplicate',
+        `Read https://example.com/report?meta=${encodeURIComponent('{"path":"/foreign-owner/private.md","path":"public.md"}')}`
+      ],
+      [
+        'web-machine-path-native-object-duplicate',
+        `Read https://example.com/report?path=${encodeURIComponent('{"note":"/foreign-owner/private.md","note":"public.md"}')}`
+      ],
+      ['web-machine-path-path', 'Read https://example.com/home/synthetic-owner/private.md'],
+      [
+        'web-machine-path-fragment',
+        'Read https://example.com/report#/view?path=/home/synthetic-owner/private.md'
+      ],
+      [
+        'web-machine-path-encoded',
+        'Read https://example.com/report?path=%2Fhome%2Fsynthetic-owner%2Fprivate.md'
+      ],
+      [
+        'web-machine-path-double',
+        'Read https://example.com/report?path=%252Fhome%252Fsynthetic-owner%252Fprivate.md'
+      ],
+      [
+        'web-machine-path-json',
+        'Read https://example.com/report?data=%7B%22route%22%3A%22%2Fhome%2Fsynthetic-owner%2Fprivate.md%22%7D'
+      ],
+      [
+        'web-machine-path-windows',
+        'Read https://example.com/report?path=Z%3A%5Csynthetic-owner%5Cprivate.md'
+      ],
+      [
+        'web-machine-path-drive-relative',
+        'Read https://example.com/report?path=Z%3Asynthetic-private.md'
+      ],
+      [
+        'web-machine-path-unc',
+        'Read https://example.com/report?path=%2F%2Fsynthetic-server%2Fshare%2Fprivate.md'
+      ],
+      [
+        'web-machine-path-home',
+        'Read https://example.com/report?path=%7E%2Fsynthetic-private%2Ffile.md'
+      ],
+      [
+        'web-machine-path-home-variable',
+        'Read https://example.com/report?path=%24HOME%2Fsynthetic-private%2Ffile.md'
+      ],
+      [
+        'web-machine-path-file-uri',
+        'Read https://example.com/report?next=file%3A%2F%2F%2Fsynthetic-private%2Ffile.md'
+      ],
+      [
+        'web-machine-path-nested',
+        'Read https://example.com/report?next=https%3A%2F%2Fpublic.example%2Fhome%2Fsynthetic-owner%2Fprivate.md'
+      ],
+      [
+        'web-machine-path-dot',
+        'Read https://example.com/public/../home/synthetic-owner/private.md'
+      ],
+      [
+        'web-machine-path-entity',
+        'Read https://example.com/report?path=&#47;home&#47;synthetic-owner&#47;private.md'
+      ],
+      [
+        'web-machine-path-fullwidth',
+        'Read https://example.com/report?path=／home／synthetic-owner／private.md'
+      ],
+      [
+        'web-machine-path-unicode',
+        'Read https://example.com/report?path=%5Cu002fhome%5Cu002fsynthetic-owner%5Cu002fprivate.md'
+      ],
+      ['standalone-github-classic', `Read ghp_${'A'.repeat(36)}`],
+      ['standalone-github-fine', `Read github_pat_${'A'.repeat(22)}_${'B'.repeat(59)}`],
+      ['standalone-github-oauth', `Read gho_${'A'.repeat(36)}`],
+      ['standalone-github-user', `Read ghu_${'A'.repeat(36)}`],
+      ['standalone-github-install', `Read ghs_${'A'.repeat(36)}`],
+      ['standalone-github-refresh', `Read ghr_${'A'.repeat(76)}`],
+      [
+        'standalone-github-install-jwt',
+        `Read ghs_123456_eyJ${'A'.repeat(24)}.eyJ${'B'.repeat(24)}.${'C'.repeat(32)}`
+      ],
+      ['standalone-gitlab', `Read glpat-${'A'.repeat(20)}`],
+      ['standalone-npm', `Read npm_${'A'.repeat(36)}`],
+      ['standalone-pypi', `Read pypi-AgEIcHlwaS5vcmc${'A'.repeat(60)}`],
+      ['standalone-openai', `Read sk-${'A'.repeat(20)}T3BlbkFJ${'B'.repeat(20)}`],
+      ['standalone-openai-project', `Read sk-proj-${'A'.repeat(48)}`],
+      ['standalone-openai-service', `Read sk-svcacct-${'A'.repeat(48)}`],
+      ['standalone-anthropic', `Read sk-ant-api03-${'A'.repeat(80)}`],
+      ['standalone-anthropic-session', `Read sk-ant-sid01-${'A'.repeat(80)}`],
+      ['standalone-stripe', `Read sk_live_${'A'.repeat(24)}`],
+      ['standalone-stripe-restricted', `Read rk_test_${'A'.repeat(24)}`],
+      ['standalone-stripe-test', `Read sk_test_${'A'.repeat(24)}`],
+      ['standalone-stripe-live-restricted', `Read rk_live_${'A'.repeat(24)}`],
+      ['standalone-slack', `Read xoxb-123456789012-123456789012-${'A'.repeat(24)}`],
+      [
+        'standalone-slack-user',
+        `Read xoxp-123456789012-123456789012-123456789012-${'A'.repeat(32)}`
+      ],
+      ['standalone-google', `Read AIza${'A'.repeat(35)}`],
+      [
+        'standalone-encoded',
+        `Read ${encodeURIComponent(`ghp_${'A'.repeat(36)}`).replace('ghp_', '%67%68%70%5F')}`
+      ],
+      ['standalone-entity', `Read ghp&#95;${'A'.repeat(36)}`],
+      ['standalone-fullwidth', `Read ｇｈｐ＿${'Ａ'.repeat(36)}`],
+      ['standalone-unicode', `Read %5Cu0067hp_${'A'.repeat(36)}`],
+      ['standalone-uri', `Read https://example.com/${`ghp_${'A'.repeat(36)}`}?note=public`],
+      ['intermediate-placeholder-percent', 'api_key=<placeholder>%20synthetic-private-material'],
+      ['intermediate-placeholder-entity', 'api_key=<placeholder>&#32;synthetic-private-material'],
+      [
+        'intermediate-placeholder-unicode',
+        'api_key=<placeholder>\\u0020synthetic-private-material'
+      ],
+      ['intermediate-placeholder-key', 'api%5Fkey=<placeholder>%20synthetic-private-material'],
+      ['intermediate-placeholder-operator', 'api_key%3D<placeholder>%20synthetic-private-material'],
+      [
+        'intermediate-placeholder-all',
+        encodeURIComponent('api_key=<placeholder> synthetic-private-material')
+      ],
+      [
+        'intermediate-placeholder-html-key',
+        'api&#95;key&#61;&lt;placeholder&gt;&#32;synthetic-private-material'
+      ],
+      [
+        'intermediate-placeholder-syntax',
+        '%74oken%20%3D%20%3Cplaceholder%3E%20synthetic-private-material'
+      ],
+      [
+        'intermediate-placeholder-literal-gap',
+        'api_key%3D <placeholder>%20synthetic-private-material'
+      ],
+      [
+        'intermediate-placeholder-literal-colon',
+        'api_key%3A <placeholder>%20synthetic-private-material'
+      ],
       ['encoded-path-posix', 'Read %2Fhome%2Fsynthetic-owner%2Fprivate.md'],
       [
         'encoded-path-json-duplicate',
@@ -2309,6 +2554,20 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
           'Read **https://example.com/docs is the public reference** ' +
           'and **http://example.org/docs is the public reference** ' +
           'token_count=12; code=public; token usage and API key policy are public descriptions; ' +
+          'https://example.com/home https://example.com/guide?route=/public ' +
+          'https://example.com/guide?path=mydocs/public.md ' +
+          'https://example.com/guide?path=mydocs/public.md&route=/public ' +
+          'https://example.com/guide?path=%3Cmydocs%2Fpublic.md%3E ' +
+          'https://example.com/guide?path=%5B%22mydocs%2Fpublic.md%22%5D ' +
+          `https://example.com/report?meta=${encodeURIComponent(JSON.stringify({ path: 'src/public.md', q: 'a /b' }))} ` +
+          `https://example.com/report?meta=${encodeURIComponent(JSON.stringify({ path: ['src/public.md'], q: 'a /b' }))} ` +
+          'ghp_... github_pat_<redacted> ghp_{synthetic_token} ghs_<placeholder> ' +
+          `ghp_${'A'.repeat(35)} github_pat_${'A'.repeat(22)}_${'B'.repeat(58)} ` +
+          'npm_<redacted> glpat-... sk-proj-{synthetic_token} AIza<placeholder> ' +
+          `pk_live_${'A'.repeat(24)} AKIA${'A'.repeat(16)} ` +
+          'api_key=%7Bsynthetic_credential%7D; ' +
+          'api_key=&lt;redacted&gt;; ' +
+          'api_key%20%3D%20%3Cplaceholder%3E; api_key%3D %7Bsynthetic_credential%7D; ' +
           'oauth={synthetic_credential}; pat=<redacted>; oauth_count=4; compat=public; ' +
           'api_key={synthetic_credential}; Authorization: Bearer {synthetic_credential}; password=<redacted>; ' +
           'Proxy-Authorization: Basic {synthetic_credential}; ' +
@@ -2360,6 +2619,29 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
             output.includes('api_key={synthetic_credential}') &&
             output.includes('Authorization: Bearer {synthetic_credential}') &&
             output.includes('token_count=12') &&
+            output.includes('https://example.com/home https://example.com/guide?route=/public') &&
+            output.includes('https://example.com/guide?path=mydocs/public.md') &&
+            output.includes('https://example.com/guide?path=mydocs/public.md&route=/public') &&
+            output.includes('https://example.com/guide?path=%3Cmydocs%2Fpublic.md%3E') &&
+            output.includes('https://example.com/guide?path=%5B%22mydocs%2Fpublic.md%22%5D') &&
+            output.includes(
+              `https://example.com/report?meta=${encodeURIComponent(JSON.stringify({ path: 'src/public.md', q: 'a /b' }))}`
+            ) &&
+            output.includes(
+              `https://example.com/report?meta=${encodeURIComponent(JSON.stringify({ path: ['src/public.md'], q: 'a /b' }))}`
+            ) &&
+            output.includes(
+              'ghp_... github_pat_<redacted> ghp_{synthetic_token} ghs_<placeholder>'
+            ) &&
+            output.includes(
+              `ghp_${'A'.repeat(35)} github_pat_${'A'.repeat(22)}_${'B'.repeat(58)}`
+            ) &&
+            output.includes(`pk_live_${'A'.repeat(24)} AKIA${'A'.repeat(16)}`) &&
+            output.includes('api_key=%7Bsynthetic_credential%7D') &&
+            output.includes('api_key=&lt;redacted&gt;') &&
+            output.includes(
+              'api_key%20%3D%20%3Cplaceholder%3E; api_key%3D %7Bsynthetic_credential%7D;'
+            ) &&
             output.includes('oauth={synthetic_credential}') &&
             output.includes('pat=<redacted>') &&
             output.includes('oauth_count=4; compat=public') &&

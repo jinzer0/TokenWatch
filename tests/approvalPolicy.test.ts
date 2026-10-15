@@ -1254,7 +1254,7 @@ describe('risk-based approval delivery source contracts (not native enforcement)
     );
     has(
       renderer,
-      /expanded = unescape\(decoded\)[\s\S]*_check_web_reference\(decoded\)/,
+      /expanded = unescape\(decoded\)[\s\S]*_check_web_reference\(decoded, project_root\)/,
       'all entity layers decoded before fragment split'
     );
     has(
@@ -1270,7 +1270,7 @@ describe('risk-based approval delivery source contracts (not native enforcement)
     );
     has(
       renderer,
-      /_check_web_reference\(decoded\)\n {12}return original/,
+      /_check_web_reference\(decoded, project_root\)\n {12}return original/,
       'guard runs before accepting original URI'
     );
   });
@@ -1418,12 +1418,95 @@ describe('risk-based approval delivery source contracts (not native enforcement)
     );
     has(
       text,
-      /parsed = _check_web_reference\(uri\)/,
+      /parsed = _check_web_reference\(uri, project_root\)/,
       'complete URI validated before delimiter escaping'
     );
     const values =
       renderer.split('def _relative_values(')[1]?.split('def _find_config_values(')[0] ?? '';
     has(values, /_relative_text\(key, project_root\)/, 'mapping keys share path validation');
+  });
+
+  it('P1 public URI path query and fragment have native path preflight before preservation', () => {
+    const renderer = read('tools/bmad/render_skill.py');
+    const guard =
+      renderer.split('def _check_url_machine_references(')[1]?.split('def _relative_text(')[0] ??
+      '';
+    has(guard, /for component in \(path, query, fragment\)/, 'all URI components are inspected');
+    has(
+      guard,
+      /_decode_privacy_text\(component, validate=check\)/,
+      'every component interpretation is checked'
+    );
+    has(guard, /posixpath\.normpath/, 'native dot traversal cannot hide filesystem namespaces');
+    has(
+      guard,
+      /_relative_text\(native, project_root\)/,
+      'native parameters retain the common path policy'
+    );
+    has(
+      guard,
+      /decoder\.raw_decode\(candidate\)/,
+      'structured fields preserve actual JSON value boundaries'
+    );
+    has(
+      guard,
+      /object_pairs_hook=_unique_json_object/,
+      'native structured fields cannot discard duplicate values'
+    );
+    has(
+      guard,
+      /_check_url_machine_references\(uri\.path, uri\.query, uri\.fragment, project_root\)/,
+      'URI acceptance uses the guard'
+    );
+  });
+
+  it('P1 recognizable standalone tokens and attached payloads are checked at every decoding layer', () => {
+    const renderer = read('tools/bmad/render_skill.py');
+    has(
+      renderer,
+      /_SELF_IDENTIFYING_CREDENTIAL = re\.compile/,
+      'explicit token formats are classified without entropy guesses'
+    );
+    has(
+      renderer,
+      /_SELF_IDENTIFYING_CREDENTIAL\.search\(decoded\)/,
+      'unlabeled known token formats fail closed'
+    );
+    has(
+      renderer,
+      /_decode_privacy_text\(text, validate=_check_credential_text_view\)/,
+      'text credentials check all layers'
+    );
+    has(
+      renderer,
+      /re\.sub\(r"\\s", "%20", view\)/,
+      'encoded assignment operators cannot erase attached value provenance'
+    );
+    has(
+      renderer,
+      /_decode_privacy_text\(word, validate=carrier\)/,
+      'raw whitespace carrier boundaries survive each interpretation'
+    );
+    has(
+      renderer,
+      /parts\.extend\(\(text\[start:match\.start\(\)\], protected\)\)/,
+      'original syntax whitespace is retained across decoded operators'
+    );
+    has(
+      renderer,
+      /\(\?:\\s\|%20\)\*/,
+      'validation-only whitespace markers remain legal in key/operator syntax'
+    );
+    has(
+      renderer,
+      /validate\(authority_view\)[\s\S]*_expand_privacy_text\(authority_view\)/,
+      'validation precedes structure-changing decoding'
+    );
+    has(
+      renderer,
+      /text = _decode_privacy_text\(value\)\.strip\(\)/,
+      'encoded symbolic placeholders remain distinguishable from attached material'
+    );
   });
 
   it('P1 machine path rejection includes foreign source and customization values', () => {
