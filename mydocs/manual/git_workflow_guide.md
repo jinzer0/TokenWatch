@@ -83,7 +83,8 @@ Contributor도 같은 root 위임을 따른다. 검증된 task-only push와 명�
 ```bash
 # 1. Fork the original repository once on GitHub
 # 2. Work in the fork
-git clone https://github.com/{contributor}/TokenWatch.git
+git clone https://github.com/{contributor}/TokenWatch.git && cd TokenWatch || exit 1
+# clone 성공과 현재 디렉터리의 실제 fork/upstream·base/head·소유권을 확인한 뒤 아래 명령을 실행한다.
 git checkout -b local/my-task
 # ... work and commit ...
 git push origin local/my-task:publish/my-task

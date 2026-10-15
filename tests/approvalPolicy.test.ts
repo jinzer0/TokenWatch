@@ -658,7 +658,7 @@ describe('risk-based approval delivery source contracts (not native enforcement)
         );
         has(
           section(text, '### Finalize Plan'),
-          /Set `status: 'built'` only[^\n]*current successful execution\/completion of every applicable required native review lane/,
+          /현재 required verification\/acceptance 만족, 모든 applicable required native review lane의 successful execution\/completion 및 actual authority가 있을 때만[\s\S]*`built`를 선택/,
           'oneshot built requires actual review'
         );
         has(
@@ -675,17 +675,17 @@ describe('risk-based approval delivery source contracts (not native enforcement)
     const built = section(text, '### Mark Plan Built');
     has(
       built,
-      /Other eligible incoming states[\s\S]*may explicitly record `status: 'built'`[\s\S]*before authorized publication/i,
+      /required verification\/acceptance and required review are satisfied[\s\S]*`done`인 verified follow-up만 `done`으로 복원[\s\S]*`built` 원본은 `built`, fresh\/in-progress\/absent 원본도 성공 시 `built`/i,
       'only eligible non-done completion writes built state'
     );
     has(
       built,
-      /supported existing BMAD plan[\s\S]*otherwise[\s\S]*existing context/i,
+      /authorized task-owned BMAD metadata 또는 기존 durable associated canonical context\/task만 사용/,
       'built state supports both canonical formats'
     );
     has(
       built,
-      /never borrow another plan's context or add frontmatter/i,
+      /missing\/conflicting\/foreign association[\s\S]*새 artifact\/frontmatter나 human body\/path 변환 없이/,
       'built state leaves human plan intact'
     );
     has(
@@ -766,12 +766,12 @@ describe('risk-based approval delivery source contracts (not native enforcement)
     );
     has(
       normal,
-      /Capture the incoming status[\s\S]*before any state write/,
-      'capture before mutation'
+      /`resume_incoming_status`는 intermediate `in-review` 이전에 영속된 original에서만 복원하며 presentation 시점의 현재 status를 original로 capture하지 않는다/,
+      'consume durable original before mutation, never recapture presentation status'
     );
     has(
       normal,
-      /preserve incoming `done` as `done`[\s\S]*do not rewrite it to `built`/,
+      /incoming `done`을 `done`으로 보존하고 `built`도 그대로 두며 새 review\/status 전이를 만들지 않는다/,
       'terminal state is monotonic on presentation'
     );
     has(
@@ -792,6 +792,425 @@ describe('risk-based approval delivery source contracts (not native enforcement)
       section(auto, '## Finalize'),
       /Do not infer that original status from the intermediate `in-review`/,
       'no intermediate or foreign status substitute'
+    );
+  });
+
+  it('P1 auto interrupted and repeated review resume reuse durable original status and followup heuristics', () => {
+    const review = read('mydocs/skills/bmad-build-auto/step-04-review.md');
+    const provenance = section(
+      review,
+      '### Durable original review provenance (before intermediate effects)'
+    );
+    has(
+      provenance,
+      /durable associated canonical context\/task의 append-only 기록/,
+      'existing durable storage'
+    );
+    has(
+      provenance,
+      /interruption\/repeated resume, patch, bad_plan 및 failed-verification loopback/,
+      'all resume paths reuse original'
+    );
+    has(
+      provenance,
+      /intermediate `in-review` 또는 다른 task의 값으로 덮어쓰지 않는다/,
+      'intermediate and foreign values never replace original'
+    );
+    has(
+      provenance,
+      /runtime `resume_incoming_status`를 복원하고 `\{followup_pass\} = true` iff original status is `built` or `done`/,
+      'heuristics restore from durable terminal origin'
+    );
+    has(provenance, /그 외에는 false로 설정/, 'fresh review never inherits followup heuristic');
+    has(
+      provenance,
+      /status\/다른 review metadata를 쓰기 전에 원본 기록을 atomic append/,
+      'provenance precedes effects'
+    );
+    expect(
+      review.indexOf('### Durable original review provenance') <
+        review.indexOf('Record status `in-review`')
+    ).toBe(true);
+    has(
+      section(review, '### Classify'),
+      /patch\/bad_plan\/failed-verification은 cycle 경계가 아니며 원본을 교체·clear하지 않는다/,
+      'repairs retain original'
+    );
+    lacks(
+      review,
+      /capture `resume_incoming_status` in non-persisted runtime context/,
+      'obsolete volatile-only capture removed'
+    );
+  });
+
+  it('P1 auto provenance mismatch missing state and denied writes block dependent effects without status changes', () => {
+    const review = read('mydocs/skills/bmad-build-auto/step-04-review.md');
+    const provenance = section(
+      review,
+      '### Durable original review provenance (before intermediate effects)'
+    );
+    for (const pattern of [
+      /exact canonical path AND task/,
+      /open record가 중복·상충하거나 task\/path가 불일치하면 dependent status\/metadata\/repair\/Finalize\/publication만 차단/,
+      /open cycle이 없고 실제 현재 상태가 `in-review`이면 `missing original review provenance`/,
+      /write-denied, non-durable\/missing context, concurrent change, validation\/readback failure/,
+      /기존 status\/iteration\/baseline\/logs를 그대로 두고 dependent effects만 차단/,
+      /provenance failed write는 status를 바꿀 수 없다/,
+      /대체 context\/plan\/artifact를 만들거나 permission을 우회하지 않는다/,
+      /route pin과 review pin은 별도 runtime 선택이며 provenance를 만들거나 바꾸지 않는다/
+    ])
+      has(provenance, pattern, `provenance failure boundary: ${pattern.source}`);
+    const entry = read('mydocs/skills/bmad-build-auto/step-01-clarify-and-route.md');
+    has(entry, /이 entry 단계에서는 provenance를 쓰지 않는다/, 'routing reads provenance only');
+    has(
+      section(entry, '### Existing-state dispatch'),
+      /open `review_cycle`이 있으면 상태별 terminal reporting보다 그 cycle 재개가 우선/,
+      'open cycle cannot be discarded by terminal dispatch'
+    );
+  });
+
+  it('P1 auto nonmutating entry and direct review stop before durable provenance writes', () => {
+    const entry = read('mydocs/skills/bmad-build-auto/step-01-clarify-and-route.md');
+    const review = read('mydocs/skills/bmad-build-auto/step-04-review.md');
+    for (const mode of ['read-only', 'planning-only', 'report-only']) {
+      expect(section(entry, '## Request-mode guard (before any routing)').includes(mode)).toBe(
+        true
+      );
+      expect(section(review, '## INSTRUCTIONS').includes(mode)).toBe(true);
+    }
+    has(
+      section(entry, '## Request-mode guard (before any routing)'),
+      /STOP this workflow here/,
+      'entry has no mutable fallthrough'
+    );
+    const directGuard = review.slice(
+      review.indexOf('## INSTRUCTIONS'),
+      review.indexOf('### State/evidence location')
+    );
+    has(directGuard, /STOP here before state writes/, 'direct review terminates before storage');
+    has(
+      directGuard,
+      /Do not persist context or create artifacts/,
+      'context is not a write exception'
+    );
+    has(
+      read('mydocs/skills/bmad-build-auto/workflow.md'),
+      /read-only\/planning-only\/report-only는 provenance write 전에 종료/,
+      'workflow preserves mode boundary'
+    );
+  });
+
+  it('P1 auto verified Finalize alone closes provenance and restores only the correct terminal status', () => {
+    const final = section(read('mydocs/skills/bmad-build-auto/step-04-review.md'), '## Finalize');
+    for (const pattern of [
+      /SAME selected canonical path\/task open cycle을 다시 읽고/,
+      /missing\/conflicting\/foreign provenance는 dependent completion\/status\/publication을 차단/,
+      /현재 AC\/verification과 모든 applicable required lane 성공 및 actual authority/,
+      /final status와 해당 cycle의 completion 기록을 같은 선택 위치에 원자적으로 반영하고 re-read/,
+      /`done` 원본의 verified follow-up만 `done`으로 복원/,
+      /`built` 원본은 `built`, fresh\/in-progress\/absent 원본도 성공 시 `built`/,
+      /verified successful Finalize가 유일한 cycle boundary/,
+      /completion 기록을 append[\s\S]*이전 원본\/로그는 삭제·수정하지 않는다/,
+      /verification\/AC\/required lane\/authority가 실패하면 성공 status를 쓰거나 원본을 clear하지 않고 incomplete/,
+      /interruption, HALT, retry, repair, route\/review pin 변경은 boundary가 아니다/,
+      /완료된 cycle은 다음 실제 delegated review의 원본으로 재사용하지 않으며/
+    ])
+      has(final, pattern, `Finalize provenance: ${pattern.source}`);
+    const provenance = section(
+      read('mydocs/skills/bmad-build-auto/step-04-review.md'),
+      '### Durable original review provenance (before intermediate effects)'
+    );
+    has(
+      provenance,
+      /새 필수 artifact, frontmatter 추가, human body\/heading\/path 변환·복사·번역[\s\S]*금지/,
+      'no new artifact or canonical conversion'
+    );
+    has(
+      provenance,
+      /Preserve iteration, original baseline and all prior logs/,
+      'prior continuity preserved'
+    );
+  });
+
+  it('P2 normal review, oneshot and presentation share one durable original lifecycle, not runtime recapture', () => {
+    // Source instructions only: not LLM behavior or native execution proof.
+    const workflow = read('mydocs/skills/bmad-build/workflow.md');
+    const provenance = section(
+      workflow,
+      '## Durable original review provenance (before intermediate effects)'
+    );
+    for (const pattern of [
+      /read-only\/planning-only\/report-only는 provenance write 전에 종료/,
+      /exact canonical path AND task[\s\S]*append-only `review_cycle`/,
+      /interruption\/repeated resume, patch, bad_plan, failed-verification loopback 및 oneshot 재진입은 새 cycle이 아니다/,
+      /intermediate `in-review` 또는 다른 task의 원본으로 교체하지 않는다/,
+      /open record 중복·상충, task\/path 불일치, unknown\/conflicting status[\s\S]*independent safe analysis는 계속/,
+      /open cycle 없이 현재 status가 `in-review`이면 `missing original review provenance`/,
+      /atomic append[\s\S]*re-read[\s\S]*뒤에만 intermediate status[\s\S]*reviewer\/repair를 dispatch/,
+      /write-denied, non-durable\/missing context, concurrent change, validation\/readback failure/,
+      /기존 status\/iteration\/baseline\/모든 로그를 보존하고 dependent effects만 차단/,
+      /`\{followup_pass\} = true` iff original status is `built` or `done`; 그 외에는 false/,
+      /새 mandatory artifact, frontmatter 추가, human body\/heading\/path 변환·복사·번역[\s\S]*금지/,
+      /final status와 해당 cycle completion 기록을 원자적으로 함께 영속하고 re-read/,
+      /`done` 원본의 verified follow-up만 `done`, `built` 원본은 `built`, fresh\/in-progress\/absent 원본도 성공 시 `built`/,
+      /verification\/AC\/required lane\/authority 실패면 성공 status를 쓰거나 원본을 clear하지 않고 incomplete/,
+      /completion은 append-only[\s\S]*이전 원본\/모든 로그를 삭제·수정하지 않는다/,
+      /완료된 cycle을 다음 review 원본으로 재사용하지 않고/,
+      /open cycle 없는 terminal presentation은 새 review\/상태 전이를 만들지 않으며 기존 terminal 상태를 보존/
+    ])
+      has(provenance, pattern, `normal durable lifecycle: ${pattern.source}`);
+    const review = read('mydocs/skills/bmad-build/step-04-review.md');
+    const directGuard = review.slice(
+      review.indexOf('## INSTRUCTIONS'),
+      review.indexOf('### State/evidence location')
+    );
+    has(
+      directGuard,
+      /read-only\/planning-only\/report-only[\s\S]*STOP/,
+      'normal direct review stops before provenance'
+    );
+    has(
+      directGuard,
+      /Do not record in-review, create artifacts, launch review\/implementation, finalize or publish/,
+      'normal direct review has no dependent fallthrough'
+    );
+    expect(
+      review.indexOf('### Durable original review provenance') <
+        review.indexOf('Record status `in-review`')
+    ).toBe(true);
+    has(
+      review,
+      /SAME selected exact canonical path AND task의 유일한 open `review_cycle`[\s\S]*`resume_incoming_status`와 `followup_pass`를 복원/,
+      'direct review consumes original'
+    );
+    const oneshot = read('mydocs/skills/bmad-build/step-oneshot.md');
+    const implement = section(oneshot, '### Implement');
+    has(
+      implement,
+      /direct oneshot 재진입도 최초 `resume_incoming_status`와 `followup_pass`를 재사용/,
+      'direct oneshot never recaptures in-review'
+    );
+    expect(
+      implement.indexOf('atomic append하고 re-read') <
+        implement.indexOf('Record `baseline_revision`')
+    ).toBe(true);
+    for (const [path, heading] of [
+      ['step-oneshot.md', '### Finalize Plan'],
+      ['step-05-present.md', '### Mark Plan Built']
+    ]) {
+      const final = section(read(`mydocs/skills/bmad-build/${path}`), heading);
+      for (const pattern of [
+        /review_cycle/,
+        /re-read/,
+        /completion/,
+        /append-only/,
+        /incomplete/,
+        /원본/,
+        /actual authority|request authorizes state writes/
+      ])
+        has(final, pattern, `${path}: same verified terminal contract ${pattern.source}`);
+    }
+  });
+
+  it('P2 both direct implementation entries preserve the original before terminal repair effects', () => {
+    for (const skill of Object.keys(bmadFiles)) {
+      const text = read(`mydocs/skills/${skill}/step-03-implement.md`);
+      const provenance = section(
+        text,
+        '### Durable original review provenance (before intermediate effects)'
+      );
+      const guard = text.slice(
+        text.indexOf('## INSTRUCTIONS'),
+        text.indexOf('### State/evidence location')
+      );
+      has(
+        guard,
+        /read-only\/planning-only\/report-only/i,
+        `${skill}: direct nonmutating guard first`
+      );
+      has(guard, /terminate|STOP/, `${skill}: direct guard exits`);
+      expect(
+        text.indexOf('### Durable original review provenance') <
+          text.indexOf('Record `baseline_revision`')
+      ).toBe(true);
+      expect(
+        text.indexOf('### Durable original review provenance') <
+          text.search(/record status `in-progress`/i)
+      ).toBe(true);
+      for (const pattern of [
+        /SAME selected exact canonical path AND task/,
+        /현재 `done`\/`built`에 실제 delegated follow-up이 없으면[\s\S]*nonmutating terminal evidence만 보고한 뒤 STOP/,
+        /follow-up이 review만 위임하면 구현을 재시작하지 않고 step-04로 이동[\s\S]*baseline\/status\/metadata를 쓰지 않는다/,
+        /최초 `resume_incoming_status`와 cycle 연결을 re-read하여 그대로 재사용/,
+        /`\{followup_pass\} = true` iff original status is `built` or `done`; 그 외에는 false/,
+        /intermediate `in-review`\/`in-progress` 또는 다른 task\/context 값으로 교체하지 않는다/,
+        /authorized terminal technical repair[\s\S]*atomic append하고 re-read[\s\S]*뒤에만 아래 effects를 허용/,
+        /새 비terminal 구현은 cycle을 꾸며 만들지 않으며/,
+        /association\/cycle이 missing\/conflicting\/foreign이면 dependent effects만 차단/,
+        /write-denied, non-durable context, concurrent change, validation\/readback failure[\s\S]*independent safe analysis는 계속/,
+        /step-03은 cycle을 clear\/close하지 않는다/,
+        /terminal status와 completion을 함께 atomic persist하고 re-read/
+      ])
+        has(provenance, pattern, `${skill}: direct implementation lifecycle ${pattern.source}`);
+    }
+  });
+
+  it('full-PR source regressions keep report modes terminal and optional artifacts non-authorizing', () => {
+    const start = section(read('mydocs/skills/task-start/SKILL.md'), '## Verification');
+    has(
+      start,
+      /실제 승인된 commit을 만들었을 때만[\s\S]*실제 subject·변경 범위와 일치/,
+      'task-start verifies actual authorized subject'
+    );
+    has(
+      start,
+      /Issue 유무에 맞는 subject[\s\S]*예시 문구나 optional plan\/board 생성을 강제하지 않는다[\s\S]*commit하지 않은 요청에는 이 검사를 적용하지 않는다/,
+      'no fabricated issue/commit/artifact requirement'
+    );
+    for (const skill of ['task-stage-report', 'task-final-report']) {
+      const procedure = section(read(`mydocs/skills/${skill}/SKILL.md`), '## Procedure');
+      const guard = procedure.slice(0, procedure.indexOf('\n1.'));
+      for (const pattern of [
+        /보고 파일 쓰기 위임이 없는 report-only[\s\S]*기존 evidence만 읽어 응답하고 \*\*STOP\*\*/,
+        /산출물이 명시 요청된 report-only[\s\S]*요청된 보고(?:\/PR 초안)? 파일만 작성\/갱신하고 \*\*STOP\*\*/,
+        /context\/board\/source를 함께 변경하지 않는다/,
+        /검증 명령·repair·다음 stage·Git·hooks·publication을 실행하지 않는다/,
+        /failed[\s\S]*not_run[\s\S]*incomplete[\s\S]*통과를 추정하거나 자동 복구하지 않는다/
+      ])
+        has(guard, pattern, `${skill}: early report-only boundary ${pattern.source}`);
+    }
+    const external = read('mydocs/skills/external-pr-review/SKILL.md');
+    const externalMode = section(external, '## 요청 모드 분류 — 사전 조건·명령보다 먼저');
+    expect(external.indexOf('## 요청 모드 분류') < external.indexOf('## 사전 조건')).toBe(true);
+    has(
+      externalMode,
+      /보고 전용[\s\S]*기존 context·검토 결과·검증 evidence만 읽고[\s\S]*명시 요청되고 쓰기가 허용된 경우에만 그 보고서 파일을 작성[\s\S]*\*\*STOP\*\*/,
+      'existing evidence report stops before commands'
+    );
+    has(
+      externalMode,
+      /메타데이터 refresh·검증·repair·context 쓰기·hooks·Git·publication 단계로 진행하지 않는다/,
+      'report artifacts cannot fall through to effects'
+    );
+    has(
+      externalMode,
+      /읽기 전용 PR 검토[\s\S]*안전한 정보 조회와 정적 분석으로 최신 PR metadata·전체 diff·기존 CI 상태[\s\S]*새 검증 실행이나 외부 코드 실행 권한이 아니다/,
+      'ordinary read-only review retains safe fresh information reads'
+    );
+    has(
+      external,
+      /보고서만 요청된 경우 다른 파일은 요구하지 않는다/,
+      'external report does not require plan artifacts'
+    );
+    has(
+      external,
+      /실제 변경 위임으로 검증된 task-owned source 변경이 있을 때만 유효한 상시 commit\/push 위임[\s\S]*매 commit마다 새 승인을 요구하지 않는다/,
+      'standing scoped publication is reusable'
+    );
+    has(
+      external,
+      /순수 분석·읽기 전용·계획 전용·보고서 전용 요청[\s\S]*publication 권한이 아니다/,
+      'optional artifact is not publication authority'
+    );
+    has(
+      external,
+      /exact filename allowlist[\s\S]*해당 publication ref에만 push/,
+      'external publication remains exact-scoped'
+    );
+    const lifecycle = read('mydocs/manual/task_workflow_guide.md');
+    has(
+      lifecycle,
+      /manifest\/diff 검사는 파일 적용 전에 반드시 수행[\s\S]*manifest 차이 자체를 일괄 승인 gate로 만들지 않는다/,
+      'lifecycle checks are not blanket approval'
+    );
+    has(
+      lifecycle,
+      /검사를 통과한 manifest도 bootstrap\/setup\/install·새 framework 채택 권한을 만들지 않으며/,
+      'manifest does not grant installation authority'
+    );
+    const fork =
+      read('mydocs/manual/git_workflow_guide.md')
+        .split('## Contributor Workflow (Fork-based)\n')[1]
+        ?.split('\n## ')[0] ?? '';
+    has(
+      fork,
+      /git clone[^\n]*&& cd TokenWatch \|\| exit 1/,
+      'fork checkout failure cannot fall through'
+    );
+    expect(
+      fork.indexOf('clone 성공과 현재 디렉터리의 실제 fork/upstream·base/head·소유권을 확인') <
+        fork.indexOf('git checkout -b')
+    ).toBe(true);
+  });
+
+  it('P1 shared text preflight rejects relative escapes before source/config/output capture without rewriting public prose', () => {
+    const renderer = read('tools/bmad/render_skill.py');
+    const relative =
+      renderer.split('def _check_relative_references(')[1]?.split('def _relative_text(')[0] ?? '';
+    for (const pattern of [
+      /base = reference_root if reference_root is not None else project_root/,
+      /base = skill_root/,
+      /reference = reference\.replace/,
+      /\(base \/ reference\)\.resolve\(\)\.is_relative_to\(project_root\)/,
+      /raise RenderError\("relative reference escapes repository"\)/,
+      /_decode_privacy_text\(native_text, validate=check\)/,
+      /wildcard = re\.search/,
+      /reference = match\["file_payload"\][\s\S]*_check_file_carrier\(reference\)[\s\S]*contained\(reference\)/,
+      /while prefix[\s\S]*contained\(reference\)/,
+      /web_carrier/
+    ])
+      has(relative, pattern, `relative shared preflight: ${pattern.source}`);
+    has(
+      renderer,
+      /_check_relative_references\(text, project_root, skill_root, reference_root\)\n {4}normalized = _relative_reference_text/,
+      'containment runs before text normalization'
+    );
+    has(
+      renderer,
+      /sources = _relative_sources\(_load_sources\(skill_dir\), project_root, skill_dir\)/,
+      'source uses actual skill and structural name binding'
+    );
+    const sources =
+      renderer.split('def _relative_sources(')[1]?.split('def _resolve_config_value(')[0] ?? '';
+    has(
+      sources,
+      /target not in sources[\s\S]*_relative_text\(target, project_root, reference_root=skill_dir\)/,
+      'only declared actual source targets use source origin'
+    );
+    has(
+      sources,
+      /environment\.lex\(expression_text\)[\s\S]*ast\.literal_eval\(literal\)/,
+      'literal references are actual Jinja tokens, not arbitrary prose substitutions'
+    );
+    has(
+      sources,
+      /normalized = _relative_text\(validation, project_root, skill_root=skill_dir\)[\s\S]*restore=True/,
+      'effective template spelling restored only after normal privacy preflight'
+    );
+    has(
+      renderer,
+      /_relative_values\([\s\S]*_resolve_customization_value\(value, default, label\), self\._ctx\.project_root,[\s\S]*skill_root=self\._ctx\.project_root \/ self\._ctx\.destination/,
+      'custom instructions use immutable generation binding'
+    );
+    has(
+      renderer,
+      /any\(_relative_text\(text, project_root\) != text for text in public_text\)/,
+      'rendered output reuses shared preflight'
+    );
+    has(
+      renderer,
+      /_relative_values\(checked_manifest, project_root\) != checked_manifest/,
+      'ordinary manifest strings reuse project-based preflight'
+    );
+    has(
+      renderer,
+      /_relative_values\(template_hashes, project_root, key_root=skill_dir\) != template_hashes/,
+      'template names retain source origin at final validation'
+    );
+    has(
+      renderer,
+      /_relative_values\(output_hashes, project_root, key_root=destination\) != output_hashes/,
+      'output names retain destination origin at final validation'
     );
   });
 
@@ -1398,12 +1817,12 @@ describe('risk-based approval delivery source contracts (not native enforcement)
     const text = renderer.split('def _relative_text(')[1]?.split('def _relative_values(')[0] ?? '';
     has(
       text,
-      /decoded = _decoded_reference_text\(normalized, project_root\)/,
+      /decoded = _decoded_reference_text\(normalized, project_root, reference_root=reference_root\)/,
       'decoded semantics follow literal normalization with URI spans'
     );
     has(
       text,
-      /_relative_reference_text\(decoded, project_root\)/,
+      /_relative_reference_text\(decoded, project_root, reference_root=reference_root\)/,
       'decoded paths use the same reference policy'
     );
     has(
@@ -1423,7 +1842,11 @@ describe('risk-based approval delivery source contracts (not native enforcement)
     );
     const values =
       renderer.split('def _relative_values(')[1]?.split('def _find_config_values(')[0] ?? '';
-    has(values, /_relative_text\(key, project_root\)/, 'mapping keys share path validation');
+    has(
+      values,
+      /_relative_text\(key, project_root, skill_root=skill_root, reference_root=key_root or reference_root\)/,
+      'mapping keys share privacy validation with their actual origin'
+    );
   });
 
   it('P1 public URI path query and fragment have native path preflight before preservation', () => {

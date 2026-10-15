@@ -15,12 +15,21 @@ description: |
 
 ## Preconditions
 
+- Procedure 0의 모드를 먼저 판별한다. 아래 상태·ownership·repo/PR 확인은 제한 모드에서 기존 evidence 읽기에 한정하며 Git/원격 조회·검증 명령이나 변경을 요구하지 않는다.
 - root/nearest-child `AGENTS.md` Risk-Based Execution Policy·native phase/tool permission과 실제 사용자 scope를 확인한다. canonical 계획 또는 LOW existing context를 참조하고 별도 `_impl`/모든 stage report를 강제하지 않는다.
 - 현재 acceptance criteria·검증/evidence 상태를 확인한다. 실패/blocked 최종 상태 보고도 허용하되 성공 완료·publication 권한으로 바꾸지 않는다.
 - reviewed task-owned filename/hunk·baseline과 repo/remote/base/head·기존 PR를 확인한다. unrelated dirty/untracked와 사용자 계획은 보존한다. read-only/planning-only/report-only는 구현·commit/push/PR 위임이 아니다.
 - 새 HF 보고·보드·맥락 기록·PR·승인 요청의 제목·항목명·설명·예시는 한국어로 작성한다. 고정 기술 토큰·상태값·명령·경로·커밋 형식은 유지하고 기존 사용자 canonical 계획의 원문·의도는 번역하거나 강제 변환하지 않는다. 개인정보·원시 세션/경로·로그는 노출하지 않는다.
 
 ## Procedure
+
+0. 명령 실행·source 수정 전에 실제 요청 모드를 분기한다. skill 호출·보고/PR 준비 요청·과거 실패 evidence는 실행 위임이 아니다.
+   - read-only/planning-only 또는 보고 파일 쓰기 위임이 없는 report-only: 기존 evidence만 읽어 응답하고 **STOP**한다. 파일을 만들거나 갱신하지 않는다.
+   - 산출물이 명시 요청된 report-only: 기존 evidence로 요청된 보고/PR 초안 파일만 작성/갱신하고 **STOP**한다. canonical 계획의 경로·원문·의도를 보존하고 context/board/source를 함께 변경하지 않는다. 요청된 보고 산출물은 새 제품 공식 문서 root의 채택이 아니다.
+   - 두 제한 모드 모두 검증 명령·repair·다음 stage·Git·hooks·publication을 실행하지 않는다. 과거 실패는 failed, 미실행은 not_run(기존 형식의 not-run), 누락/오래된 evidence로 현재 완료를 입증할 수 없으면 incomplete/한계로 기록한다. 통과를 추정하거나 자동 복구하지 않는다.
+   - 구현 또는 해당 실행 행동이 별도로 명시 위임된 경우에만 그 scope의 아래 실행 절차로 진행한다. 보고만의 요청이 위임을 확대하지 않으며 native permission과 행동별 HIGH 조건을 유지한다.
+
+아래 1–8단계는 위 실행 분기를 통과한 위임 scope에만 적용한다. report-only 산출물에는 2단계와 7단계의 보고/PR 본문 형식을 참조할 수 있지만 명령·게시나 자동 context/board 갱신은 실행하지 않는다.
 
 1. canonical 계획/context의 acceptance criteria에 필요한 통합 검증을 실행한다. 같은 scope의 실패는 evidence를 보존하며 자율 repair/reverify한다. 반복 비수렴·실제 불가분 충돌·요구/scope/위험 변경만 escalation하고 독립 안전 작업은 계속한다.
 2. 필요한 Issue 산출물만 `mydocs/report/task_m{milestone}_{N}_report.md`에 작성하고 LOW는 기존 context로 충분하다. 문서 위치 판단은 canonical/context에 기록하며 같은 scope 기록 갱신은 재승인하지 않는다.
@@ -97,7 +106,8 @@ description: |
 
 ## Verification
 
-- 필요한 final/stage 산출물만 존재하고 canonical/context와 연결된다. LOW optional 산출물 부재를 실패로 판정하지 않는다.
+- 먼저 Procedure 0의 모드를 적용한다. 제한 모드는 기존 evidence와 허용된 응답/보고 내용만 대조하고 검증 명령·Git/PR 조회도 실행하지 않는다. 아래 실행/commit/원격 검증은 해당 행동이 위임된 실행 모드에만 적용한다.
+- 필요하고 쓰기가 위임된 final/stage 산출물만 존재하며 기존 canonical/context를 참조한다. report-only에서 canonical/context 갱신을 강제하지 않으며 LOW optional 산출물 부재를 실패로 판정하지 않는다.
 - 사용한 final report/context는 해당 scope·변경·검증 결과·잔여 한계를 채우고 실패/blocked/not-run을 passed와 분리한다.
 - 실제 PR의 `변경 사항`에는 존재하는 공개 가능 evidence/commit 링크만 사용한다.
 - Work document links use commit SHA-pinned URLs and `[filename](URL)` format.
@@ -107,7 +117,7 @@ description: |
 - 기존 task board를 사용한 검증 완료 작업만 #{N} row가 `Done`/`Done: HH:mm`이다.
 - 위임된 verified commit은 reviewed task-owned 변경만 포함하고 semantic subject/TokenWatch attribution을 유지한다. clean은 task-owned pending changes 기준이며 unrelated working-tree dirty는 보존한다.
 - With authorized PR creation: `gh pr view` shows a non-draft PR with the correct base/head.
-- 미위임/permission-blocked/검증 실패/불가분 ownership에는 해당 성공 publication을 실행하지 않는다. evidence/report·독립 safe 작업은 계속하고 residual limitation을 기록한다. no-change는 빈 commit/중복 PR 없이 결과만 기록한다.
+- 미위임/permission-blocked/검증 실패/불가분 ownership에는 해당 성공 publication을 실행하지 않는다. 실행 위임 scope의 evidence/report·독립 safe 작업만 계속하고 residual limitation을 기록한다. report-only는 허용된 보고 후 종료한다. no-change는 빈 commit/중복 PR 없이 결과만 기록한다.
 
 ## Never Do
 

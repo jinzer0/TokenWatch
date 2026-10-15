@@ -29,7 +29,7 @@ When installing Hyper-Waterfall in a new repository or updating an already adopt
 - Update PR transition: `<hyper-waterfall-release-dir>/docs/lifecycle/update_pr.md`
 - Release/tag and update protocol: [`release_update_protocol.md`](release_update_protocol.md)
 
-After lifecycle judgment is approved and actual file changes begin, apply this manual's normal task procedure. Do not apply files from the manifest diff to the target repository before approval.
+lifecycle assessment·native permission·ownership·대상 file manifest/diff 검사는 파일 적용 전에 반드시 수행한다. 명확히 요청된 비파괴 LOW/MEDIUM lifecycle 작업은 그 scope에서 일반 task 절차로 진행하며 manifest 차이 자체를 일괄 승인 gate로 만들지 않는다. 특정 HIGH 행동 또는 실제 중대한 scope/의도 변경만 실행 직전에 권한 있는 요청자의 한정 승인을 확인한다. 검사를 통과한 manifest도 bootstrap/setup/install·새 framework 채택 권한을 만들지 않으며 해당 행동은 실제 별도 위임과 권한이 필요하다. 기존 채택에 Issue·branch·산출물·승인을 소급 요구하지 않는다.
 
 ## Task Number Management
 
@@ -52,7 +52,8 @@ After lifecycle judgment is approved and actual file changes begin, apply this m
 
 ## Task Procedure
 
-1. 실제 요청·scope·ownership·root 위험 정책과 native/platform/nearest-child/privacy 제약을 확인한다. read-only/planning-only는 구현/publication하지 않는다.
+0. 명령·source 수정 전에 요청 모드를 분기한다. read-only/planning-only 또는 보고 파일 쓰기 위임이 없는 report-only는 기존 evidence로 응답하고 STOP한다. 산출물이 명시 요청된 report-only는 요청된 보고 파일만 작성/갱신하고 STOP하며 canonical 경로·원문·의도와 context/board/source를 보존한다. 보고 산출물은 새 제품 공식 문서 root 채택이 아니다. 두 제한 모드는 검증 명령·repair·다음 stage·Git·hooks·publication을 실행하지 않는다. 과거 실패는 failed, 미실행은 not_run(기존 형식의 not-run), 누락/오래된 evidence는 incomplete/한계로 기록하고 pass를 추정하지 않는다. 별도로 명시 위임된 실행 행동만 해당 scope의 아래 절차를 적용한다.
+1. 실행 모드의 실제 요청·scope·ownership·root 위험 정책과 native/platform/nearest-child/privacy 제약을 확인한다. 아래 2–15단계는 해당 행동이 위임된 실행 scope에만 적용한다.
 2. 기존 Issue가 있으면 그 번호를 사용한다. 필요 없는 Issue·board·plan을 새로 만들지 않으며 Issue 생성은 별도 위임을 확인한다.
 3. 기존 canonical 계획 또는 LOW context를 재사용한다. 필요한 새 계획은 BMAD 하나로 제한하고 HF는 참조·context/evidence만 보완한다.
 4. 의존성과 검증 가능한 단위에 비례해 stage를 구성한다. 한 stage도 가능하며 고정 최소·최대 stage 수나 별도 `_impl` 승인은 없다.
@@ -84,7 +85,7 @@ After lifecycle judgment is approved and actual file changes begin, apply this m
 
 ### When Stage verification fails
 
-실패한 검증·증상·evidence·다음 안전 행동을 report/context에 기록하되 incomplete로 유지한다. 같은 scope의 기술 수정·replan·재검증은 자율 진행한다. 비수렴이나 실제 의도/scope/위험 변경만 확인하며 실패 중 성공 완료나 publication하지 않는다.
+실패한 검증·증상·evidence·다음 안전 행동을 허용된 report/context 또는 응답에 기록하되 incomplete로 유지한다. report-only는 Task Procedure 0에 따라 보고 후 종료하고 수정·재검증하지 않는다. 실행이 위임된 같은 scope의 기술 수정·replan·재검증은 자율 진행한다. 비수렴이나 실제 의도/scope/위험 변경만 확인하며 실패 중 성공 완료나 publication하지 않는다.
 
 ### When Stage size is unclear
 
@@ -92,7 +93,7 @@ After lifecycle judgment is approved and actual file changes begin, apply this m
 
 ### When work started on the next Stage without approval
 
-추가 continue 없이 같은 scope의 다음 stage를 진행한 것은 위반이 아니다. 실제 scope/위험 이탈이면 그 행동만 중단하고 현재 변경·evidence를 보존한다. task-owned correction만 수행하며 사용자/다른 worker 변경을 되돌리지 않는다.
+실행이 위임된 같은 scope에서 추가 continue 없이 다음 stage를 진행한 것은 위반이 아니다. 보고만 요청된 경우에는 다음 stage 권한이 없다. 실제 scope/위험 이탈이면 그 행동만 중단하고 현재 변경·evidence를 보존한다. 위임된 task-owned correction만 수행하며 사용자/다른 worker 변경을 되돌리지 않는다.
 
 ## SKILL Call Display Guidance
 

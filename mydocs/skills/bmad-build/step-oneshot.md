@@ -37,6 +37,8 @@ Resolve sections by meaning in that SAME exact-path/task associated location, no
 
 ### Implement
 
+먼저 workflow의 동일 **Durable original review provenance (before intermediate effects)** 계약으로 SAME selected exact canonical path AND task의 open `review_cycle`을 읽는다. direct oneshot 재진입도 최초 `resume_incoming_status`와 `followup_pass`를 재사용한다. terminal `built`/`done`은 실제 delegated follow-up 없이 구현을 재시작하지 않고 terminal reporting 후 STOP한다. authorized active cycle이 없을 때만 현재 원본을 동일 authorized metadata/existing durable context에 atomic append하고 re-read한 뒤 아래 state/implementation/review effects를 진행한다. missing/conflicting/foreign association, 원본 없는 `in-review`, write-denied/readback failure는 dependent effects만 차단한다. 새 artifact나 human body/frontmatter 변환 없이 baseline/iteration/모든 이전 로그를 보존하고 route/review pin은 원본과 별도로 유지한다.
+
 Resolve repository-answerable questions autonomously. A genuine material intent gap blocks dependent work only; ask the human and record actual answers without inventing intent. Continue independent safe work.
 
 Record `baseline_revision` (current HEAD, or `NO_VCS` if version control is unavailable) in the resolved state/evidence location before making any changes. If it already holds a value there (resumed run), preserve it — never overwrite it. Use authorized BMAD frontmatter only for a supported plan; an unformatted canonical plan uses existing context without any plan write.
@@ -52,6 +54,8 @@ Build the change from `{plan_file}`. Its human intent is what you implement. As 
 {% endif %}
 
 ### Review
+
+동일 open `review_cycle`의 canonical path/task association을 재확인하고 검증된 원본에서만 `resume_incoming_status`/`followup_pass`를 복원한다. 원본이 없거나 상충하면 dependent review metadata/dispatch를 차단한다. patch/repair/replan/failed-verification/repeated resume는 cycle boundary가 아니며 failed review cycle은 active로 유지한다.
 
 Run required verification and acceptance checks; preserve failed results as incomplete. Repair same-scope failures/complex defects autonomously, revalidating authority before risky actions, then reverify. Repeated nonconvergence or unresolved failure records scoped blocked/incomplete, not built or successful publication.
 
@@ -72,7 +76,7 @@ Use separate task-owned file/hunk pre-edit evidence to derive `{review_scope}`: 
 
 A sanitized diff/evidence artifact may be referenced only when it already exists as an authorized task-owned artifact under the exact repository root and has been sanitized first. Never point a child at an unsanitized diff, canonical claims file or raw records. Source reads are restricted to preflight-approved safe task-owned ranges; if source content is unsafe, supply only safe observable facts when sufficient, otherwise block the affected lane.
 
-Runtime review placeholders are `{review_acceptance}`, `{review_files}`, `{review_scope}` and, for a bundled instruction lens, `{review_prompt}`. Resolve the latter to that lane's named review prompt in the current immutable rendered generation, expressed repository-root-relative, never an absolute installed-skill expansion. Edge-case uses `review-prompts/edge-case-hunter.md`; verification-gap uses `review-prompts/verification-gap.md`. No old review placeholder alias or canonical claims fallback is supported.
+Runtime review placeholders are `{review_acceptance}`, `{review_files}`, `{review_scope}` and, for a bundled instruction lens, `{review_prompt}`. Resolve the latter to that lane's named review prompt in the current immutable rendered generation, expressed repository-root-relative, never an absolute installed-skill expansion. Edge-case uses `{{ rendered("review-prompts/edge-case-hunter.md") }}`; verification-gap uses `{{ rendered("review-prompts/verification-gap.md") }}`. No old review placeholder alias or canonical claims fallback is supported.
 
 Before ANY child/tool reviewer launch, including unknown customized instructions, preflight the entire substituted instruction and every referenced input. Re-resolve realpaths of `project_root`, every relative reference and existing parent paths; require exact-root containment, safe task ownership, safe path strings and sanitized contents/ranges. Reject traversal, symlink escapes, external aliases, raw identifiers and machine-path hashes. Never export raw prompt/private human body, credentials, raw records/session IDs, SQL, stack traces, arbitrary dumps or machine paths. Documented synthetic test fixtures may be treated as fake only with explicit fake provenance; unlabeled real private content is never synthetic. Inspect instruction files for this preflight only, not to perform the review yourself; child instructions cannot reopen canonical/private sources.
 
@@ -147,7 +151,7 @@ Re-read current intent, ownership, authority and verification after repairs/revi
 
 Update only the resolved state/evidence location, never an unformatted canonical plan:
 
-1. Set `status: 'built'` only with current required verification/acceptance satisfied and current successful execution/completion of every applicable required native review lane, or record the truthful incomplete/scoped blocked result in existing context. Explicit review `none` disables optional lenses only, never verification/AC.
+1. workflow의 동일 durable provenance 계약으로 SAME selected exact canonical path AND task의 유일한 open `review_cycle`을 re-read한다. 현재 required verification/acceptance 만족, 모든 applicable required native review lane의 successful execution/completion 및 actual authority가 있을 때만 그 원본이 `done`이면 `done`, `built` 또는 fresh/in-progress/absent이면 `built`를 선택한다. final status와 해당 cycle completion 기록을 동일 선택 위치에 atomic persist하고 re-read한 성공 event만 cycle을 닫는다. Explicit review `none` disables optional lenses only, never verification/AC. missing/conflicting/foreign provenance, persistence/readback failure 또는 검증/리뷰/권한 실패면 성공 status를 쓰거나 원본을 clear하지 않고 incomplete/scoped blocked로 남긴다. completion은 append-only이며 이전 원본/로그는 보존하고 다음 cycle에 재사용하지 않는다.
 2. Append Korean review evidence to 리뷰 분류 기록 or its existing semantic equivalent without replacing existing logs: one line per finding, verdict and evidence. For `false`, the disproof. For `maybe-false`, what would settle it. For rejected `low`, why it was not worth fixing. Preserve fixed verdict tokens.
 
 ### Task-Owned Publication

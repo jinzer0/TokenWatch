@@ -9,6 +9,7 @@ loading artifacts, never public reports or exports.
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 import os
@@ -253,6 +254,83 @@ def _load_sources(skill_dir: Path) -> dict[str, str]:
     if "workflow.md" not in sources:
         raise RenderError(f"render entry is missing: {skill_dir / 'workflow.md'}")
     return sources
+
+
+def _relative_sources(sources: dict[str, str], project_root: Path, skill_dir: Path) -> dict[str, str]:
+    """Preflight rendered() literals as source names, not project-root prose.
+
+    Only string tokens in actual Jinja expressions are given this origin.
+    Validation temporarily uses their fully bound repository-relative spelling;
+    effective templates retain the exact original literal bytes for identity.
+    """
+    environment = SandboxedEnvironment(keep_trailing_newline=True)
+    source_root = skill_dir.relative_to(project_root)
+
+    def source_text(text: str) -> str:
+        replacements: dict[str, str] = {}
+
+        def expression(match: re.Match[str], *, restore: bool = False) -> str:
+            expression_text = match[0]
+            if expression_text.startswith("{#") or re.match(r"\{%-?\s*raw\b", expression_text):
+                return expression_text
+            tokens = list(environment.lex(expression_text))
+            significant = [token for token in tokens if token[1] != "whitespace"]
+            string_indices = [index for index, token in enumerate(significant) if token[1] == "string"]
+            literals: dict[int, str] = {}
+            for index, (_, kind, spelling) in enumerate(significant):
+                if kind != "name" or spelling != "rendered":
+                    continue
+                if index and significant[index - 1][2] == ".":
+                    continue
+                following = significant[index + 1:index + 4]
+                if len(following) != 3 or following[0][2] != "(" or following[1][1] != "string" or following[2][2] != ")":
+                    continue
+                literal = following[1][2]
+                ordinal = string_indices.index(index + 2)
+                if restore:
+                    if literal in replacements:
+                        literals[ordinal] = replacements[literal]
+                    continue
+                target = ast.literal_eval(literal)
+                if target not in sources:
+                    raise RenderError("rendered() targets undeclared source")
+                if _relative_text(target, project_root, reference_root=skill_dir) != target:
+                    raise RenderError("noncanonical rendered source name")
+                bound = literal[0] + source_root.as_posix() + "/" + literal[1:]
+                replacements[bound] = literal
+                literals[ordinal] = bound
+            # Lexer values retain literal spelling, but may normalize newlines.
+            # Replace string tokens in the original expression, never reserialize
+            # its other tokens or the surrounding source body.
+            ordinal = -1
+
+            def replace_literal(literal: re.Match[str]) -> str:
+                nonlocal ordinal
+                ordinal += 1
+                return literals.get(ordinal, literal[0])
+
+            return re.sub(
+                r'''"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*' ''',
+                replace_literal,
+                expression_text,
+                flags=re.VERBOSE,
+            )
+
+        quoted = r'''"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*' '''.strip()
+        pattern = (
+            r"\{#[\s\S]*?#\}|\{%-?\s*raw\s*-?%\}[\s\S]*?\{%-?\s*endraw\s*-?%\}|"
+            rf"\{{\{{(?:{quoted}|(?!\}}\}})[\s\S])*?\}}\}}|"
+            rf"\{{%(?:{quoted}|(?!%\}})[\s\S])*?%\}}"
+        )
+        validation = re.sub(pattern, expression, text)
+        normalized = _relative_text(validation, project_root, skill_root=skill_dir)
+        return re.sub(pattern, lambda match: expression(match, restore=True), normalized)
+
+    for name in sources:
+        _check_credential_value(name, sources[name])
+        if _relative_text(name, project_root, reference_root=skill_dir) != name:
+            raise RenderError("noncanonical source name")
+    return {name: source_text(text) for name, text in sources.items()}
 
 
 def _resolve_config_value(value: Any, label: str, project_root: Path, *, key: str) -> str:
@@ -572,12 +650,121 @@ def _check_web_reference(text: str, project_root: Path) -> str:
     return uri.geturl()
 
 
-def _relative_text(text: str, project_root: Path) -> str:
+# Explicit file carriers retain native filename punctuation through the whole
+# whitespace/quote-delimited payload, unlike generic prose/assignment tokens.
+_FILE_CARRIER = r'''(?<![\w/\\.*?%+-])(?i:file:)(?P<file_payload>[^\s`"'<>]+)'''
+
+
+def _check_file_carrier(payload: str) -> None:
+    def check(view: str) -> None:
+        portable = view.replace("\\", "/")
+        if (
+            portable.startswith(("/", "~", "$HOME", "${HOME}", "%USERPROFILE%", "%HOMEPATH%"))
+            or re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", portable)
+        ):
+            raise RenderError("unsupported native file carrier")
+
+    _decode_privacy_text(payload, validate=check)
+
+
+def _check_relative_references(
+    text: str, project_root: Path, skill_root: Path | None = None, reference_root: Path | None = None
+) -> None:
+    """Validate operational references without rewriting their public spelling.
+
+    Ordinary relative references use the project root, not cwd or the document
+    directory. A skill placeholder is checked only with its actual binding;
+    callers consuming source/customization provide that origin before capture.
+    Public URI routes and wildcard prose are not native filesystem targets;
+    operational globs validate only the literal directory before a wildcard.
+    """
+    def contained(reference: str) -> None:
+        reference = reference.replace("\\", "/")
+        if reference.startswith("{skill-root}"):
+            if skill_root is None:
+                return
+            base = skill_root
+            reference = reference[len("{skill-root}"):].lstrip("/")
+        else:
+            base = reference_root if reference_root is not None else project_root
+        wildcard = re.search(r"[*?]", reference)
+        if wildcard is not None:
+            prefix = reference[:wildcard.start()]
+            reference = prefix.rsplit("/", 1)[0] if "/" in prefix else "."
+        # Follow existing and dangling symlink prefixes, without requiring a
+        # referenced file to exist or creating any filesystem target.
+        if not (base / reference).resolve().is_relative_to(project_root):
+            raise RenderError("relative reference escapes repository")
+
+    def check(view: str) -> None:
+        view = re.sub(
+            r"(?<![\w/\\}.*?+%-])(?P<marker>\*\*|__|\*|_|`+)"
+            r"(?P<wrapped>[^\s]+?)(?P=marker)(?!\w)",
+            lambda match: " " + match["wrapped"] + " ",
+            view,
+        )
+        # Mask complete web carriers before looking for relative path segments.
+        # Native path parameters are checked separately by the URI policy.
+        view = re.sub(r'''https?://[^\s`"'<>]+''', ' ', view, flags=re.IGNORECASE)
+
+        def file_carrier(match: re.Match[str]) -> str:
+            # file: is an explicit operational carrier, not an assignment.
+            # Equals, commas, semicolons and native filename brackets belong
+            # to its payload. Check the full raw spelling before considering
+            # a surrounding Markdown/structured wrapper interpretation.
+            reference = match["file_payload"]
+            _check_file_carrier(reference)
+            contained(reference)
+            prefix = view[:match.start()]
+            wrappers = {"(": ")", "[": "]", "{": "}"}
+            while prefix and prefix[-1] in wrappers and reference.endswith(wrappers[prefix[-1]]):
+                reference = reference[:-1]
+                contained(reference)
+                prefix = prefix[:-1]
+            # Do not reclassify fragments of an already checked explicit
+            # carrier using the more restrictive generic prose delimiters.
+            return " " * len(match[0])
+
+        view = re.sub(
+            _FILE_CARRIER,
+            file_carrier,
+            view,
+            flags=re.IGNORECASE,
+        )
+        for match in re.finditer(
+            r'''(?<![\w/\\.*?%+-])(?:\{skill-root\}|[^\s/\\`"'<>\[\](){};,:=]+)(?:[/\\][^\s`"'<>\[\](){};,]*)+''',
+            view,
+            flags=re.IGNORECASE,
+        ):
+            contained(match[0])
+
+    def web_carrier(match: re.Match[str]) -> str:
+        # Recognize a web carrier before decoding can turn its encoded scheme
+        # or query delimiters into separate apparent filesystem references.
+        decoded = _decode_privacy_text(match[0])
+        opening = re.match(r"(?:\*\*|__|\*|_)", decoded)
+        if opening is not None:
+            decoded = decoded[len(opening[0]):]
+        return " " if re.match(r"https?://", decoded, flags=re.IGNORECASE) else match[0]
+
+    native_text = re.sub(
+        r'''https?://[^\s`"'<>]+|[^\s`"'<>()[\]{}]+''',
+        web_carrier,
+        text,
+        flags=re.IGNORECASE,
+    )
+    _decode_privacy_text(native_text, validate=check)
+
+
+def _relative_text(
+    text: str, project_root: Path, *, skill_root: Path | None = None, reference_root: Path | None = None
+) -> str:
     """Normalize canonical checkout tokens; reject machine paths, preserve public web links."""
     _check_text_credentials(text)
-    normalized = _relative_reference_text(text, project_root)
-    decoded = _decoded_reference_text(normalized, project_root)
-    if decoded != normalized and _relative_reference_text(decoded, project_root) != decoded:
+    _check_relative_references(text, project_root, skill_root, reference_root)
+    normalized = _relative_reference_text(text, project_root, reference_root=reference_root)
+    decoded = _decoded_reference_text(normalized, project_root, reference_root=reference_root)
+    if decoded != normalized and _relative_reference_text(decoded, project_root, reference_root=reference_root) != decoded:
         raise RenderError("encoded checkout reference")
     return normalized
 
@@ -592,7 +779,7 @@ def _checkout_reference_pattern(project_root: Path) -> str:
     return "(?:" + "|".join(sorted(patterns)) + ")"
 
 
-def _decoded_reference_text(text: str, project_root: Path) -> str:
+def _decoded_reference_text(text: str, project_root: Path, *, reference_root: Path | None = None) -> str:
     def validate_uri(uri: str) -> None:
         parsed = _check_web_reference(uri, project_root)
         if any(re.search(_checkout_reference_pattern(project_root), value) for value in (uri, parsed)):
@@ -630,7 +817,7 @@ def _decoded_reference_text(text: str, project_root: Path) -> str:
             continue
         if not isinstance(value, (dict, list)):
             continue
-        if _relative_values(value, project_root) != value:
+        if _relative_values(value, project_root, reference_root=reference_root) != value:
             raise RenderError("noncanonical structured reference")
         parts.extend((re.sub(r"[^\s]+", carrier, text[start:match.start()]), text[match.start():end]))
         start = end
@@ -638,26 +825,33 @@ def _decoded_reference_text(text: str, project_root: Path) -> str:
     return "".join(parts)
 
 
-def _relative_reference_text(text: str, project_root: Path) -> str:
+def _relative_reference_text(text: str, project_root: Path, *, reference_root: Path | None = None) -> str:
     root = project_root.as_posix()
     home_prefix = r"(?:\$HOME|\$\{HOME\}|%USERPROFILE%|%HOMEPATH%)[/\\]"
 
     def reference(match: re.Match[str]) -> str:
         original = match.group()
+        if match.group("file_payload") is not None:
+            # Consume the same complete carrier used by containment preflight;
+            # punctuation inside a legal relative filename must not expose a
+            # suffix slash as a new absolute reference. Keep original bytes.
+            _check_file_carrier(match["file_payload"])
+            _check_relative_references(original, project_root, reference_root=reference_root)
+            return original
         marker = match.group("marker")
         if marker is not None:
             # Classify complete emphasis/code contents, not a slash after a
             # glob-like delimiter. Keep markup and normalize only its contents.
             # A wrapper cannot span whitespace-separated references: otherwise
             # the literal `_bmad/` binding can capture a later emphasis marker.
-            return marker + _relative_text(match.group("wrapped"), project_root) + marker
+            return marker + _relative_text(match.group("wrapped"), project_root, reference_root=reference_root) + marker
         if match.group("incomplete") is not None:
             marked_uri = match.group("marked_uri")
             if marked_uri is not None:
                 # Multiword emphasis still contains a complete URI token. Run
                 # the ordinary URI policy, including credential rejection,
                 # without interpreting later words as part of its location.
-                return match.group("incomplete") + _relative_text(marked_uri, project_root)
+                return match.group("incomplete") + _relative_text(marked_uri, project_root, reference_root=reference_root)
             raise RenderError("unrepresentable marked reference")
         # Consume actual XML closing tags as markup, not their leading slash.
         # This exact grammar cannot exempt an angle-delimited filesystem path
@@ -714,7 +908,7 @@ def _relative_reference_text(text: str, project_root: Path) -> str:
     # A delimiter-split foreign path rejects at its first fragment, before any
     # template/input identity or generation can be published.
     result = re.sub(
-        r"</[A-Za-z_][A-Za-z0-9_.:-]*\s*>|"
+        _FILE_CARRIER + r"|</[A-Za-z_][A-Za-z0-9_.:-]*\s*>|"
         r"(?<![\w/\\}.*?+%-])(?P<marker>\*\*|__|\*|_|`+)"
         r"(?P<wrapped>[^\s]+?)(?P=marker)(?!\w)|"
         r"(?<![\w/\\}.*?+%-])(?P<incomplete>[*_`]+)"
@@ -734,17 +928,20 @@ def _relative_reference_text(text: str, project_root: Path) -> str:
     return result
 
 
-def _relative_values(value: Any, project_root: Path) -> Any:
+def _relative_values(
+    value: Any, project_root: Path, *, skill_root: Path | None = None,
+    reference_root: Path | None = None, key_root: Path | None = None,
+) -> Any:
     if isinstance(value, str):
-        return _relative_text(value, project_root)
+        return _relative_text(value, project_root, skill_root=skill_root, reference_root=reference_root)
     if isinstance(value, list):
-        return [_relative_values(item, project_root) for item in value]
+        return [_relative_values(item, project_root, skill_root=skill_root, reference_root=reference_root) for item in value]
     if isinstance(value, dict):
         for key, item in value.items():
             _check_credential_value(key, item)
-            if _relative_text(key, project_root) != key:
+            if _relative_text(key, project_root, skill_root=skill_root, reference_root=key_root or reference_root) != key:
                 raise RenderError("noncanonical mapping key")
-        return {key: _relative_values(item, project_root) for key, item in value.items()}
+        return {key: _relative_values(item, project_root, skill_root=skill_root, reference_root=reference_root) for key, item in value.items()}
     return value
 
 
@@ -942,7 +1139,10 @@ class _CustomizationTable(_Table):
             instruction = _require_string(value, label, allow_empty=True)
             if re.search(r"\{\s*(?:plan_file|plan_path|verbatim_intent|claims_file|diff_file|project-root|skill-root)\s*\}", _decode_privacy_text(instruction)):
                 raise RenderError("private implementation placeholder")
-        resolved = _relative_values(_resolve_customization_value(value, default, label), self._ctx.project_root)
+        resolved = _relative_values(
+            _resolve_customization_value(value, default, label), self._ctx.project_root,
+            skill_root=self._ctx.project_root / self._ctx.destination,
+        )
         self._ctx.inputs[label] = resolved
         return _bind_customization(resolved, label, self._ctx.destination)
 
@@ -1144,7 +1344,7 @@ def render(
     ):
         raise RenderError("skill is not a canonical BMAD directory")
 
-    sources = _relative_values(_load_sources(skill_dir), project_root)
+    sources = _relative_sources(_load_sources(skill_dir), project_root, skill_dir)
     for prompt in ("review-prompts/edge-case-hunter.md", "review-prompts/verification-gap.md"):
         if prompt not in sources or not sources[prompt].strip():
             raise RenderError("required review prompt is missing or empty")
@@ -1212,15 +1412,30 @@ def render(
         "outputs": output_hashes,
     }
     entry = Path(os.path.relpath(destination / "workflow.md", caller_cwd))
+    # The loading instruction alone is caller-relative; operational references
+    # in snapshots and captured inputs remain project-relative.
+    if not (caller_cwd / entry).resolve().is_relative_to(project_root):
+        raise RenderError("loading reference escapes repository")
     root_bytes = project_root.as_posix().encode("utf-8")
-    public_text = [*rendered.values(), f"read and follow {entry}\n"]
+    public_text = [*rendered.values()]
     public_bytes = [*(text.encode("utf-8") for text in public_text), _canonical_json(manifest)]
+    # These mapping keys are structural filenames, not project-root prose.
+    # Validate them against the actual source/output origin without letting an
+    # unrelated root-level symlink redefine a bundled name's target.
+    checked_manifest = dict(manifest)
+    checked_inputs = dict(identity)
+    checked_inputs.pop("template_sha256")
+    checked_manifest["inputs"] = checked_inputs
+    checked_manifest.pop("outputs")
     # Validate manifest strings before JSON encoding: its escaped newlines are
     # serialization, not native backslash filesystem references.
     if (
         any(root_bytes in content for content in public_bytes)
+        or root_bytes in f"read and follow {entry}\n".encode("utf-8")
         or any(_relative_text(text, project_root) != text for text in public_text)
-        or _relative_values(manifest, project_root) != manifest
+        or _relative_values(checked_manifest, project_root) != checked_manifest
+        or _relative_values(template_hashes, project_root, key_root=skill_dir) != template_hashes
+        or _relative_values(output_hashes, project_root, key_root=destination) != output_hashes
     ):
         raise RenderError("checkout location remains in rendered snapshot")
     _validate_output_destination(central, project_root)

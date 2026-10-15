@@ -37,6 +37,17 @@ Read the actual recorded `route` from that SAME selected location: accept exactl
 
 Unresolved route or ambiguous association means no dependent baseline/status/metadata/source/handoff effects, no plan/dummy context creation or default state repair. Preserve human body/path, stored route/status/baseline/iteration; independent safe work continues. Select exactly ONE active runtime branch below: oneshot only when `{effective_route} = oneshot`, full only when `{effective_route} = full`. Any other rendered branch is dormant instructions, never executed or required. Recheck route and authority before each subsequent route-dependent repair/dispatch.
 
+### Durable original review provenance (before intermediate effects)
+
+baseline/status/metadata/source writes와 implementation/repair dispatch 전에 동일 `review_cycle` / `resume_incoming_status` / `followup_pass` 계약을 적용한다. SAME selected exact canonical path AND task의 authorized BMAD metadata 또는 이미 존재하는 durable associated canonical context/task에서 현재 status와 append-only cycle 이력을 읽는다. read-only/planning-only/report-only는 위 guard에서 이미 종료하며 blocked/dropped, missing required path 및 unknown/conflicting status safeguards는 우회하지 않는다.
+
+- 현재 `done`/`built`에 실제 delegated follow-up이 없으면 상태/원본/기존 baseline/iteration/모든 로그를 그대로 두고 nonmutating terminal evidence만 보고한 뒤 STOP한다. open cycle이나 route/review pin은 새 권한이 아니다. follow-up이 review만 위임하면 구현을 재시작하지 않고 step-04로 이동하며 여기서는 baseline/status/metadata를 쓰지 않는다. 실제 현재 위임된 technical repair만 아래 구현을 진행할 수 있다.
+- 유일한 동일 association의 open `review_cycle`이 있으면 최초 `resume_incoming_status`와 cycle 연결을 re-read하여 그대로 재사용한다. `{followup_pass} = true` iff original status is `built` or `done`; 그 외에는 false다. repeated resume, patch/bad_plan/failed-verification repair에서 intermediate `in-review`/`in-progress` 또는 다른 task/context 값으로 교체하지 않는다. failed review cycle은 active로 유지한다.
+- authorized terminal technical repair인데 open cycle이 없으면 현재 `done`/`built` 원본과 기존 privacy-safe canonical path/task association을 동일 선택 위치의 새 open `review_cycle`로 atomic append하고 re-read하여 유일한 cycle/연결/값의 영속을 확인한 뒤에만 아래 effects를 허용한다. 새 artifact/frontmatter 추가나 human body/heading/path 변환·복사·번역, raw private path/identifier 또는 그 hash 저장은 금지한다. 새 비terminal 구현은 cycle을 꾸며 만들지 않으며 최초 review 진입의 같은 producer 계약을 따른다.
+- `in-review`인데 원본이 없거나, repair가 open cycle 재개라고 주장하지만 원본이 없거나, association/cycle이 missing/conflicting/foreign이면 dependent effects만 차단한다. write-denied, non-durable context, concurrent change, validation/readback failure도 기존 status/baseline/iteration/모든 로그를 보존하며 independent safe analysis는 계속한다. provenance failed write는 status를 바꿀 수 없고 대체 context/artifact나 authority 우회는 없다.
+
+모든 후속 repair/state write/dispatch 전에 동일 open 원본 연결을 다시 확인한다. step-03은 cycle을 clear/close하지 않는다. 현재 AC/verification/모든 required lane 성공 및 actual authority로 terminal status와 completion을 함께 atomic persist하고 re-read한 terminal event만 기존 계약에 따라 cycle을 닫는다.
+
 ### Baseline
 
 Record `baseline_revision` (current HEAD, or `NO_VCS` if version control is unavailable) in the resolved state/evidence location before making any changes. If it already holds a value there (resumed run), preserve it — never overwrite it. Use authorized BMAD frontmatter only for a supported plan; an unformatted canonical plan uses existing context without any plan write.
@@ -61,7 +72,7 @@ A reused worker must have a verified privacy-safe initial seed and subsequent in
 
 ### Implement
 
-Only after effective-route resolution, record status `in-progress` in that same state/evidence location before starting implementation, never in an unformatted human plan. Execute only the matching runtime route below, then continue with Both routes.
+Only after effective-route resolution and the durable original provenance guard above permits implementation effects, record status `in-progress` in that same state/evidence location before starting implementation, never in an unformatted human plan. 원본 `resume_incoming_status`와 open cycle은 이 intermediate write로 변경하지 않는다. Execute only the matching runtime route below, then continue with Both routes.
 
 {% if workflow.route != "full" %}
 

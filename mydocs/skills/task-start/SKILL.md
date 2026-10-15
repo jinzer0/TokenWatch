@@ -75,7 +75,7 @@ description: |
 
 - 사용한 보드/계획만 기존 Issue/context와 연결되어 있다. LOW는 기존 context 기록으로 충분하며 optional 산출물 부재를 실패로 판정하지 않는다.
 - 단일 canonical 계획 또는 LOW context에 scope/ownership·위험·검증/evidence와 다음 안전 행동이 기록되어 있다. 기존 사용자 계획은 보존된다.
-- With authorized commit: `git log --oneline -1` shows `{type}: Task #{N}: task plan and daily task board update`.
+- 실제 승인된 commit을 만들었을 때만 `git log --oneline -1`과 commit의 exact task-owned 경로가 단계 7에서 확정한 실제 subject·변경 범위와 일치하는지 확인한다. Issue 유무에 맞는 subject를 검증하며 단계 8의 예시 문구나 optional plan/board 생성을 강제하지 않는다. commit하지 않은 요청에는 이 검사를 적용하지 않는다.
 - 미위임/차단/실패한 행동과 완료한 검증을 구분해 기록한다. 실제 repo/base/head 및 기존 PR를 확인한 위임 publication만 진행하고 unrelated dirty 파일을 정리하거나 포함하지 않는다.
 
 ## Never Do

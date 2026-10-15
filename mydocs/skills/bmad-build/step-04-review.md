@@ -42,7 +42,11 @@ Set runtime `{effective_review}` to `{{ review }}`. {% if workflow.review == "au
 
 Only the selected group's applicable required lanes are active; dormant groups are not required and must not be launched. Review `none` activates no optional lenses and still requires verification/AC. Apply the existing request-mode, ownership, native and HIGH guards before proceeding.
 
-Record status `in-review` in that same state/evidence location before continuing, never in an unformatted human plan.
+### Durable original review provenance (before intermediate effects)
+
+workflow의 동일 **Durable original review provenance (before intermediate effects)** 계약을 적용한다. SAME selected exact canonical path AND task의 유일한 open `review_cycle`을 읽어 `resume_incoming_status`와 `followup_pass`를 복원한다. open cycle이 없으면 authorized active review의 최초 원본을 동일 authorized metadata/existing durable context에 atomic append하고 re-read한다. `in-review`인데 원본이 없거나 association/write/readback이 실패하면 dependent status/metadata/reviewer/repair/completion/publication만 차단하고 독립 안전 분석을 계속한다. 다른 task·intermediate status·route/review pin으로 원본을 교체하지 않는다. 새 artifact나 canonical body/frontmatter 변환 없이 baseline/iteration/모든 로그를 보존한다.
+
+Record status `in-review` in that same state/evidence location only after verified durable original provenance, never in an unformatted human plan. failed review cycle은 active로 남기며 원본을 clear하지 않는다.
 
 {% if workflow.review == "none" %}
 Record `review: 'none'`, `review_source: 'pinned'`, and `lenses_ran: []` in that state/evidence location.
@@ -67,7 +71,7 @@ A sanitized diff/evidence artifact may be referenced only when it already exists
 
 ### Review
 
-Runtime review placeholders are `{review_acceptance}`, `{review_files}`, `{review_scope}` and, for a bundled instruction lens, `{review_prompt}`. Resolve the latter to that lane's named review prompt in the current immutable rendered generation, expressed repository-root-relative, never an absolute installed-skill expansion. Edge-case uses `review-prompts/edge-case-hunter.md`; verification-gap uses `review-prompts/verification-gap.md`. No old review placeholder alias or canonical claims fallback is supported.
+Runtime review placeholders are `{review_acceptance}`, `{review_files}`, `{review_scope}` and, for a bundled instruction lens, `{review_prompt}`. Resolve the latter to that lane's named review prompt in the current immutable rendered generation, expressed repository-root-relative, never an absolute installed-skill expansion. Edge-case uses `{{ rendered("review-prompts/edge-case-hunter.md") }}`; verification-gap uses `{{ rendered("review-prompts/verification-gap.md") }}`. No old review placeholder alias or canonical claims fallback is supported.
 
 Before ANY child/tool reviewer launch, including unknown customized instructions, preflight the entire substituted instruction and every referenced input. Re-resolve realpaths of `project_root`, every relative reference and existing parent paths; require exact-root containment, safe task ownership, safe path strings and sanitized contents/ranges. Reject traversal, symlink escapes, external aliases, raw identifiers and machine-path hashes. Never export raw prompt/private human body, credentials, raw records/session IDs, SQL, stack traces, arbitrary dumps or machine paths. Documented synthetic test fixtures may be treated as fake only with explicit fake provenance; unlabeled real private content is never synthetic. Inspect instruction files for this preflight only, not to perform the review yourself; child instructions cannot reopen canonical/private sources.
 
@@ -101,6 +105,8 @@ Record `lenses_ran` — the ids launched, in launch order — in that same state
 For initial review and every loopback/resume/follow-up, retain each applicable required native review lane's current execution/completion evidence in that same location, separately from launch ids and findings. Required review is complete only when every such lane successfully executed its applicable instructions and completed review of the current task-owned scope. Unavailable, unfinished, failed, error-only (including an unreadable instruction file), cancelled or inconclusive required lanes leave review incomplete and block dependent built/done/commit/push/PR, not independent safe work. Launch ids, reported failures, source/render checks, other lanes' success and prior review do not substitute. Preserve available findings and triage logs; repair/reverify within scope and obtain the missing successful review before dependent completion/publication. An explicitly chosen review `none` requires no optional lenses but retains verification/AC. Advisory findings and follow-up recommendations are not themselves completion blockers; apply the existing finding triage rules.
 
 ### Classify
+
+patch/bad_plan/failed-verification 및 모든 loopback에서 동일 open `review_cycle`의 exact path/task 연결과 원본을 재확인한다. repair는 cycle 경계가 아니며 원본을 교체·clear하지 않는다. dependent write/dispatch 차단은 독립 안전 분석과 기존 evidence 보존을 막지 않는다.
 
 Before any implementation repair dispatch or worker re-engagement, including patch and bad_plan loopbacks, apply step 03's privacy-safe implementation handoff boundary again. The leader derives a current sanitized `{implementation_contract}` and approved `{implementation_files}` from the verified findings; preflight the entire repair instruction and every referenced input before sending it. Never forward canonical intent/body/path, raw findings/diff/context or private temporary files. A reused worker must have a verified privacy-safe initial seed and subsequent inputs; unknown or unsafe prior context makes it ineligible for reuse, not permission to resend private material. Missing safe material criteria block dependent repair/completion/publication while independent permitted work continues. A permitted leader-only fallback does not export private inputs or change recorded route.
 
@@ -175,6 +181,8 @@ Before any implementation repair dispatch or worker re-engagement, including pat
      {% endif %}
 
 ## NEXT
+
+presentation에는 동일 open `review_cycle`, 검증된 original `resume_incoming_status` 및 현재 evidence를 넘긴다. 여기서 cycle을 닫거나 원본을 intermediate `in-review`로 덮어쓰지 않는다. workflow의 atomic terminal status/completion event만 성공 cycle을 종료한다.
 
 For initial completion and every loopback/resume/follow-up, establish current required verification/AC and successful execution/completion of every applicable required native review lane before built/done/commit/push/PR. An explicitly chosen review `none` requires no optional lenses, never waives verification/AC. Failure/unmet acceptance or incomplete required review keeps state incomplete and blocks dependent terminal/publication actions. Record current scope/ownership/authority and limitations; safe independent context work may continue while the affected action is blocked. Carry this condition into presentation; findings and advisory follow-up recommendations still follow the existing triage rules.
 

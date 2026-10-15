@@ -3,10 +3,12 @@ import { spawnSync } from 'node:child_process';
 import {
   copyFileSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
+  readlinkSync,
   realpathSync,
   rmSync,
   statSync,
@@ -202,7 +204,8 @@ function privateRejection(
   prior: Snapshot,
   inputs: string[],
   assignments: string[] = [],
-  cwd = f.root
+  cwd = f.root,
+  overrides?: string
 ): void {
   const before = new Map(inputs.map((path) => [path, readBytes(path)]));
   const oldOutputs = new Map(
@@ -219,6 +222,7 @@ function privateRejection(
       f.root,
       '--skill',
       f.skillDir,
+      ...(overrides ? ['--overrides', overrides] : []),
       ...assignments.flatMap((value) => ['--set', value])
     ],
     cwd
@@ -355,6 +359,16 @@ function render(
     const escaped = reference.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const links = [...text.matchAll(new RegExp(`${escaped}/([A-Za-z0-9_./-]+\\.md)`, 'g'))];
     for (const link of links) {
+      if (link[1].split('/').some((part) => part === '.' || part === '..')) {
+        const suffix = relative(f.root, resolve(f.root, `${reference}/${link[1]}`));
+        expect(
+          !isAbsolute(suffix) &&
+            suffix !== '..' &&
+            !suffix.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`),
+          `${name}: parent reference is contained, not a generated sibling`
+        ).toBe(true);
+        continue;
+      }
       expect(link[1] in outputs, `${name}: rendered sibling link exists`).toBe(true);
       expect(
         existsSync(resolve(f.root, `${reference}/${link[1]}`)),
@@ -370,7 +384,141 @@ function render(
 }
 function safety(snapshot: Snapshot, skill: Skill, route: Route, review: Review): void {
   const files = snapshot.outputs;
+  // Reuse the default and 24 route/review witnesses. These assertions inspect
+  // actual rendered instructions, not LLM lifecycle execution/native enforcement.
+  const lifecycle =
+    skill === 'bmad-build'
+      ? (files['workflow.md']
+          .split('## Durable original review provenance (before intermediate effects)')[1]
+          ?.split('## READY FOR DEVELOPMENT STANDARD')[0] ?? '')
+      : (files['step-04-review.md']
+          .split('### Durable original review provenance (before intermediate effects)')[1]
+          ?.split('Record status `in-review`')[0] ?? '');
+  for (const pattern of [
+    /exact canonical path AND task/,
+    /append-only `review_cycle`|`review_cycle`[\s\S]*append-only/,
+    /interruption\/repeated resume/,
+    /intermediate `in-review` 또는 다른 task/,
+    /missing original review provenance/,
+    /atomic append/,
+    /re-read/,
+    /write-denied, non-durable\/missing context, concurrent change, validation\/readback failure/,
+    /dependent effects만 차단/,
+    /provenance failed write는 status를 바꿀 수 없/,
+    /`\{followup_pass\} = true` iff original status is `built` or `done`/,
+    /그 외에는 false/,
+    /route pin과 review pin은 별도 runtime 선택이며 provenance를 만들거나 바꾸지 않는다/,
+    /frontmatter 추가, human body\/heading\/path 변환·복사·번역/,
+    /raw private path\/identifier 또는 그 hash 저장은 금지/
+  ])
+    assertText(lifecycle, pattern, `${skill}: rendered durable original ${pattern.source}`);
+  const directReview = files['step-04-review.md'];
+  const directReviewGuard =
+    directReview.split('## INSTRUCTIONS')[1]?.split('### State/evidence location')[0] ?? '';
+  assertText(
+    directReviewGuard,
+    /read-only\/planning-only\/report-only/i,
+    'rendered direct review guard before provenance'
+  );
+  assertText(directReviewGuard, /STOP/, 'rendered direct review has no mutable fallthrough');
+  const originalIndex = directReview.indexOf('### Durable original review provenance');
+  expect(
+    originalIndex >= 0 && originalIndex < directReview.indexOf('Record status `in-review`'),
+    'rendered original precedes intermediate review effects'
+  ).toBe(true);
+  const final =
+    skill === 'bmad-build'
+      ? (files['step-05-present.md']
+          .split('### Mark Plan Built')[1]
+          ?.split('### Commit and Complete')[0] ?? '')
+      : (directReview.split('## Finalize')[1] ?? '');
+  for (const pattern of [
+    /SAME selected/,
+    /open `review_cycle`|open cycle/,
+    /resume_incoming_status/,
+    /missing\/conflicting\/foreign/,
+    /final status와 해당 cycle/,
+    /원자적으로[\s\S]*re-read/,
+    /`done`[\s\S]*verified follow-up만 `done`/,
+    /`built` 원본은 `built`, fresh\/in-progress\/absent 원본도 성공 시 `built`/,
+    /성공 status를 쓰거나 원본을 clear하지 않고 incomplete/,
+    /completion[\s\S]*append/,
+    /이전 원본\/로그[\s\S]*삭제/,
+    /interruption, HALT, retry/,
+    /(?:다음[\s\S]*cycle[\s\S]*재사용하지 않|완료된 cycle은 다음 실제 delegated review의 원본으로 재사용하지 않)/
+  ])
+    assertText(final, pattern, `${skill}: rendered terminal provenance ${pattern.source}`);
+  if (skill === 'bmad-build') {
+    assertText(
+      final,
+      /presentation 시점의 현재 status를 original로 capture하지 않는다/,
+      'presentation consumes durable original, never current in-review'
+    );
+    assertText(
+      final,
+      /open cycle 없는 terminal presentation[\s\S]*새 review\/status 전이를 만들지 않는다/,
+      'terminal presentation cannot start a review'
+    );
+    if (route !== 'full') {
+      const oneshot = files['step-oneshot.md'];
+      assertText(
+        oneshot,
+        /direct oneshot 재진입도 최초 `resume_incoming_status`와 `followup_pass`를 재사용/,
+        'oneshot consumes original after interrupted resume'
+      );
+      expect(
+        oneshot.indexOf('atomic append하고 re-read') <
+          oneshot.indexOf('Record `baseline_revision`'),
+        'oneshot durable original before implementation effects'
+      ).toBe(true);
+      assertText(
+        oneshot.split('### Finalize Plan')[1] ?? '',
+        /final status와 해당 cycle completion[\s\S]*atomic persist하고 re-read[\s\S]*missing\/conflicting\/foreign provenance/,
+        'oneshot atomic completion and association failure guard'
+      );
+    }
+  }
   const implementation = files['step-03-implement.md'];
+  const implementationGuard =
+    implementation.split('## INSTRUCTIONS')[1]?.split('### State/evidence location')[0] ?? '';
+  assertText(
+    implementationGuard,
+    /read-only\/planning-only\/report-only/i,
+    'direct implementation mode guard precedes provenance'
+  );
+  assertText(implementationGuard, /terminate|STOP/, 'direct implementation mode guard exits');
+  const implementationProvenance =
+    implementation
+      .split('### Durable original review provenance (before intermediate effects)')[1]
+      ?.split('### Baseline')[0] ?? '';
+  for (const pattern of [
+    /SAME selected exact canonical path AND task/,
+    /현재 `done`\/`built`에 실제 delegated follow-up이 없으면[\s\S]*nonmutating terminal evidence만 보고한 뒤 STOP/,
+    /follow-up이 review만 위임하면 구현을 재시작하지 않고 step-04로 이동[\s\S]*baseline\/status\/metadata를 쓰지 않는다/,
+    /최초 `resume_incoming_status`와 cycle 연결을 re-read하여 그대로 재사용/,
+    /`\{followup_pass\} = true` iff original status is `built` or `done`; 그 외에는 false/,
+    /intermediate `in-review`\/`in-progress` 또는 다른 task\/context 값으로 교체하지 않는다/,
+    /authorized terminal technical repair[\s\S]*atomic append하고 re-read[\s\S]*뒤에만 아래 effects를 허용/,
+    /새 비terminal 구현은 cycle을 꾸며 만들지 않으며/,
+    /association\/cycle이 missing\/conflicting\/foreign이면 dependent effects만 차단/,
+    /write-denied, non-durable context, concurrent change, validation\/readback failure[\s\S]*independent safe analysis는 계속/,
+    /step-03은 cycle을 clear\/close하지 않는다/
+  ])
+    assertText(
+      implementationProvenance,
+      pattern,
+      `${skill}: actual rendered direct implementation original ${pattern.source}`
+    );
+  expect(
+    implementation.indexOf('### Durable original review provenance') <
+      implementation.indexOf('Record `baseline_revision`'),
+    'direct implementation original before baseline effects'
+  ).toBe(true);
+  expect(
+    implementation.indexOf('### Durable original review provenance') <
+      implementation.search(/record status `in-progress`/i),
+    'direct implementation original before intermediate status'
+  ).toBe(true);
   const boundary =
     implementation.split('### Privacy-safe implementation handoff')[1]?.split('### Implement')[0] ??
     '';
@@ -624,17 +772,17 @@ function safety(snapshot: Snapshot, skill: Skill, route: Route, review: Review):
       present.split('### Mark Plan Built\n')[1]?.split('\n### Commit and Complete')[0] ?? '';
     assertText(
       built,
-      /Other eligible incoming states[\s\S]*may explicitly record `status: 'built'`[\s\S]*before authorized publication/i,
+      /required verification\/acceptance and required review are satisfied[\s\S]*`done`인 verified follow-up만 `done`으로 복원[\s\S]*`built` 원본은 `built`, fresh\/in-progress\/absent 원본도 성공 시 `built`/i,
       'rendered eligible completion may record built without downgrading done'
     );
     assertText(
       built,
-      /supported existing BMAD plan[\s\S]*otherwise[\s\S]*existing context/i,
+      /authorized task-owned BMAD metadata 또는 기존 durable associated canonical context\/task만 사용/,
       'rendered built supports both canonical formats'
     );
     assertText(
       built,
-      /never borrow another plan's context or add frontmatter/i,
+      /missing\/conflicting\/foreign association[\s\S]*새 artifact\/frontmatter나 human body\/path 변환 없이/,
       'rendered built preserves canonical content'
     );
     assertText(
@@ -644,7 +792,7 @@ function safety(snapshot: Snapshot, skill: Skill, route: Route, review: Review):
     );
     assertText(
       built,
-      /preserve incoming `done` as `done`[\s\S]*do not rewrite it to `built`/,
+      /incoming `done`을 `done`으로 보존하고 `built`도 그대로 두며 새 review\/status 전이를 만들지 않는다/,
       'rendered done terminal is preserved'
     );
     assertText(
@@ -1024,7 +1172,7 @@ function safety(snapshot: Snapshot, skill: Skill, route: Route, review: Review):
         );
         assertText(
           final,
-          /Set `status: 'built'` only[^\n]*current successful execution\/completion of every applicable required native review lane/,
+          /현재 required verification\/acceptance 만족, 모든 applicable required native review lane의 successful execution\/completion 및 actual authority가 있을 때만[\s\S]*`built`를 선택/,
           'rendered oneshot built requires actual review'
         );
         assertText(
@@ -1328,6 +1476,277 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
     }
   }
   for (const skill of skills) {
+    for (const reference of [
+      '../',
+      '../shared/reference.md',
+      'nested/../../private/session.json',
+      './nested/./../../../private/session.json',
+      '..\\private\\session.json',
+      'nested\\..\\../..\\private/session.json',
+      'file:../../private/session.json',
+      'file:nested/../../private/session.json',
+      'file:..\\..\\private\\session.json',
+      'file:../../private/*.json',
+      'nested/../../private/*.json',
+      '%2E%2E%2Fprivate/session.json',
+      'nested/%252E%252E/../../private/session.json',
+      '&#46;&#46;&#47;private/session.json',
+      '．．／private/session.json',
+      '%5Cu002e%5Cu002e%5Cu002fprivate/session.json',
+      '{skill-root}/../../../../../private',
+      '{skill-root}/../../../../../private/session.json',
+      '**{skill-root}/../../../../../private/session.json**',
+      '%7Bskill-root%7D/%2E%2E/../../../../../private/session.json',
+      'synthetic-link/session.json',
+      'file:synthetic-link',
+      'file:synthetic-link/*.json',
+      'synthetic-link/../private/session.json',
+      'file:a+b/reference.md',
+      'a+b/reference.md',
+      'file:a=b/reference.md',
+      'file:a,b/reference.md',
+      'file:a;b/reference.md',
+      'file:a(b)/reference.md',
+      'file:a[b]/reference.md',
+      'file:a{b}/reference.md',
+      '{skill-root}/synthetic-link/session.json'
+    ]) {
+      for (const surface of proseSurfaces) {
+        it(`${skill} relative containment rejects ${reference} on ${surface}`, () => {
+          const f = fixture(skill);
+          const prior = render(f);
+          const outside = fixture(skill);
+          symlinkSync(outside.root, join(f.root, 'synthetic-link'));
+          symlinkSync(outside.root, join(f.root, 'a+b'));
+          for (const name of ['a=b', 'a,b', 'a;b', 'a(b)', 'a[b]', 'a{b}']) {
+            symlinkSync(outside.root, join(f.root, name));
+          }
+          symlinkSync(outside.root, join(f.skillDir, 'synthetic-link'));
+          const pending = join(dirname(prior.generation), 'pending');
+          mkdirSync(pending);
+          symlinkSync(outside.root, join(pending, 'synthetic-link'));
+          const candidate = privacyProse(f, skill, surface, `Read ${reference}`);
+          privateRejection(
+            f,
+            prior,
+            [candidate.input, join(f.skillDir, 'customize.toml')],
+            candidate.assignments,
+            f.root,
+            candidate.overrides
+          );
+          expect(existsSync(join(outside.root, 'private')), 'no reference target created').toBe(
+            false
+          );
+        });
+      }
+    }
+    it(`${skill} default render ignores an unrelated root review-prompts symlink outside the checkout`, () => {
+      const f = fixture(skill);
+      const prior = render(f);
+      const outside = fixture(skill);
+      const target = join(outside.skillDir, 'review-prompts');
+      const alias = join(f.root, 'review-prompts');
+      const targetBefore = new Map(
+        markdownFiles(target).map((name) => [name, readBytes(join(target, name))])
+      );
+      const actualPrompts = join(f.skillDir, 'review-prompts');
+      const promptsBefore = new Map(
+        markdownFiles(actualPrompts).map((name) => [name, readBytes(join(actualPrompts, name))])
+      );
+      const generationBefore = new Map(
+        ['manifest.json', ...Object.keys(prior.outputs)].map((name) => [
+          name,
+          readBytes(join(prior.generation, name))
+        ])
+      );
+      symlinkSync(target, alias);
+      const linkBefore = readlinkSync(alias);
+      const current = render(f);
+      expect(
+        current.entry === prior.entry,
+        'unreferenced root alias does not change default generation'
+      ).toBe(true);
+      expect(current.manifest).toEqual(prior.manifest);
+      expect(current.outputs).toEqual(prior.outputs);
+      expect(
+        [...generationBefore].every(([name, bytes]) =>
+          readBytes(join(current.generation, name)).equals(bytes)
+        ),
+        'generated outputs and manifest unchanged bytewise'
+      ).toBe(true);
+      expect(
+        realpathSync(actualPrompts) === actualPrompts,
+        'actual skill review prompts stay contained'
+      ).toBe(true);
+      expect(
+        [...promptsBefore].every(([name, bytes]) =>
+          readBytes(join(actualPrompts, name)).equals(bytes)
+        ),
+        'actual skill prompts unchanged'
+      ).toBe(true);
+      expect(
+        lstatSync(alias).isSymbolicLink() &&
+          readlinkSync(alias) === linkBefore &&
+          realpathSync(alias) === target,
+        'unrelated root symlink remains untouched'
+      ).toBe(true);
+      expect(markdownFiles(target)).toEqual([...targetBefore.keys()]);
+      expect(
+        [...targetBefore].every(([name, bytes]) => readBytes(join(target, name)).equals(bytes)),
+        'outside symlink target remains unchanged'
+      ).toBe(true);
+    });
+    for (const literal of [
+      '"review-prompts/edge-case-hunter.md"',
+      "'review-prompts/edge-case-hunter.md'",
+      '"review-prompts/edge\\x2dcase-hunter.md"'
+    ]) {
+      it(`${skill} literal source origin preserves effective bytes for ${literal}`, () => {
+        const f = fixture(skill);
+        const candidate = privacyProse(f, skill, 'source', `{{ rendered(${literal}) }}`);
+        const prior = render(f);
+        const outside = fixture(skill);
+        symlinkSync(join(outside.skillDir, 'review-prompts'), join(f.root, 'review-prompts'));
+        const snapshot = render(f);
+        expect(snapshot.manifest).toEqual(prior.manifest);
+        expect(snapshot.outputs).toEqual(prior.outputs);
+        expect(
+          snapshot.outputs['plan-template.md'].includes(
+            `${snapshot.reference}/review-prompts/edge-case-hunter.md`
+          )
+        ).toBe(true);
+        expect(sha256(readBytes(candidate.input))).toBe(f.sourceHashes['plan-template.md']);
+      });
+    }
+    for (const expression of [
+      '{{ rendered("review-prompts/edge-case-hunter.md") ~ "review-prompts/edge-case-hunter.md" }}',
+      '{# {{ rendered("review-prompts/edge-case-hunter.md") }} #}',
+      '{% raw %}{{ rendered("review-prompts/edge-case-hunter.md") }}{% endraw %}'
+    ]) {
+      it(`${skill} literal source origin never exempts ordinary strings comments or raw text ${expression}`, () => {
+        const f = fixture(skill);
+        const prior = render(f);
+        const outside = fixture(skill);
+        symlinkSync(join(outside.skillDir, 'review-prompts'), join(f.root, 'review-prompts'));
+        const candidate = privacyProse(f, skill, 'source', expression);
+        privateRejection(f, prior, [candidate.input]);
+      });
+    }
+    for (const surface of proseSurfaces) {
+      it(`${skill} relative containment preserves parent references and native bindings on ${surface}`, () => {
+        const f = fixture(skill);
+        mkdirSync(join(f.root, 'synthetic-real'));
+        symlinkSync(join(f.root, 'synthetic-real'), join(f.root, 'synthetic-alias'));
+        symlinkSync(join(f.root, 'synthetic-real'), join(f.root, 'synthetic+alias'));
+        for (const name of [
+          'synthetic=alias',
+          'synthetic,alias',
+          'synthetic;alias',
+          'synthetic(alias)',
+          'synthetic[alias]',
+          'synthetic{alias}'
+        ]) {
+          symlinkSync(join(f.root, 'synthetic-real'), join(f.root, name));
+        }
+        const prose =
+          'mydocs/../shared/reference.md ./mydocs/../shared/native.md ' +
+          'mydocs\\..\\shared\\native.md file:mydocs/../shared/fact.md ' +
+          'file:mydocs/../shared/*.md mydocs/../shared/*.json ' +
+          'synthetic-alias/nonexistent.md ' +
+          'file:synthetic+alias/nonexistent.md synthetic+alias/nonexistent.md file:nested+public/nonexistent.md ' +
+          'file:synthetic=alias/nonexistent.md file:synthetic,alias/nonexistent.md file:synthetic;alias/nonexistent.md ' +
+          'file:synthetic(alias)/nonexistent.md file:synthetic[alias]/nonexistent.md file:synthetic{alias}/nonexistent.md ' +
+          'mydocs/%2E%2E/shared/encoded.md {skill-root}/../shared/reference.md ' +
+          'prd-*/prd-*.md synthetic-?.md/reference.md a / b ' +
+          'https://example.com/docs/../../public?route=../public ' +
+          'https&#58;&#47;&#47;example.com/docs/../../public?route=../public ' +
+          'https%3A%2F%2Fexample.com%2Fdocs%2F..%2F..%2Fpublic%3Froute%3D..%2Fpublic';
+        const candidate = privacyProse(f, skill, surface, prose);
+        const inputBefore = readBytes(candidate.input);
+        const snapshot = render(f, candidate.assignments, candidate.overrides);
+        expect(
+          readBytes(candidate.input).equals(inputBefore),
+          'positive input bytes remain unchanged'
+        ).toBe(true);
+        const output =
+          snapshot.outputs[surface === 'source' ? 'plan-template.md' : 'step-04-review.md'];
+        const origin = surface === 'source' ? `mydocs/skills/${skill}` : snapshot.reference;
+        expect(
+          output.includes(prose.replaceAll('{skill-root}', origin)),
+          'safe spellings retained bytewise'
+        ).toBe(true);
+        expect(existsSync(join(f.root, 'shared')), 'safe nonexistent target not created').toBe(
+          false
+        );
+        expect(
+          existsSync(join(f.root, 'synthetic-real', 'nonexistent.md')),
+          'contained carrier target not created'
+        ).toBe(false);
+        expect(
+          existsSync(join(f.root, 'nested+public')),
+          'nonexistent plus directory not created'
+        ).toBe(false);
+      });
+    }
+    it(`${skill} relative containment distinguishes installed and generated skill origins`, () => {
+      const f = fixture(skill);
+      const reference = '{skill-root}/../../../../shared/reference.md';
+      const candidate = privacyProse(f, skill, 'instruction', `Read ${reference}`);
+      const prior = render(f, candidate.assignments);
+      expect(
+        prior.outputs['step-04-review.md'].includes(
+          `${prior.reference}/../../../../shared/reference.md`
+        )
+      ).toBe(true);
+      const source = privacyProse(f, skill, 'source', `Read ${reference}`);
+      privateRejection(f, prior, [source.input]);
+    });
+    for (const lookup of ['direct', 'short'] as const) {
+      for (const kind of ['value', 'name', 'ancestor', 'defaults', 'synthesis'] as const) {
+        it(`${skill} relative containment rejects consumed ${kind} ${lookup}`, () => {
+          const f = fixture(skill);
+          const prior = render(f);
+          const source = join(f.skillDir, 'plan-template.md');
+          const config = join(f.root, '_bmad/config.toml');
+          const defaults = join(f.skillDir, 'customize.toml');
+          const escape = '../private/session.json';
+          const key = kind === 'name' ? escape : 'synthetic_reference';
+          const ancestor = kind === 'ancestor' ? escape : 'public';
+          const assembled = '"." ~ "." ~ "/" ~ "private/session.json"';
+          const selectedKey = kind === 'name' ? assembled : JSON.stringify(key);
+          const selectedAncestor = kind === 'ancestor' ? assembled : JSON.stringify(ancestor);
+          let expression =
+            lookup === 'short'
+              ? `config[${selectedKey}]`
+              : `config[${selectedAncestor}][${selectedKey}]`;
+          const inputs = [source];
+          if (kind === 'defaults') {
+            writeFileSync(
+              defaults,
+              readBytes(defaults)
+                .toString('utf8')
+                .replace(
+                  '[workflow]\n',
+                  `[workflow]\nsynthetic_reference = ${JSON.stringify(escape)}\n`
+                )
+            );
+            expression = 'workflow.synthetic_reference';
+            inputs.push(defaults);
+          } else if (kind === 'synthesis') {
+            expression = '"." ~ "." ~ "/" ~ "private" ~ "/" ~ "session.json"';
+          } else {
+            mkdirSync(dirname(config), { recursive: true });
+            writeFileSync(
+              config,
+              `[${JSON.stringify(ancestor)}]\n${JSON.stringify(key)} = ${JSON.stringify(kind === 'value' ? escape : 'public')}\n`
+            );
+            inputs.push(config);
+          }
+          writeFileSync(source, `${readBytes(source).toString('utf8')}\n{{ ${expression} }}\n`);
+          privateRejection(f, prior, inputs);
+        });
+      }
+    }
     for (const prefix of ['case-ＳＹＮＴＨＥＴＩＣ-', 'case-é-']) {
       it(`${skill} encoded path Unicode checkout identity ${prefix}`, () => {
         const f = fixture(skill, prefix);
@@ -2542,7 +2961,7 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
           'https%3A%2F%2Fexample.com%2Fpublic%3Fmode%3Dpublic ' +
           'mydocs/public%20notes.md and mydocs/public&#32;notes.md; 75% complete; ' +
           '[IPv6](https://[2001:db8::1]/docs/reference), ' +
-          '[relative](./AGENTS.md), ../shared/reference.md and {skill-root}/review-prompts/edge-case-hunter.md. ' +
+          '[relative](./AGENTS.md), mydocs/../shared/reference.md and {skill-root}/review-prompts/edge-case-hunter.md. ' +
           '<intent-contract>synthetic intent</intent-contract> ' +
           '<frozen-after-approval>synthetic scope</frozen-after-approval> ' +
           '`route: oneshot` **MANDATORY: preserve ordinary marked prose** ' +
@@ -2656,7 +3075,7 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
             output.includes('https://[2001:db8::1]/docs/reference') &&
             output.includes('mydocs/skills/reference.md') &&
             output.includes('./AGENTS.md') &&
-            output.includes('../shared/reference.md') &&
+            output.includes('mydocs/../shared/reference.md') &&
             output.includes('<intent-contract>synthetic intent</intent-contract>') &&
             output.includes('<frozen-after-approval>synthetic scope</frozen-after-approval>') &&
             output.includes('prd-*/prd-*.md') &&

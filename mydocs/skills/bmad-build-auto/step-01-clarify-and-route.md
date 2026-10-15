@@ -1,7 +1,7 @@
 ---
 plan_file: '' # set at runtime once a route resolves it; some HALT branches exit before it is set
 ticket_args: '' # arguments tickets.py find resolved; resolution evidence, not mutation authority
-followup_pass: '' # set at runtime when a `built` or `done` plan is re-dispatched for a follow-up review pass; empty on a first pass
+followup_pass: '' # runtime only; restore from the same canonical path/task open review_cycle original status on resume
 ---
 
 # Step 1: Clarify and Route
@@ -46,6 +46,8 @@ Resolve existing sections by meaning in that SAME associated state/evidence loca
 
 Read status from that selected location and apply **Existing-state dispatch** identically for all eight recognized statuses. No plan/state mutation precedes dispatch. Only genuinely absent recorded status permits ordinary-intent routing with canonical reuse (including the existing LOW safeguards), never a dummy/replacement plan. Status and context supply continuity, not authority; actual new scope/mutation requires current delegation and its appropriate phase.
 
+review 재개 시 SAME selected canonical path AND task에 연결된 durable append-only `review_cycle` 원본 이력도 읽는다. 이 entry 단계에서는 provenance를 쓰지 않는다. 유일한 open cycle이 있으면 최초 `resume_incoming_status`를 유지하고 `{followup_pass}`는 original `built`/`done`일 때만 true로 복원한다. intermediate `in-review`, 다른 task의 terminal 값 또는 route/review pin으로 원본을 바꾸지 않는다. missing/conflicting association 또는 `in-review`인데 원본이 없으면 dependent review/repair/state writes만 차단한다. read-only/planning-only/report-only는 위 guard에서 이미 종료하며 provenance write도 없다. 실제 active review의 최초 원본 영속·readback 및 verified successful cycle 종료는 step-04의 **Durable original review provenance**와 Finalize 규약을 따른다. 기존 baseline/iteration/모든 로그와 human body/frontmatter를 보존하고 새 mandatory artifact는 만들지 않는다.
+
 ### Effective implementation route (runtime, not a template default)
 
 Resolve `{effective_route}` from the SAME exact canonical path/task state/evidence location selected above, before status-based dispatch or any route-dependent action. Recheck this selection on every resume, follow-up and downstream repair; never borrow another plan/task's context or infer route from status, plan formatting, review depth or a rendered branch.
@@ -71,6 +73,8 @@ Select any existing canonical plan identified by the explicit file, recent conve
 ### Existing-state dispatch
 
 Revalidate current request mode, scope/ownership/native permission and next-risk authority and **Effective implementation route** before each dispatch. Preserve canonical content/path, baseline and prior logs; no status/iteration reset or successor plan merely for routing. All eight recognized statuses terminate routing here:
+
+동일 task/path의 검증된 open `review_cycle`이 있으면 상태별 terminal reporting보다 그 cycle 재개가 우선한다. 단, `blocked`/`dropped`, missing required path 및 unknown/conflicting status safeguards는 그대로 우선하며 open cycle로 우회하지 않는다. 현재 위임이 active review를 허용하고 route가 resolved인 경우 step-04로만 EARLY EXIT하며 원본을 다시 capture하지 않는다. 위임이 없으면 nonmutating 한계 보고 후 STOP하고 open cycle을 닫지 않는다. completed cycle은 재개 대상으로 쓰지 않는다. ambiguous/conflicting cycle은 dependent dispatch만 차단하고 독립 안전 보고는 계속한다.
 
 - `draft` → `{{ rendered("step-02-plan.md") }}`
 - `ready-for-dev` or `in-progress` → only resolved `{effective_route} = full|oneshot` permits **EARLY EXIT** to `{{ rendered("step-03-implement.md") }}`, which executes exactly that route. Unresolved route blocks dependent implementation without fallthrough.
