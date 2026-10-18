@@ -1460,7 +1460,7 @@ print("keyed-merge-ok")
             expect(row[2].includes('**EARLY EXIT**')).toBe(true);
             expect(row[2].includes(`${snapshot.reference}/${target}`)).toBe(true);
             expect(target in snapshot.outputs).toBe(true);
-            if (row[1] === 'done') {
+            if (row[1] === 'built' || row[1] === 'done') {
               const branches = row[2].split('그 외에는');
               expect(branches.length).toBe(2);
               expect(branches[0].includes('실제 delegated follow-up review가 있으면')).toBe(true);
