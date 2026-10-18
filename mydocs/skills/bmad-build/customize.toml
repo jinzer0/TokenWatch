@@ -4,11 +4,16 @@
 # Override in _bmad/custom/bmad-build.toml or
 # _bmad/custom/bmad-build.user.toml.
 #
-# Merge rules:
+# Merge rules (effective values also pass the capture policy below):
 # - Strings replace the default.
 # - Lists append to the default list.
 # - Tables merge key by key.
-# - Arrays of tables merge by `id`: matching `id` replaces, new `id`s append.
+# - Arrays of tables merge by `id`; capture rejects undeclared identities.
+
+# External overrides cannot embed free-form text. Use shipped values, empty
+# instructions, finite route/review choices, or one file:relative/path.md reference.
+# Referenced bodies are never captured; consumers must preflight before reading.
+# Lens id/name stay declared; custom recipes belong in reviewed repository files.
 
 [workflow]
 
@@ -21,8 +26,8 @@ activation_steps_prepend = []
 activation_steps_append = []
 
 # Facts kept in context for the whole run.
-# Entries are literal text or file references prefixed with "file:".
-# File entries may use globs and are loaded during activation.
+# Entries are single file:relative/path.md references to existing contained files.
+# No inline facts or globs; privacy/scope preflight is required before loading.
 
 persistent_facts = []
 
@@ -32,7 +37,7 @@ persistent_facts = []
 
 route = "auto"
 
-# Automatic route selection. Replace the whole instruction to change the rule.
+# Automatic route selection. An override may reference a reviewed Markdown rule.
 
 route_selection = """
 Decide whether to use a coding subagent (full) or implement directly (oneshot).
@@ -48,38 +53,16 @@ consider upgrading to full.
 
 on_complete = ""
 
-# Optional instructions for opening a completed plan. The empty default leaves
-# the plan closed. Override this with the application and behavior you prefer.
-# Example requests for bmad-customize: "Open completed plans in Cursor and
-# reuse the project window" or "Do not open completed plans automatically."
-#
-# Example `open_plan` override instructions for bmad-build.user.toml:
-# {project-root} and {plan_file} are substituted at run time.
-#
-# VS Code and compatible GUI editors — a custom override can use `code`; Cursor,
-# Windsurf, Antigravity, Zed, and similar editors can use their own launcher.
-# Preserve reuse-window behavior when the launcher supports it, and always pass
-# the repository root first and the plan second:
-#   Run `code -r "{project-root}" "{plan_file}"`, root first.
-#   Run `cursor -r "{project-root}" "{plan_file}"`, root first.
-#   Run `windsurf -r "{project-root}" "{plan_file}"`, root first.
-#   Run `zed "{project-root}" "{plan_file}"`, root first.
-#
-# IntelliJ IDEA — its CLI accepts one path per invocation:
-#   Run `idea "{project-root}"` to open the project, then
-#   `idea "{plan_file}"` to open the plan in that project.
-#
-# Vim — keep repository context as the working directory:
-#   Run `cd "{project-root}" && vim "{plan_file}"`.
-#
-# Emacs — reuse an Emacs server without waiting for the buffer to close:
-#   Run `cd "{project-root}" && emacsclient -n "{plan_file}"`.
-#
+# Optional recipe for opening a completed plan. Empty leaves the plan closed.
+# Set open_plan = "file:mydocs/open-plan.md" only when that reviewed file exists.
+# The leader must preflight the file before following its instructions; the
+# renderer neither reads its body nor substitutes placeholders inside it.
+
 open_plan = ""
 
 # Handoff for the implementation subagent in step 03. The whole execution
-# recipe — a subagent by default, but an override may run it any other way
-# (a different model, an external coding tool via bash). Only the leader's
+# recipe — a subagent by default. A different recipe must be a reviewed
+# Markdown reference, subject to the same consumer preflight. Only the leader's
 # privacy-safe {implementation_contract} and {implementation_files} are inputs.
 # Canonical plans, raw invocation/context and private paths remain leader-only.
 # Every default/override and repair message requires step 03's full preflight.
@@ -103,8 +86,8 @@ review = "quick"
 
 # Review lenses for the review step, in two sets the review selection picks
 # between. `instruction` is the lens's whole execution recipe — subagents by
-# default, but an override may run anything (e.g. an external reviewer via
-# bash). Review substitutes only {review_acceptance} (privacy-safe observable
+# default. Overrides name reviewed Markdown recipes, not inline text.
+# Review substitutes only {review_acceptance} (privacy-safe observable
 # criteria), {review_scope} (bounded task-owned source/verification facts),
 # {review_files} (preflight-safe repository-relative source/hunk/evidence refs)
 # and {review_prompt} (the lane's immutable rendered instruction ref, root-relative).

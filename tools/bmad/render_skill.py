@@ -1016,6 +1016,55 @@ def _resolve_customization_value(value: Any, default: Any, label: str) -> Any:
     raise RenderError(f"{label} has unsupported default type {type(default).__name__}")
 
 
+def _check_customization_capture(value: Any, default: Any, path: str, project_root: Path) -> None:
+    """Do not classify arbitrary caller prose as safe from absent secret signatures.
+
+    Tracked defaults are reviewed workflow source. Caller changes may select a
+    finite mode, disable an instruction, or name a contained Markdown file; its
+    body is never read, copied or hashed by the renderer. Consumers still own
+    authorization/privacy preflight before reading a referenced file.
+    """
+    choices = {
+        "workflow.route": {"auto", "full", "oneshot"},
+        "workflow.review": {"auto", "none", "quick", "thorough"},
+    }
+    if path in choices:
+        if not isinstance(value, str) or value not in choices[path]:
+            raise RenderError("unsupported customization selection")
+        return
+    if value == default:
+        return
+    if isinstance(value, list):
+        if default and all(isinstance(item, dict) for item in default):
+            declared = {item["id"]: item for item in default}
+            for layer in value:
+                original = declared.get(layer["id"])
+                if original is None or layer["name"] != original["name"]:
+                    raise RenderError("undeclared review identity")
+                for key, text in layer.items():
+                    _check_customization_capture(text, original.get(key, ""), f"{path}.{key}", project_root)
+        else:
+            for item in value:
+                if item not in default:
+                    _check_customization_capture(item, "", path, project_root)
+        return
+    if isinstance(value, str):
+        if not value:
+            return
+        # One literal reference only: no labels, glob, encoding, URL, placeholders
+        # or trailing prose can smuggle a body into the manifest. Existing path
+        # guards also check credential signatures and realpath containment.
+        if re.fullmatch(r"file:(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_.-]+\.md", value) is not None:
+            reference = Path(value.removeprefix("file:"))
+            target = (project_root / reference).resolve(strict=True)
+            if target.is_relative_to(project_root) and target.is_file():
+                return
+        raise RenderError("free-form customization cannot be captured")
+    # Custom scalar declarations retain their exact type validation.
+    if not isinstance(value, (bool, int, float, date, time)):
+        raise RenderError("unsupported customization capture")
+
+
 class _Text(str):
     """A customization string. Looping over one is a template mistake, not a walk over its characters."""
 
@@ -1143,6 +1192,7 @@ class _CustomizationTable(_Table):
             _resolve_customization_value(value, default, label), self._ctx.project_root,
             skill_root=self._ctx.project_root / self._ctx.destination,
         )
+        _check_customization_capture(resolved, default, path, self._ctx.project_root)
         self._ctx.inputs[label] = resolved
         return _bind_customization(resolved, label, self._ctx.destination)
 

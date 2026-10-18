@@ -4,11 +4,16 @@
 # Override in _bmad/custom/bmad-build-auto.toml or
 # _bmad/custom/bmad-build-auto.user.toml.
 #
-# Merge rules:
+# Merge rules (effective values also pass the capture policy below):
 # - Strings replace the default.
 # - Lists append to the default list.
 # - Tables merge key by key.
-# - Arrays of tables merge by `id`: matching `id` replaces, new `id`s append.
+# - Arrays of tables merge by `id`; capture rejects undeclared identities.
+
+# External overrides cannot embed free-form text. Use shipped values, empty
+# instructions, finite route/review choices, or one file:relative/path.md reference.
+# Referenced bodies are never captured; consumers must preflight before reading.
+# Lens id/name stay declared; custom recipes belong in reviewed repository files.
 
 [workflow]
 
@@ -21,8 +26,8 @@ activation_steps_prepend = []
 activation_steps_append = []
 
 # Facts kept in context for the whole run.
-# Entries are literal text or file references prefixed with "file:".
-# File entries may use globs and are loaded during activation.
+# Entries are single file:relative/path.md references to existing contained files.
+# No inline facts or globs; privacy/scope preflight is required before loading.
 
 persistent_facts = []
 
@@ -32,7 +37,7 @@ persistent_facts = []
 
 route = "auto"
 
-# Automatic route selection. Replace the whole instruction to change the rule.
+# Automatic route selection. An override may reference a reviewed Markdown rule.
 
 route_selection = """
 Decide whether to use a coding subagent (full) or implement directly (oneshot).
@@ -49,8 +54,8 @@ consider upgrading to full.
 on_complete = ""
 
 # Handoff for the implementation subagent in step 03. The whole execution
-# recipe — a subagent by default, but an override may run it any other way
-# (a different model, an external coding tool via bash). Only the leader's
+# recipe — a subagent by default. A different recipe must be a reviewed
+# Markdown reference, subject to the same consumer preflight. Only the leader's
 # privacy-safe {implementation_contract} and {implementation_files} are inputs.
 # Canonical plans, raw invocation/context and private paths remain leader-only.
 # Every default/override and repair message requires step 03's full preflight.
@@ -74,8 +79,8 @@ review = "quick"
 
 # Review lenses for the review step, in two sets the review selection picks
 # between. `instruction` is the lens's whole execution recipe — subagents by
-# default, but an override may run anything (e.g. an external reviewer via
-# bash). Review substitutes only {review_acceptance} (privacy-safe observable
+# default. Overrides name reviewed Markdown recipes, not inline text.
+# Review substitutes only {review_acceptance} (privacy-safe observable
 # criteria), {review_scope} (bounded task-owned source/verification facts),
 # {review_files} (preflight-safe repository-relative source/hunk/evidence refs)
 # and {review_prompt} (the lane's immutable rendered instruction ref, root-relative).

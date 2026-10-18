@@ -180,7 +180,7 @@ function privacyProse(f: Fixture, skill: Skill, surface: ProseSurface, prose: st
     const instruction = JSON.stringify(prose);
     if (surface === 'instruction') {
       assignments.push(
-        `workflow.quick_lenses=[{id="quick", name="Synthetic Quick", instruction=${instruction}}]`
+        `workflow.quick_lenses=[{id="quick", name="Quick", instruction=${instruction}}]`
       );
     } else {
       if (surface === 'persistent') {
@@ -193,7 +193,7 @@ function privacyProse(f: Fixture, skill: Skill, surface: ProseSurface, prose: st
       }
       writeFileSync(
         input,
-        `[[workflow.quick_lenses]]\nid = "quick"\nname = "Synthetic Quick"\ninstruction = ${instruction}\n`
+        `[[workflow.quick_lenses]]\nid = "quick"\nname = "Quick"\ninstruction = ${instruction}\n`
       );
     }
   }
@@ -1476,6 +1476,112 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
     }
   }
   for (const skill of skills) {
+    for (const surface of ['instruction', 'persistent', 'overrides'] as const) {
+      it(`${skill} rejects signature-free private customization bodies on ${surface}`, () => {
+        const f = fixture(skill);
+        const prior = render(f);
+        const input = join(
+          f.root,
+          surface === 'persistent' ? `_bmad/custom/${skill}.user.toml` : 'synthetic-override.toml'
+        );
+        mkdirSync(dirname(input), { recursive: true });
+        const bodies = [
+          'Synthetic confidential request with no identifying prefix',
+          'Synthetic confidential answer with no identifying prefix',
+          'SELECT synthetic_value FROM synthetic_records;',
+          'SyntheticError: synthetic failure\n    at syntheticFunction (synthetic.js:12:3)',
+          '{"synthetic_records":[{"synthetic_note":"private fixture body"}]}',
+          'synthetic_record_id synthetic_raw_value',
+          '%53ynthetic%20encoded%20private%20body'
+        ];
+        for (const body of bodies) {
+          for (const key of [
+            'persistent_facts',
+            'activation_steps_prepend',
+            'activation_steps_append',
+            'on_complete'
+          ]) {
+            const value = key === 'on_complete' ? body : [body];
+            const assignments =
+              surface === 'instruction' ? [`workflow.${key}=${JSON.stringify(value)}`] : [];
+            if (surface !== 'instruction')
+              writeFileSync(input, `[workflow]\n${key} = ${JSON.stringify(value)}\n`);
+            privateRejection(
+              f,
+              prior,
+              surface === 'instruction' ? [] : [input],
+              assignments,
+              f.root,
+              surface === 'overrides' ? input : undefined
+            );
+          }
+        }
+      });
+    }
+    it(`${skill} captures only references without reading or hashing their bodies`, () => {
+      const f = fixture(skill);
+      const reference = 'synthetic-contract.md';
+      const path = join(f.root, reference);
+      const firstBody = 'Synthetic private fixture body that must never be copied';
+      writeFileSync(path, firstBody);
+      const assignments = [
+        'workflow.route=full',
+        ...['persistent_facts', 'activation_steps_prepend', 'activation_steps_append'].map(
+          (key) => `workflow.${key}=["file:${reference}"]`
+        ),
+        `workflow.on_complete="file:${reference}"`,
+        `workflow.implementation_handoff="file:${reference}"`,
+        `workflow.quick_lenses=[{id="quick",name="Quick",instruction="file:${reference}"}]`
+      ];
+      const first = render(f, assignments);
+      writeFileSync(path, 'Different synthetic private fixture body');
+      const second = render(f, assignments);
+      expect(
+        first.entry === second.entry &&
+          JSON.stringify(first.manifest) === JSON.stringify(second.manifest)
+      ).toBe(true);
+      const captured = JSON.stringify([first.manifest, first.outputs]);
+      expect(captured.includes(firstBody) || captured.includes(sha256(firstBody))).toBe(false);
+      expect(captured.includes(`file:${reference}`)).toBe(true);
+      for (const bad of [
+        'file:missing.md',
+        'file:AGENTS.md trailing private body',
+        'file:*.md',
+        'file:%41GENTS.md',
+        'file:../outside.md'
+      ]) {
+        privateRejection(f, first, [], [`workflow.on_complete=${JSON.stringify(bad)}`]);
+      }
+      const outside = fixture(skill);
+      symlinkSync(join(outside.root, 'AGENTS.md'), join(f.root, 'synthetic-escape.md'));
+      privateRejection(f, first, [], ['workflow.on_complete="file:synthetic-escape.md"']);
+    });
+    it(`${skill} rejects private review labels conditions and recipes before capture`, () => {
+      const f = fixture(skill);
+      const prior = render(f);
+      for (const field of ['id', 'name', 'instruction', 'when']) {
+        const layer: Record<string, string> = {
+          id: 'quick',
+          name: 'Quick',
+          instruction: 'file:AGENTS.md'
+        };
+        layer[field] = 'Synthetic signature-free private content';
+        const fields = Object.entries(layer)
+          .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
+          .join(',');
+        privateRejection(f, prior, [], [`workflow.quick_lenses=[{${fields}}]`]);
+      }
+      privateRejection(
+        f,
+        prior,
+        [],
+        [
+          'workflow.route=full',
+          'workflow.implementation_handoff="Synthetic signature-free private content"'
+        ]
+      );
+    });
+
     for (const reference of [
       '../',
       '../shared/reference.md',
@@ -1635,6 +1741,7 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
     for (const surface of proseSurfaces) {
       it(`${skill} relative containment preserves parent references and native bindings on ${surface}`, () => {
         const f = fixture(skill);
+        const prior = render(f);
         mkdirSync(join(f.root, 'synthetic-real'));
         symlinkSync(join(f.root, 'synthetic-real'), join(f.root, 'synthetic-alias'));
         symlinkSync(join(f.root, 'synthetic-real'), join(f.root, 'synthetic+alias'));
@@ -1663,6 +1770,17 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
           'https%3A%2F%2Fexample.com%2Fdocs%2F..%2F..%2Fpublic%3Froute%3D..%2Fpublic';
         const candidate = privacyProse(f, skill, surface, prose);
         const inputBefore = readBytes(candidate.input);
+        if (surface !== 'source') {
+          privateRejection(
+            f,
+            prior,
+            [candidate.input],
+            candidate.assignments,
+            f.root,
+            candidate.overrides
+          );
+          return;
+        }
         const snapshot = render(f, candidate.assignments, candidate.overrides);
         expect(
           readBytes(candidate.input).equals(inputBefore),
@@ -1670,7 +1788,7 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
         ).toBe(true);
         const output =
           snapshot.outputs[surface === 'source' ? 'plan-template.md' : 'step-04-review.md'];
-        const origin = surface === 'source' ? `mydocs/skills/${skill}` : snapshot.reference;
+        const origin = `mydocs/skills/${skill}`;
         expect(
           output.includes(prose.replaceAll('{skill-root}', origin)),
           'safe spellings retained bytewise'
@@ -1691,8 +1809,17 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
     it(`${skill} relative containment distinguishes installed and generated skill origins`, () => {
       const f = fixture(skill);
       const reference = '{skill-root}/../../../../shared/reference.md';
-      const candidate = privacyProse(f, skill, 'instruction', `Read ${reference}`);
-      const prior = render(f, candidate.assignments);
+      const defaults = join(f.skillDir, 'customize.toml');
+      writeFileSync(
+        defaults,
+        readBytes(defaults)
+          .toString('utf8')
+          .replace(
+            'Report unmet acceptance criteria, broken rules, and bugs.',
+            `Read ${reference}\nReport unmet acceptance criteria, broken rules, and bugs.`
+          )
+      );
+      const prior = render(f);
       expect(
         prior.outputs['step-04-review.md'].includes(
           `${prior.reference}/../../../../shared/reference.md`
@@ -1750,9 +1877,9 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
     for (const prefix of ['case-ＳＹＮＴＨＥＴＩＣ-', 'case-é-']) {
       it(`${skill} encoded path Unicode checkout identity ${prefix}`, () => {
         const f = fixture(skill, prefix);
-        const literal = privacyProse(f, skill, 'instruction', `Read ${f.root}/AGENTS.md`);
+        const literal = privacyProse(f, skill, 'instruction', 'file:AGENTS.md');
         const prior = render(f, literal.assignments);
-        expect(prior.outputs['step-04-review.md'].includes('Read ./AGENTS.md')).toBe(true);
+        expect(prior.outputs['step-04-review.md'].includes('file:AGENTS.md')).toBe(true);
         const candidate = privacyProse(
           f,
           skill,
@@ -1766,12 +1893,7 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
       const f = fixture(skill);
       const nested = join(f.root, 'synthetic/nested');
       mkdirSync(nested, { recursive: true });
-      const safe = privacyProse(
-        f,
-        skill,
-        'instruction',
-        'Read https://example.com/assets/a%20%2Fb.svg'
-      );
+      const safe = privacyProse(f, skill, 'instruction', 'file:AGENTS.md');
       const root = render(f, safe.assignments);
       const child = render(f, safe.assignments, undefined, nested);
       expect(
@@ -2134,8 +2256,7 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
       }
       it(`${skill} implementation handoff preserves safe customized fields on ${surface}`, () => {
         const f = fixture(skill);
-        const instruction =
-          'Synthetic safe implementation contract: {implementation_contract}\nApproved source/hunk references: {implementation_files}';
+        const instruction = 'file:AGENTS.md';
         let input: string | undefined;
         let overrides: string | undefined;
         const assignments = ['workflow.route=full'];
@@ -2945,6 +3066,7 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
     for (const surface of proseSurfaces) {
       it(`${skill} preserves HTTP/HTTPS and repo-relative prose on ${surface}`, () => {
         const f = fixture(skill);
+        const prior = render(f);
         const prose =
           'Read [public](https://example.com/docs/reference?mode=public#section), ' +
           '<http://example.org/docs/reference> and [local](mydocs/skills/reference.md), ' +
@@ -3000,6 +3122,10 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
         const { assignments, overrides, input } = privacyProse(f, skill, surface, prose);
         const before = readBytes(input);
         const defaults = readBytes(join(f.skillDir, 'customize.toml'));
+        if (surface !== 'source') {
+          privateRejection(f, prior, [input], assignments, f.root, overrides);
+          return;
+        }
         const snapshot = render(f, assignments, overrides);
         const output =
           snapshot.outputs[surface === 'source' ? 'plan-template.md' : 'step-04-review.md'];
@@ -3093,20 +3219,11 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
             output.includes('**./AGENTS.md** _./AGENTS.md_'),
           'public schemes, XML markup and relative filenames/globs survive unchanged'
         ).toBe(true);
-        const boundRoot = surface === 'source' ? `mydocs/skills/${skill}` : snapshot.reference;
+        const boundRoot = `mydocs/skills/${skill}`;
         expect(
           output.includes(`${boundRoot}/review-prompts/edge-case-hunter.md`),
           'relative binding survives classification beside whitespace-separated emphasis'
         ).toBe(true);
-        if (surface !== 'source') {
-          const resolved = snapshot.manifest.inputs.resolved_values[
-            'customization.workflow.quick_lenses'
-          ] as { instruction: string }[];
-          expect(
-            resolved[0].instruction === prose.replaceAll(f.root, '.'),
-            'manifest retains normalized unbound prose across repeated render passes'
-          ).toBe(true);
-        }
         expect(
           readBytes(input).equals(before) &&
             readBytes(join(f.skillDir, 'customize.toml')).equals(defaults),
@@ -3148,16 +3265,16 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
           const configPath = join(f.root, '_bmad/config.toml');
           const config = `[core]\noutput_folder = ${JSON.stringify(reference)}\n`;
           writeFileSync(configPath, config);
-          const instruction = `Read ${reference} and {skill-root}/review-prompts/edge-case-hunter.md`;
+          const instruction = 'file:AGENTS.md';
           const snapshot = render(f, [
-            `workflow.quick_lenses=[{id="quick", name="Synthetic Quick", instruction=${JSON.stringify(instruction)}}]`
+            `workflow.quick_lenses=[{id="quick", name="Quick", instruction=${JSON.stringify(instruction)}}]`
           ]);
           expect(
             snapshot.outputs['plan-template.md'].includes('Synthetic reference: ./AGENTS.md'),
             'recognized source reference retains its repository target'
           ).toBe(true);
           expect(
-            snapshot.outputs['step-04-review.md'].includes('Read ./AGENTS.md and '),
+            snapshot.outputs['step-04-review.md'].includes('file:AGENTS.md'),
             'recognized instruction reference retains its repository target'
           ).toBe(true);
           expect(
@@ -3223,7 +3340,7 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
             surface === 'instruction'
               ? [
                   '--set',
-                  `workflow.quick_lenses=[{id="quick", name="Synthetic Quick", instruction=${JSON.stringify(`Read ${reference}`)}}]`
+                  `workflow.quick_lenses=[{id="quick", name="Quick", instruction=${JSON.stringify(`Read ${reference}`)}}]`
                 ]
               : [];
           const result = invoke(
@@ -3260,7 +3377,7 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
           surface === 'instruction'
             ? [
                 '--set',
-                `workflow.quick_lenses=[{id="quick", name="Synthetic Quick", instruction=${JSON.stringify(`Read ${reference}`)}}]`
+                `workflow.quick_lenses=[{id="quick", name="Quick", instruction=${JSON.stringify(`Read ${reference}`)}}]`
               ]
             : [];
         const result = invoke(
@@ -3391,7 +3508,7 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
       f.sourceHashes[name] = sha256(source);
       f.templateHashes[name] = sha256(source.replaceAll(f.root, '.'));
       const snapshot = render(f, [
-        `workflow.quick_lenses=[{id="quick", name="Synthetic Quick", instruction="Read ${f.root}/AGENTS.md and {skill-root}/review-prompts/edge-case-hunter.md"}]`
+        `workflow.quick_lenses=[{id="quick", name="Quick", instruction="file:AGENTS.md"}]`
       ]);
       expect(
         snapshot.outputs[name].includes('./AGENTS.md') &&
@@ -3399,10 +3516,8 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
         'source references normalized and bound'
       ).toBe(true);
       expect(
-        snapshot.outputs['step-04-review.md'].includes(
-          `${snapshot.reference}/review-prompts/edge-case-hunter.md`
-        ),
-        'custom instruction binds repository-relative generation'
+        snapshot.outputs['step-04-review.md'].includes('file:AGENTS.md'),
+        'custom instruction retains only a repository reference'
       ).toBe(true);
       expect(
         snapshot.manifest.inputs.template_sha256[name] === sha256(source.replaceAll(f.root, '.')) &&
@@ -3429,7 +3544,7 @@ describe('explicit actual local renderer contracts (not workflow execution)', ()
         f.sourceHashes['plan-template.md'] = sha256(source);
         f.templateHashes['plan-template.md'] = sha256(source.replaceAll(f.root, '.'));
         const snapshot = render(f, [
-          `workflow.quick_lenses=[{id="quick", name="Synthetic Quick", instruction="Read ${f.root}/AGENTS.md and {skill-root}/review-prompts/edge-case-hunter.md"}]`
+          `workflow.quick_lenses=[{id="quick", name="Quick", instruction="file:AGENTS.md"}]`
         ]);
         expect(
           readBytes(path).toString('utf8') === config,
@@ -3617,7 +3732,7 @@ runpy.run_path(renderer, run_name="__main__")
       const before = sha256(readBytes(defaults));
       const overrides = join(outside.root, 'synthetic-override.toml');
       const candidate =
-        '[[workflow.quick_lenses]]\nid = "quick"\nname = "Synthetic Quick"\ninstruction = "Synthetic cross-layer review witness."\n';
+        '[[workflow.quick_lenses]]\nid = "quick"\nname = "Quick"\ninstruction = "file:AGENTS.md"\n';
       writeFileSync(overrides, candidate);
       const snapshot = render(f, [], overrides);
       expect(
@@ -3633,13 +3748,13 @@ runpy.run_path(renderer, run_name="__main__")
       ).toEqual([
         {
           id: 'quick',
-          name: 'Synthetic Quick',
-          instruction: 'Synthetic cross-layer review witness.'
+          name: 'Quick',
+          instruction: 'file:AGENTS.md'
         }
       ]);
       assertText(
         snapshot.outputs['step-04-review.md'],
-        /Synthetic cross-layer review witness\./,
+        /file:AGENTS\.md/,
         'legitimate lens override renders'
       );
       expect(sha256(readBytes(defaults)), 'shipped declarations remain unchanged').toBe(before);
@@ -3763,7 +3878,7 @@ runpy.run_path(renderer, run_name="__main__")
         ) {
           const defaults = join(f.skillDir, 'customize.toml');
           const duplicate =
-            '[[workflow.quick_lenses]]\nid = "quick"\nname = "Synthetic Quick"\ninstruction = "Synthetic duplicate witness."\n';
+            '[[workflow.quick_lenses]]\nid = "quick"\nname = "Quick"\ninstruction = "Synthetic duplicate witness."\n';
           let candidate: string;
           if (failure === 'duplicate-quick-defaults') {
             candidate = defaults;
