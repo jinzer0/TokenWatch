@@ -15,6 +15,8 @@ Step 1 has a pre-plan LOW existing-context entry with verified exit and no fallt
 
 자동 review의 original status는 step-04의 **Durable original review provenance** 규약을 따른다. read-only/planning-only/report-only는 provenance write 전에 종료한다. SAME selected authorized BMAD metadata 또는 이미 존재하는 durable canonical context/task에 exact canonical path AND task로 연결된 append-only `review_cycle` 원본을 intermediate `in-review`보다 먼저 영속·readback한다. entry/resume/repair/heuristic/Finalize는 동일 open 원본의 `resume_incoming_status`와 `followup_pass`를 재사용하며 route/review pin은 별도로 유지한다. missing/conflicting/denied provenance는 dependent writes만 차단하고 독립 안전 분석은 계속한다. 새 mandatory artifact나 human canonical body/frontmatter 변환 없이 baseline/iteration/모든 이전 로그를 보존한다. 현재 AC/verification/required lane 성공 및 actual authority로 Finalize의 성공 status와 completion을 함께 확인한 경우만 cycle을 닫으며 원본 이력은 삭제하지 않는다. 실패·interruption·repair·HALT는 clearing 경계가 아니다.
 
+open cycle 없는 `built`/`done`에 terminal publication만 위임된 경우는 step-04의 **Terminal publication entry (before active review)**로 진입한다. 현재 verification/AC/required review evidence와 행동별 권한을 재확인한 뒤 공통 **Delegated publication**만 실행하며, 새 review cycle이나 status 전이를 만들지 않는다. 기존 open cycle 또는 미완료 evidence를 우회하는 경로가 아니다.
+
 ## HALT
 
 HALT records the truthful result and scoped blocking condition, not authority to mutate artifacts.

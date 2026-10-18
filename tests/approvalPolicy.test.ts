@@ -630,6 +630,29 @@ describe('risk-based approval delivery source contracts (not native enforcement)
     has(resume, /reset|review_loop_iteration/, 'reset does not create authority');
   });
 
+  it('auto terminal publication uses existing evidence without creating a review cycle', () => {
+    const resume = read('mydocs/skills/bmad-build-auto/step-01-clarify-and-route.md');
+    const review = read('mydocs/skills/bmad-build-auto/step-04-review.md');
+    const entry = section(review, '### Terminal publication entry (before active review)');
+    has(resume, /terminal publication만 위임[\s\S]*Terminal publication entry/, 'entry route');
+    has(entry, /open `review_cycle`이 없으며/, 'only outside an active review cycle');
+    has(entry, /현재 verification\/AC 및 applicable required review의 성공 evidence/, 'evidence');
+    has(
+      entry,
+      /review-cycle Finalize를 건너뛰고 `### Delegated publication`만 실행한 뒤 HALT/,
+      'terminal exit'
+    );
+    has(
+      entry,
+      /새 `review_cycle`, `in-review`[\s\S]*status 전이를 만들지 않으며/,
+      'preserve state'
+    );
+    has(entry, /open cycle이 있으면 이 경로를 사용할 수 없다/, 'no interrupted review bypass');
+    expect(review.indexOf('### Terminal publication entry')).toBeLessThan(
+      review.indexOf('### Effective implementation route and review depth')
+    );
+  });
+
   it('AC08 ordinary oneshot/present apply task-only publication, not offer-only authority', () => {
     for (const file of ['step-oneshot.md', 'step-05-present.md']) {
       const text = read(`mydocs/skills/bmad-build/${file}`);

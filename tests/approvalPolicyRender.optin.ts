@@ -1189,6 +1189,23 @@ function safety(snapshot: Snapshot, skill: Skill, route: Route, review: Review):
       'auto implementation required-plan safety'
     );
     assertText(step, /built.*done[\s\S]*fresh review/i, 'built/done followup is fresh review');
+    assertText(
+      step,
+      /terminal publication만 위임[\s\S]*Terminal publication entry/,
+      'terminal-only publication has its own dispatch'
+    );
+    const publicationEntry =
+      files['step-04-review.md']
+        .split('### Terminal publication entry (before active review)')[1]
+        ?.split('### Effective implementation route and review depth')[0] ?? '';
+    for (const pattern of [
+      /open `review_cycle`이 없으며/,
+      /현재 verification\/AC 및 applicable required review의 성공 evidence/,
+      /review-cycle Finalize를 건너뛰고 `### Delegated publication`만 실행한 뒤 HALT/,
+      /status 전이를 만들지 않으며/,
+      /open cycle이 있으면 이 경로를 사용할 수 없다/
+    ])
+      assertText(publicationEntry, pattern, 'terminal publication guards survive rendering');
     const final = files['step-04-review.md'].split('## Finalize')[1] ?? '';
     for (const pattern of [
       /built/,
