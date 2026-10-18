@@ -221,6 +221,8 @@ def _require_review_layers(value: Any, label: str) -> list[dict[str, str]]:
         item_label = f"{label}[{index}]"
         if not isinstance(item, dict):
             raise RenderError(f"{item_label} must be a table")
+        if set(item) - {"id", "name", "instruction", "when"}:
+            raise RenderError(f"{item_label} has unknown review-layer fields")
         identifier = _require_string(item.get("id"), f"{item_label}.id")
         if identifier in seen:
             raise RenderError(f"duplicate review layer id `{identifier}`")

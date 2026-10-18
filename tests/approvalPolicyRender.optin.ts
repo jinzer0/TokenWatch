@@ -3746,6 +3746,29 @@ runpy.run_path(renderer, run_name="__main__")
     });
 
     for (const layer of ['project', 'user', 'overrides', 'assignment'] as const) {
+      it(`${skill} rejects unknown review-layer fields from ${layer}`, () => {
+        const f = fixture(skill);
+        const prior = render(f);
+        const input =
+          layer === 'project' || layer === 'user'
+            ? join(f.root, '_bmad/custom', `${skill}${layer === 'user' ? '.user' : ''}.toml`)
+            : join(f.root, 'synthetic-unknown-field.toml');
+        mkdirSync(dirname(input), { recursive: true });
+        for (const key of ['instrution', 'unknown_field', 'metadata']) {
+          const assignments =
+            layer === 'assignment' ? [`workflow.quick_lenses=[{id="quick",${key}=""}]`] : [];
+          if (layer !== 'assignment')
+            writeFileSync(input, `[[workflow.quick_lenses]]\nid="quick"\n${key}=""\n`);
+          privateRejection(
+            f,
+            prior,
+            layer === 'assignment' ? [] : [input],
+            assignments,
+            f.root,
+            layer === 'overrides' ? input : undefined
+          );
+        }
+      });
       it(`${skill} partial keyed lens overrides preserve declared fields from ${layer}`, () => {
         const f = fixture(skill);
         const defaults = join(f.skillDir, 'customize.toml');
