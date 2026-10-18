@@ -1460,6 +1460,15 @@ print("keyed-merge-ok")
             expect(row[2].includes('**EARLY EXIT**')).toBe(true);
             expect(row[2].includes(`${snapshot.reference}/${target}`)).toBe(true);
             expect(target in snapshot.outputs).toBe(true);
+            if (row[1] === 'done') {
+              const branches = row[2].split('그 외에는');
+              expect(branches.length).toBe(2);
+              expect(branches[0].includes('실제 delegated follow-up review가 있으면')).toBe(true);
+              expect(branches[0].includes(`${snapshot.reference}/step-04-review.md`)).toBe(true);
+              expect(branches[0].includes('step-05-present.md')).toBe(false);
+              expect(branches[1].includes(`${snapshot.reference}/step-05-present.md`)).toBe(true);
+              expect(branches.every((branch) => branch.includes('**EARLY EXIT**'))).toBe(true);
+            }
             if (route === 'auto' && ['ready-for-dev', 'in-progress'].includes(row[1])) {
               expect(
                 row[2].includes(`${snapshot.reference}/step-oneshot.md`),

@@ -2071,6 +2071,13 @@ describe('risk-based approval delivery source contracts (not native enforcement)
         true
       );
       lacks(row, /step-02-plan|step-03-implement|step-oneshot/, `${status}: no reimplementation`);
+      if (status === 'done') {
+        has(
+          row,
+          /실제 delegated follow-up review가 있으면[^|]*EARLY EXIT[^|]*step-04-review\.md[^|]*그 외에는[^|]*EARLY EXIT[^|]*step-05-present\.md/,
+          'done: branch on delegated follow-up before terminal early exit'
+        );
+      }
     }
     for (const file of ['step-03-implement.md', 'step-04-review.md', 'step-05-present.md']) {
       const text = read(`mydocs/skills/bmad-build/${file}`);
