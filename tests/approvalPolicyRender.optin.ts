@@ -1406,6 +1406,26 @@ afterAll(() => {
 });
 
 describe('explicit actual local renderer contracts (not workflow execution)', () => {
+  for (const key of ['id', 'code']) {
+    it(`keyed merge preserves nested unspecified fields order and inputs for ${key}`, () => {
+      const f = fixture('bmad-build');
+      const script = `
+import json, sys
+sys.path.insert(0, sys.argv[1])
+from config_utils import structural_merge
+key = sys.argv[2]
+base = [{key: "first", "name": "Declared", "instruction": "initial", "metadata": {"keep": True, "values": [1]}}, {key: "second", "name": "Untouched"}]
+override = [{key: "first", "instruction": "", "metadata": {"values": [2]}}, {key: "third", "name": "Added"}]
+before = json.dumps([base, override])
+result = structural_merge(base, override)
+assert result == [{key: "first", "name": "Declared", "instruction": "", "metadata": {"keep": True, "values": [1, 2]}}, {key: "second", "name": "Untouched"}, {key: "third", "name": "Added"}]
+assert json.dumps([base, override]) == before
+print("keyed-merge-ok")
+`;
+      const result = existingPython(['-c', script, dirname(f.renderer), key], f.root);
+      expect(result.status === 0 && result.stdout.trim() === 'keyed-merge-ok').toBe(true);
+    });
+  }
   for (const route of ['auto', 'full', 'oneshot'] as const) {
     for (const review of ['auto', 'none', 'quick', 'thorough'] as const) {
       it(`normal ${route}/${review}: every existing state dispatches to an available phase without replanning`, () => {
@@ -3724,6 +3744,42 @@ runpy.run_path(renderer, run_name="__main__")
         'new identity preserves the prior generation unchanged'
       ).toBe(true);
     });
+
+    for (const layer of ['project', 'user', 'overrides', 'assignment'] as const) {
+      it(`${skill} partial keyed lens overrides preserve declared fields from ${layer}`, () => {
+        const f = fixture(skill);
+        const defaults = join(f.skillDir, 'customize.toml');
+        const original = readBytes(defaults);
+        const input =
+          layer === 'project' || layer === 'user'
+            ? join(f.root, '_bmad/custom', `${skill}${layer === 'user' ? '.user' : ''}.toml`)
+            : join(f.root, 'synthetic-partial.toml');
+        mkdirSync(dirname(input), { recursive: true });
+        for (const instruction of ['', 'file:AGENTS.md']) {
+          const assignments =
+            layer === 'assignment'
+              ? [`workflow.quick_lenses=[{id="quick",instruction=${JSON.stringify(instruction)}}]`]
+              : [];
+          if (layer !== 'assignment')
+            writeFileSync(
+              input,
+              `[[workflow.quick_lenses]]\nid="quick"\ninstruction=${JSON.stringify(instruction)}\n`
+            );
+          const before = layer === 'assignment' ? undefined : readBytes(input);
+          const snapshot = render(f, assignments, layer === 'overrides' ? input : undefined);
+          expect(
+            snapshot.manifest.inputs.resolved_values['customization.workflow.quick_lenses']
+          ).toEqual([{ id: 'quick', name: 'Quick', instruction }]);
+          expect(
+            snapshot.outputs['step-04-review.md'].includes(
+              instruction ? 'file:AGENTS.md' : 'No active review layers.'
+            )
+          ).toBe(true);
+          expect(readBytes(defaults).equals(original)).toBe(true);
+          if (before) expect(readBytes(input).equals(before)).toBe(true);
+        }
+      });
+    }
 
     it(`${skill} permits a single-ID cross-layer override outside shipped source directories`, () => {
       const f = fixture(skill);

@@ -104,7 +104,8 @@ def _merge_arrays(base: list[Any], override: list[Any]) -> list[Any]:
         copied = dict(item)
         key = copied[keyed_field]
         if key in index_by_key:
-            result[index_by_key[key]] = copied
+            index = index_by_key[key]
+            result[index] = _structural_merge(result[index], copied)
         else:
             index_by_key[key] = len(result)
             result.append(copied)
