@@ -269,6 +269,7 @@ def _relative_sources(sources: dict[str, str], project_root: Path, skill_dir: Pa
     source_root = skill_dir.relative_to(project_root)
 
     def source_text(text: str) -> str:
+        _check_private_content(text)
         replacements: dict[str, str] = {}
 
         def expression(match: re.Match[str], *, restore: bool = False) -> str:
@@ -337,6 +338,8 @@ def _relative_sources(sources: dict[str, str], project_root: Path, skill_dir: Pa
 
 def _resolve_config_value(value: Any, label: str, project_root: Path, *, key: str) -> str:
     _check_credential_value(key, value)
+    _check_private_field(key, value)
+    _check_private_value(value)
     text = _require_string(value, label, allow_empty=label == "config.core.active_initiative")
     _check_text_credentials(text)
     decoded = _decode_privacy_text(text)
@@ -469,6 +472,264 @@ def _decode_privacy_text(text: str, *, validate: Callable[[str], None] | None = 
     else:
         raise RenderError("ambiguous encoded privacy text")
     return decoded
+
+
+def _private_key(key: str) -> str:
+    return "".join(character for character in key.casefold() if character.isalnum())
+
+
+def _private_body(value: Any, depth: int = 0) -> bool:
+    if depth > 32:
+        raise RenderError("captured content nesting limit")
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (dict, list)):
+        found = False
+        for item in value.values() if isinstance(value, dict) else value:
+            found = _private_body(item, depth + 1) or found
+        return found
+    return False
+
+
+def _check_private_field(key: str, value: Any) -> None:
+    def check(view: str) -> None:
+        normalized = _private_key(view)
+        components = re.findall(r"[a-z0-9]+", re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", view).casefold())
+        raw = normalized.endswith(("rawrecord", "rawmetadata"))
+        capture = bool(components) and components[-1] in {"session", "conversation"}
+        transcript = normalized in {"prompt", "response"}
+        if not (raw or capture or transcript):
+            return
+        body = _private_body(value)
+        if ((raw and bool(value)) or ((capture or transcript) and body)) and not _credential_placeholder(value):
+            raise RenderError("captured record envelope")
+
+    _decode_privacy_text(key, validate=check)
+
+
+def _check_private_conversation(value: Any) -> None:
+    if not isinstance(value, dict):
+        return
+    _check_private_conversation_pairs(list(value.items()))
+
+
+def _check_private_conversation_pairs(pairs: list[tuple[str, Any]]) -> None:
+    fields: dict[str, list[Any]] = {}
+    for key, item in pairs:
+        fields.setdefault(_private_key(_decode_privacy_text(key)), []).append(item)
+    if (
+        any(isinstance(role, str) and _decode_privacy_text(role).strip().casefold() in {"system", "developer", "user", "human", "assistant", "tool", "function"} for role in fields.get("role", []))
+        and _private_body(fields.get("content"))
+        and not _credential_placeholder(fields.get("content"))
+    ):
+        raise RenderError("captured conversation envelope")
+
+
+_SQL_IDENTIFIER_PART = r'(?:[A-Za-z_][\w$]*+|"[^"\n]++"|`[^`\n]++`|\[[^\]\n]++\])'
+_SQL_IDENTIFIER = rf"{_SQL_IDENTIFIER_PART}(?:\.{_SQL_IDENTIFIER_PART})*+"
+_SQL_EXPRESSION = rf"(?>\*|'(?:''|[^'\n])*+'|[0-9]++(?:\.[0-9]++)?|{_SQL_IDENTIFIER}(?:\s*+\(\))?+)(?:\s++AS\s++{_SQL_IDENTIFIER})?+"
+_SQL_PROJECTION = rf"{_SQL_EXPRESSION}(?:\s*+,\s*+{_SQL_EXPRESSION})*+"
+_SQL_CONTINUATION = rf"(?=[ \t]*+(?:;|\)|$)|\s++(?:WHERE\s++{_SQL_IDENTIFIER}\s*+(?:=|<>|!=|<=|>=|<|>|\bIS\b|\bIN\s*+\(|\bLIKE\b)|ORDER\s++BY\b|GROUP\s++BY\b|LIMIT\s++\d|RETURNING\s++{_SQL_EXPRESSION}))"
+_CAPTURED_SQL = re.compile(
+    rf"\b(?:SELECT\s++(?:DISTINCT\s++)?{_SQL_PROJECTION}\s++FROM\s++{_SQL_IDENTIFIER}{_SQL_CONTINUATION}|"
+    rf"INSERT\s++INTO\s++{_SQL_IDENTIFIER}\s*+(?:\(\)\s*+)?VALUES\s*+\(|"
+    rf"UPDATE\s++{_SQL_IDENTIFIER}\s++SET\s++{_SQL_IDENTIFIER}\s*+=|"
+    rf"DELETE\s++FROM\s++{_SQL_IDENTIFIER}{_SQL_CONTINUATION}|"
+    rf"COPY\s++{_SQL_IDENTIFIER}\s*+(?:\(\)\s*+)?(?:FROM|TO)\s++(?:STDIN|STDOUT|'[^']*+')(?=\s|;|$))",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+_SQL_START = re.compile(r"\b(?:SELECT|INSERT|UPDATE|DELETE|COPY)\b", re.IGNORECASE)
+
+
+def _sql_call_view(text: str, candidate: int, budget: list[int]) -> str:
+    """Normalize arguments from an original SQL candidate, not its prose wrapper."""
+    parts: list[str] = []
+    start = candidate
+    opening = 0
+    depth = 0
+    quote_mark = ""
+    index = candidate
+    while index < len(text):
+        budget[0] -= 1
+        if budget[0] < 0:
+            raise RenderError("SQL candidate scan limit")
+        character = text[index]
+        if quote_mark:
+            if character == quote_mark:
+                if index + 1 < len(text) and text[index + 1] == quote_mark:
+                    index += 2
+                    continue
+                quote_mark = ""
+        elif character in "'\"`[":
+            quote_mark = "]" if character == "[" else character
+        elif character == "(":
+            if depth == 0:
+                opening = index
+            depth += 1
+            if depth > 32:
+                raise RenderError("SQL argument nesting limit")
+        elif character == ")" and depth:
+            depth -= 1
+            if depth == 0:
+                parts.extend((text[start:opening], "()"))
+                start = index + 1
+        elif character in ");" and not depth:
+            index += 1
+            break
+        index += 1
+    parts.append(text[start:index])
+    return "".join(parts)
+
+
+def _check_private_sql(text: str) -> None:
+    # Each original candidate remains visible even when an earlier candidate
+    # collapses an argument containing it. Total rescanning is proportional.
+    budget = [32 * len(text) + 1]
+    for candidate in _SQL_START.finditer(text):
+        if _CAPTURED_SQL.match(_sql_call_view(text, candidate.start(), budget)):
+            raise RenderError("captured executable SQL")
+
+
+def _check_private_value(value: Any) -> None:
+    """Reject finite recognizable capture carriers, preserving each decoding view's structure."""
+    remaining = 10000
+    decoder = json.JSONDecoder(object_pairs_hook=_unique_json_object)
+    seen_views: set[str] = set()
+    seen_nodes: set[tuple[str, bool]] = set()
+
+    def visit(node: Any, depth: int, *, raw: bool = True) -> None:
+        nonlocal remaining
+        remaining -= 1
+        if depth > 32 or remaining < 0:
+            raise RenderError("captured content parsing limit")
+        if isinstance(node, dict):
+            # Normalize names for classification only, never for lookup/output.
+            _check_private_conversation(node)
+            for key, item in node.items():
+                _check_private_field(key, item)
+                visit(key, depth + 1, raw=raw)
+                visit(item, depth + 1, raw=raw)
+        elif isinstance(node, list):
+            for item in node:
+                visit(item, depth + 1, raw=raw)
+        elif isinstance(node, str):
+            identity = (node, raw)
+            if identity in seen_nodes:
+                return
+            seen_nodes.add(identity)
+            carrier_text = structured(node, depth, raw=True) if raw else ""
+            for token in re.finditer(r'''[^\s`"'<>]+''', carrier_text):
+                spelling = token[0]
+                if not any(marker in spelling.casefold() for marker in (":", "%", "&", "\\u", "http")) and spelling.isascii():
+                    continue
+                remaining -= 1
+                if remaining < 0:
+                    raise RenderError("captured content parsing limit")
+                recognized = False
+
+                def recognize(view: str) -> None:
+                    nonlocal recognized
+                    if recognized:
+                        return
+                    if view.startswith(("{", "[")):
+                        masked = structured(view, depth, raw=True)
+                        if masked != view:
+                            recognized = True
+                            return
+                    match = re.search(r'''https?://[^\s`"'<>]+''', view, flags=re.IGNORECASE)
+                    if match is not None and urlsplit(match[0]).netloc:
+                        recognized = True
+                        uri_fields(match[0], depth)
+
+                _decode_privacy_text(spelling, validate=recognize)
+            _decode_privacy_text(node, validate=lambda view: text_view(view, depth))
+
+    def structured(text: str, depth: int, *, raw: bool) -> str:
+        end = 0
+        parts: list[str] = []
+        for match in re.finditer(r"[\[{]", text):
+            if match.start() < end:
+                continue
+            try:
+                parsed, boundary = decoder.raw_decode(text, match.start())
+            except json.JSONDecodeError:
+                continue
+            except RecursionError as error:
+                raise RenderError("captured content nesting limit") from error
+            if isinstance(parsed, (dict, list)):
+                visit(parsed, depth + 1, raw=raw)
+                parts.extend((text[end:match.start()], " " * (boundary - match.start())))
+                end = boundary
+        parts.append(text[end:])
+        return "".join(parts)
+
+    def uri_fields(carrier: str, depth: int) -> None:
+        # Parse only the first HTTP(S) representation of each raw token.
+        # Later percent-decoded pluses/delimiters are data, not form syntax.
+        uri = urlsplit(carrier)
+        visit(uri.path.removeprefix("/"), depth + 1)
+        for component in (uri.query, uri.fragment):
+            pairs: list[tuple[str, Any]] = []
+            for field in re.split(r"[&;]", component):
+                name, separator, body = field.partition("=")
+                name, body = name.replace("+", " "), body.replace("+", " ")
+                visit(name, depth + 1)
+                if separator:
+                    visit(body, depth + 1)
+                    _check_private_field(name, body)
+                    decoded_body = _decode_privacy_text(body)
+                    _check_private_field(name, decoded_body)
+                    pairs.append((name, decoded_body))
+            _check_private_conversation_pairs(pairs)
+
+    def text_view(text: str, depth: int) -> None:
+        nonlocal remaining
+        if text in seen_views:
+            return
+        remaining -= 1
+        if remaining < 0:
+            raise RenderError("captured content parsing limit")
+        seen_views.add(text)
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
+        # Only recognizable line decorations become validation-only views;
+        # do not strip arbitrary markup or change persisted public spelling.
+        decorated = re.sub(r"(?m)^[ \t]{0,3}(?:>[ \t]?)+", "", text)
+        decorated = re.sub(
+            r"(?m)^(?P<indent>[ \t]*)(?P<marker>\*\*|__|\*|_|`+)(?P<body>[^\n]+?)(?P=marker)[ \t]*$",
+            lambda match: match["indent"] + match["body"],
+            decorated,
+        )
+        decorated = re.sub(
+            r"(?im)^(?P<indent>[ \t]*)(?P<marker>\*\*|__|\*|_|`+)"
+            r"(?P<label>PROMPT|RESPONSE|USER|HUMAN|ASSISTANT)(?P<inside>:)?(?P=marker)(?P<outside>:)?",
+            lambda match: match["indent"] + match["label"] + ":" if match["inside"] or match["outside"] else match[0],
+            decorated,
+        )
+        if decorated != text:
+            visit(decorated, depth + 1, raw=False)
+        for match in re.finditer(r"(?im)^[ \t]*(?:PROMPT|RESPONSE|USER|HUMAN|ASSISTANT):([^\n]*)", text):
+            if _private_body(match[1]) and not _credential_placeholder(match[1]):
+                raise RenderError("captured transcript label")
+        _check_private_sql(text)
+        if re.search(r"(?im)^--[^\n]*(?:PostgreSQL database dump|MySQL dump)\b", text):
+            raise RenderError("captured executable SQL")
+        if re.search(r"(?m)^[ \t]*Traceback \(most recent call last\):\n(?:[ \t]+[^\n]*\n)+[ \t]*[\w.]+(?:Error|Exception)?[ \t]*:", text):
+            raise RenderError("captured Python traceback")
+        if re.search(
+            r'(?m)^[ \t]*(?:Exception in thread "[^"\n]+"[ \t]+)?[\w.$]*(?:Error|Exception)(?::[^\n]*)?\n'
+            r'(?:[ \t]+at\s+[^\n]+(?:\n|$))+',
+            text,
+        ):
+            raise RenderError("captured runtime stack")
+        structured(text, depth, raw=False)
+
+    visit(value, 0)
+
+
+def _check_private_content(text: str) -> None:
+    _check_private_value(text)
 
 
 def _check_text_credentials(text: str) -> None:
@@ -762,6 +1023,7 @@ def _relative_text(
     text: str, project_root: Path, *, skill_root: Path | None = None, reference_root: Path | None = None
 ) -> str:
     """Normalize canonical checkout tokens; reject machine paths, preserve public web links."""
+    _check_private_content(text)
     _check_text_credentials(text)
     _check_relative_references(text, project_root, skill_root, reference_root)
     normalized = _relative_reference_text(text, project_root, reference_root=reference_root)
@@ -934,6 +1196,7 @@ def _relative_values(
     value: Any, project_root: Path, *, skill_root: Path | None = None,
     reference_root: Path | None = None, key_root: Path | None = None,
 ) -> Any:
+    _check_private_value(value)
     if isinstance(value, str):
         return _relative_text(value, project_root, skill_root=skill_root, reference_root=reference_root)
     if isinstance(value, list):
@@ -960,6 +1223,8 @@ def _find_config_values(data: Any, key: str, project_root: Path, prefix: str = "
         nested = _find_config_values(value, key, project_root, path)
         if nested:
             _check_credential_value(name, value)
+            _check_private_field(name, value)
+            _check_private_conversation(value)
             if _relative_text(name, project_root) != name:
                 raise RenderError("noncanonical config ancestor")
         matches.extend(nested)
@@ -1154,7 +1419,9 @@ class _ConfigTable(_Table):
             raise RenderError(f"missing config value `{label.removeprefix('config.')}`")
         value = self._table[name]
         _check_credential_value(name, value)
+        _check_private_field(name, value)
         if isinstance(value, dict):
+            _check_private_conversation(value)
             return _ConfigTable(self._central, value, label, self._ctx)
         resolved = _resolve_config_value(value, label, self._ctx.project_root, key=name)
         self._ctx.inputs[label] = resolved
@@ -1182,9 +1449,11 @@ class _CustomizationTable(_Table):
             raise RenderError(f"missing customization value `{path}`")
         default, value = self._defaults[name], self._values[name]
         label = f"customization.{path}"
+        _check_private_field(name, value)
         if isinstance(default, dict):
             if not isinstance(value, dict):
                 raise RenderError(f"{label} must be a table, got {type(value).__name__}")
+            _check_private_conversation(value)
             return _CustomizationTable(default, value, path, self._ctx)
         if path == "workflow.implementation_handoff":
             instruction = _require_string(value, label, allow_empty=True)
@@ -1288,6 +1557,7 @@ def _render_sources(sources: dict[str, str], skill_dir: Path, context: _RenderCo
     for name in sources:
         try:
             rendered[name] = environment.get_template(name).render(context.variables)
+            _check_private_content(rendered[name])
         except Exception as error:
             location = _template_location(error, set(sources))
             message = str(error) if isinstance(error, (RenderError, ConfigError, jinja2.TemplateError)) else repr(error)
@@ -1435,6 +1705,7 @@ def render(
     if unused:
         raise RenderError(f"invocation override not used by this render: {', '.join(unused)}")
     # Store TOML date/time inputs in the same JSON representation used on disk.
+    _check_private_value(probe.inputs)
     input_values = json.loads(_canonical_json(probe.inputs))
     renderer_hash = _hash_bytes(Path(__file__).read_bytes())
     identity = {
@@ -1463,6 +1734,7 @@ def render(
         "inputs": identity,
         "outputs": output_hashes,
     }
+    _check_private_value(manifest)
     entry = Path(os.path.relpath(destination / "workflow.md", caller_cwd))
     # The loading instruction alone is caller-relative; operational references
     # in snapshots and captured inputs remain project-relative.

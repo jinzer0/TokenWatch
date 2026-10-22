@@ -15,7 +15,7 @@ Use the [`external-pr-review`](../skills/external-pr-review/SKILL.md) Skill for 
 - 별도 검토 기록 파일을 작성할 때는 기존 canonical을 우선 재사용한다.
 - 생성하는 HF 검토·계획·보고 문서와 GitHub 제목·본문·검토·댓글은 반드시 한국어로 작성한다. 경로·명령·API 식별자·상태 코드 등 고정 기술 토큰은 유지한다. 기존 canonical 사용자 문서는 번역·복제하지 않고 참조한다.
 
-읽기 전용 검토 요청은 안전한 로컬 분석·검증 계획만 위임한다. untrusted 외부 코드 실행, formal review/comment 게시, Merge/Release, Issue close, tag와 branch/worktree 삭제·cleanup은 실제 scope와 별도 권한을 확인한다. 검증이 미실행 또는 blocked이면 성공으로 기록하지 않는다. Merge 완료만으로 이 후속 행동의 권한이 생기지 않는다.
+읽기 전용 검토 요청은 실제 scope 안의 안전한 PR 정보 조회·분석·검증 계획만 위임한다. untrusted 외부 코드 실행, formal review/comment 게시, Merge/Release, Issue close, tag와 branch/worktree 삭제·cleanup은 실제 scope와 별도 권한을 확인한다. 검증이 미실행 또는 blocked이면 성공으로 기록하지 않는다. Merge 완료만으로 이 후속 행동의 권한이 생기지 않는다.
 
 ## Document Flow
 
@@ -31,6 +31,11 @@ Use the [`external-pr-review`](../skills/external-pr-review/SKILL.md) Skill for 
 
 ## Procedure
 
+0. 첫 prerequisite·명령·metadata/diff 조회 전에 실제 요청과 native 권한으로 모드를 분류한다. 직접 Skill 호출도 이 분기를 생략하지 않는다.
+   - **existing-evidence-only / report-only**는 제공된 자료와 기존 evidence만 사용한다. 명시 요청되고 쓰기가 허용된 exact 보고 산출물만 선택적으로 작성/갱신하고, 그 외에는 응답으로 보고한 뒤 STOP한다. metadata refresh·network·Git·preflight·검증 gates·repair·context/board/source 갱신·hooks·publication 전에 종료하며 아래 1–8단계로 진행하지 않는다.
+   - **genuine informational read-only review**는 기존 evidence 한정 요청이 아닌 경우 실제 scope 안에서 안전한 최신 PR metadata·full diff·기존 checks 결과를 조회·분석하고 응답 후 STOP한다. untrusted code 실행·tests·파일/context/board/source 쓰기·repair·hooks·publication 없이 종료하며 아래 실행/산출물 절차로 확대하지 않는다.
+   - 그 밖의 planning-only 요청도 existing-evidence-only로 일괄 제한하지 않으며 위임된 안전한 최신 조회·분석과 명시 허용된 계획만 처리한다. 구현·검증 실행·publication 권한으로 확대하지 않는다. 아래 단계는 각 행동이 실제 위임된 scope에서만 적용한다.
+   - 모든 모드에서 누락/오래된 evidence는 incomplete/unknown, 미실행은 not_run, 과거 실패는 failed로 구분하고 한계를 기록한다. 성공이나 없던 검증·문서를 추정하지 않는다.
 1. Check PR metadata: base/head, mergeability, CI, linked Issue.
 2. Inspect code and documentation change scope.
 3. 실제 scope/native 권한 내에서 필요한 검증을 수행하고 결과·미실행·blocked를 구분한다. untrusted 외부 코드 실행은 검토 요청만으로 승인되지 않는다.

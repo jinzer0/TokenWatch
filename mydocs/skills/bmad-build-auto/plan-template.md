@@ -15,7 +15,7 @@ review_loop_iteration: 0 # incremented by step-04 before each review loopback
 followup_review_recommended: false # set by step-04 at Finalize — true if the LLM decided another review pass is worthwhile
 context: [] # optional: `{project-root}/`-prefixed standards/docs for leader-only reads; derive privacy-safe implementation_contract facts, never a worker reading list. Keep short — only what isn't already distilled into the plan body.
 warnings: [] # optional: machine-readable warnings for orchestration, e.g. oversized, multiple-goals
-deferred: [] # append-only machine-readable deferred review findings; each item carries summary/evidence and optional location/severity
+deferred: [] # append-only findings: exactly id/source_plan/summary/evidence as privacy-safe strings; unique ids, no extra fields
 ---
 
 <!-- Target: 900–1300 tokens (less if route is oneshot). Above 1600 = high risk of context rot;
@@ -32,6 +32,11 @@ deferred: [] # append-only machine-readable deferred review findings; each item 
 <!-- 새 계획 본문과 추가하는 결과·기록의 설명문은 한국어로 작성한다. 고정 기술 토큰은 유지한다.
      기존 canonical 사용자 계획의 본문·경로·제목·의도는 번역하거나 변환하지 않는다.
      기존 계획과 연결 evidence는 제목 문자열이 아닌 의미로 읽는다. -->
+<!-- 새로 채택하는 BMAD 계획은 full/oneshot 모두 아래 H2 10개를 정확히 유지한다:
+     의도; 경계와 제약; I/O 및 경계 사례 행렬; 코드 맵; 작업과 수용 기준; 구현 기록;
+     계획 변경 기록; 리뷰 분류 기록; 설계 기록; 검증. 섹션을 삭제하거나 H2를 추가하지 않는다.
+     세부 내용은 작업에 비례해 줄이고, 해당 없으면 본문에 짧게 `해당 없음: 이유`를 쓴다.
+     기존 사용자 canonical/HF 문서에는 이 형식을 강제하거나 복제·이동·번역하지 않는다. -->
 
 <intent-contract>
 
@@ -48,7 +53,7 @@ deferred: [] # append-only machine-readable deferred review findings; each item 
 ## 경계와 제약
 
 <!-- Two tiers: Always = invariant rules. Never = out of scope + forbidden approaches.
-     Delete this section if route is oneshot. -->
+     oneshot에서도 H2를 유지하고 필요한 경계와 제약만 간결하게 기록한다. -->
 
 **항상:** 불변 규칙
 
@@ -56,8 +61,8 @@ deferred: [] # append-only machine-readable deferred review findings; each item 
 
 ## I/O 및 경계 사례 행렬
 
-<!-- If no meaningful I/O scenarios exist, delete this section. Do not write "N/A" or "None".
-     Delete this section if route is oneshot. -->
+<!-- 의미 있는 I/O 사례가 없으면 H2를 유지하고 표 대신 해당 없는 이유를 짧게 기록한다.
+     oneshot은 관련 사례만 간결하게 작성한다. -->
 
 | 시나리오  | 입력 / 상태 | 예상 출력 / 동작 | 오류 처리      |
 | --------- | ----------- | ---------------- | -------------- |
@@ -69,7 +74,7 @@ deferred: [] # append-only machine-readable deferred review findings; each item 
 ## 코드 맵
 
 <!-- Agent-populated during planning. Annotated paths prevent blind codebase searching.
-     Delete this section if route is oneshot. -->
+     oneshot에서도 H2를 유지하고 관련 파일만 간결하게 기록한다. -->
 
 - `파일` -- 역할 또는 관련성
 - `파일` -- 역할 또는 관련성
@@ -77,9 +82,9 @@ deferred: [] # append-only machine-readable deferred review findings; each item 
 ## 작업과 수용 기준
 
 <!-- Tasks: backtick-quoted file path -- action -- rationale. Prefer one task per file; group tightly-coupled changes when splitting would be artificial. -->
-<!-- If an I/O Matrix is present, include a task to unit-test its edge cases. -->
+<!-- If meaningful I/O scenarios apply, include a task to unit-test their edge cases. -->
 <!-- AC covers system-level behaviors not captured by the I/O Matrix. Do not duplicate I/O scenarios here. -->
-<!-- Delete this section if route is oneshot. -->
+<!-- oneshot에서도 H2를 유지하고 작업과 수용 기준을 간결하게 기록한다. -->
 
 **실행:**
 
@@ -117,15 +122,15 @@ deferred: [] # append-only machine-readable deferred review findings; each item 
 
 ## 설계 기록
 
-<!-- If the approach is straightforward, delete this section. Do not write "N/A" or "None".
-     Delete this section if route is oneshot. -->
+<!-- 단순한 접근이나 oneshot에서도 H2를 유지한다. 별도 설계 근거가 불필요하면
+     해당 없는 이유를 짧게 기록한다. -->
 <!-- Design rationale and golden examples only when non-obvious. Keep examples to 5–10 lines. -->
 
 설계 근거 및 예시
 
 ## 검증
 
-<!-- If no build, test, or lint commands apply, delete this section. Do not write "N/A" or "None". -->
+<!-- build/test/lint 명령이 없어도 H2를 유지한다. 명령이 해당 없는 이유와 실제 수동 확인을 기록한다. -->
 <!-- How the agent confirms its own work. Prefer CLI commands. When no CLI check applies, state what to inspect manually. -->
 <!-- Append actual commands/results, failed evidence, acceptance checks and limitations.
      Failure/unmet acceptance is incomplete; route/review none never waives verification.

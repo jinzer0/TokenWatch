@@ -14,6 +14,13 @@ description: |
 - The task requester explicitly asks to register an Issue, create a new task, or start from an Issue.
 - The task requester invokes this SKILL directly.
 
+## 요청 모드 선행 종료 — 사전 조건 이전
+
+- 직접 호출도 첫 prerequisite·routine preflight·context/baseline 확인 전에 실제 요청 모드를 판별한다. root/nearest-child 정책과 실제 사용자 scope·native 권한이 우선하며 이 Skill은 권한을 만들지 않는다.
+- **existing-evidence-only / report-only**이면 제공된 자료와 이미 존재하는 evidence만 사용한다. 명시 요청되고 쓰기가 허용된 exact 보고 산출물만 선택적으로 작성/갱신하고, 그 외에는 응답으로 보고한 뒤 STOP한다. 최신 Issue·중복·milestone·label 조회, branch/HEAD·status/diff 확인, `gh`·Git·network·검증 gates·repair·context/board/source 갱신·hooks·publication 전에 종료한다. 아래 Preconditions·Procedure·Verification 및 `task-start` 연결을 실행하지 않는다.
+- 제한이 없는 일반 **read-only / planning-only**를 existing-evidence-only로 일괄 해석하지 않는다. 실제 scope·native 권한 안의 안전한 최신 조회·분석과 명시 허용된 초안/계획만 처리하고 STOP한다. genuine informational read-only PR review는 최신 PR metadata·full diff·기존 checks 결과를 안전하게 조회할 수 있으나 untrusted code 실행·tests·쓰기·repair·publication은 하지 않는다. 조회·계획 요청을 Issue 생성·routine task 시작·branch/board/context 갱신·구현·publication 또는 `task-start` 연결 권한으로 확대하지 않는다.
+- 누락/오래된 evidence는 incomplete/unknown 및 한계로, 미실행은 not_run, 과거 실패는 failed로 유지한다. 성공·Issue 번호·조회/검증 기록을 추정하거나 만들지 않는다. 아래 등록 절차는 실제 Issue 등록 요청에만 적용하며 생성 전 기존 승인 경계를 유지한다.
+
 ## Preconditions
 
 - root/nearest-child `AGENTS.md` Risk-Based Execution Policy와 native permission을 우선한다. 명확한 LOW 요청은 existing context로 처리할 수 있으며 이 등록 절차를 강제하지 않는다.
