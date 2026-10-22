@@ -529,6 +529,26 @@ describe('risk-based approval delivery source contracts (not native enforcement)
       has(template, /AGENTS\.md/, `${skill}: template inherits root`);
       has(template, /canonical/i, `${skill}: template canonical reference`);
       has(template, /task-owned|task-only/i, `${skill}: template ownership`);
+      has(
+        template,
+        /full\/oneshot 모두 아래 H2 10개를 정확히 유지/,
+        `${skill}: route does not remove required headings`
+      );
+      has(
+        template,
+        /섹션을 삭제하거나 H2를 추가하지 않는다/,
+        `${skill}: fixed generated plan section set`
+      );
+      has(
+        template,
+        /해당 없으면 본문에 짧게/,
+        `${skill}: nonapplicable content stays proportional`
+      );
+      has(
+        template,
+        /기존 사용자 canonical\/HF 문서에는 이 형식을 강제하거나 복제·이동·번역하지 않는다/,
+        `${skill}: existing human documents are not converted`
+      );
     });
 
     it(`AC04 ${skill} implementation/review retains genuine safety and autonomous same-scope repair`, () => {
@@ -1102,6 +1122,24 @@ describe('risk-based approval delivery source contracts (not native enforcement)
       ])
         has(guard, pattern, `${skill}: early report-only boundary ${pattern.source}`);
     }
+    for (const file of ['mydocs/_templates/stage_report.md', 'mydocs/_templates/final_report.md']) {
+      const text = read(file);
+      const guard = section(text, '## 요청 모드와 실행 경계');
+      expect(text.indexOf('## 요청 모드와 실행 경계') < text.indexOf('## 검증 결과')).toBe(true);
+      for (const pattern of [
+        /기존 증거\/보고 전용\(report-only\)[\s\S]*기존 evidence만 읽어/,
+        /명시 요청되고 허용된 경우에만 요청된 보고 파일을 작성\/갱신하고 \*\*STOP\*\*/,
+        /context\/board\/source를 함께 변경하지 않으며 메타데이터 refresh·검증 명령·repair·다음 stage·Git·hooks·publication을 실행하지 않는다/,
+        /failed·blocked·not_run[\s\S]*통과를 추정하거나 자동 복구하지 않는다/,
+        /자율 수정·재검증·후속 진행은 별도 위임된 구현 범위에서만 적용/
+      ])
+        has(guard, pattern, `${file}: report template cannot authorize repair or refresh`);
+      has(
+        text,
+        /보고 전용 STOP 이후에는 진행하지 않는다/,
+        `${file}: no later progression fallthrough`
+      );
+    }
     const external = read('mydocs/skills/external-pr-review/SKILL.md');
     const externalMode = section(external, '## 요청 모드 분류 — 사전 조건·명령보다 먼저');
     expect(external.indexOf('## 요청 모드 분류') < external.indexOf('## 사전 조건')).toBe(true);
@@ -1141,6 +1179,56 @@ describe('risk-based approval delivery source contracts (not native enforcement)
       'external publication remains exact-scoped'
     );
     const lifecycle = read('mydocs/manual/task_workflow_guide.md');
+    for (const file of [
+      'mydocs/skills/task-start/SKILL.md',
+      'mydocs/skills/task-register/SKILL.md'
+    ]) {
+      const text = read(file);
+      const guard = section(text, '## 요청 모드 선행 종료 — 사전 조건 이전');
+      expect(text.indexOf('## 요청 모드 선행 종료') < text.indexOf('## Preconditions')).toBe(true);
+      has(
+        guard,
+        /existing-evidence-only \/ report-only[\s\S]*제공된 자료와 이미 존재하는 evidence만 사용/,
+        `${file}: supplied evidence cannot trigger refresh`
+      );
+      has(
+        guard,
+        /exact 보고 산출물[\s\S]*STOP[\s\S]*Git·network·검증 gates·repair·context\/board\/source 갱신·hooks·publication 전에 종료/,
+        `${file}: report artifact cannot authorize routine preflight`
+      );
+      has(
+        guard,
+        /genuine informational read-only PR review[\s\S]*최신 PR metadata·full diff·기존 checks[\s\S]*untrusted code 실행·tests·쓰기·repair·publication은 하지 않는다/,
+        `${file}: fresh informational review is not code execution`
+      );
+      has(guard, /not_run[\s\S]*failed/, `${file}: absent evidence is not success`);
+    }
+    for (const file of [
+      'mydocs/manual/task_workflow_guide.md',
+      'mydocs/manual/external_pr_review_guide.md'
+    ]) {
+      const text = read(file);
+      const procedure = section(
+        text,
+        file.includes('task_workflow') ? '## Task Procedure' : '## Procedure'
+      );
+      const modes = procedure.split('\n1.')[0];
+      has(
+        modes,
+        /existing-evidence-only \/ report-only[\s\S]*metadata refresh·network·Git·preflight·검증 gates·repair/,
+        `${file}: classify restricted reports before commands`
+      );
+      has(
+        modes,
+        /genuine informational read-only[\s\S]*최신 PR metadata·full diff·기존 checks[\s\S]*STOP/,
+        `${file}: preserve actual fresh read-only reviews`
+      );
+      has(
+        modes,
+        /untrusted code 실행·tests·파일\/context\/board\/source 쓰기·repair·hooks·publication/,
+        `${file}: informational reads do not authorize effects`
+      );
+    }
     has(
       lifecycle,
       /manifest\/diff 검사는 파일 적용 전에 반드시 수행[\s\S]*manifest 차이 자체를 일괄 승인 gate로 만들지 않는다/,
@@ -1751,7 +1839,7 @@ describe('risk-based approval delivery source contracts (not native enforcement)
     );
     has(
       renderer,
-      /value = self\._table\[name\]\n {8}_check_credential_value\(name, value\)\n {8}if isinstance\(value, dict\)/,
+      /value = self\._table\[name\]\n {8}_check_credential_value\(name, value\)\n {8}_check_private_field\(name, value\)\n {8}if isinstance\(value, dict\)/,
       'selected credential containers checked before child lookup'
     );
     has(
@@ -1953,6 +2041,118 @@ describe('risk-based approval delivery source contracts (not native enforcement)
       /text = _decode_privacy_text\(value\)\.strip\(\)/,
       'encoded symbolic placeholders remain distinguishable from attached material'
     );
+  });
+
+  it('P1 recognizable captured content shares bounded structural preflight before capture and publication (source only)', () => {
+    const renderer = read('tools/bmad/render_skill.py');
+    const checker =
+      renderer.split('def _check_private_value(')[1]?.split('def _check_private_content(')[0] ?? '';
+    has(
+      checker,
+      /remaining = \d+[\s\S]*remaining -= 1[\s\S]*depth > \d+ or remaining < 0[\s\S]*raise RenderError/,
+      'nested content work is bounded and fails closed'
+    );
+    has(
+      checker,
+      /json\.JSONDecoder\(object_pairs_hook=_unique_json_object\)/,
+      'structured capture does not silently discard duplicate members'
+    );
+    has(
+      checker,
+      /_decode_privacy_text\(node, validate=lambda view: text_view\(view, depth\)\)/,
+      'raw and intermediate decoded views retain structural parsing'
+    );
+    const conversation =
+      renderer
+        .split('def _check_private_conversation(')[1]
+        ?.split('def _check_private_value(')[0] ?? '';
+    has(
+      checker,
+      /_check_private_conversation\(node\)/,
+      'structural visitor classifies native conversation envelopes'
+    );
+    has(
+      conversation,
+      /fields\.get\("role"[\s\S]*fields\.get\("content"\)/,
+      'role/content envelopes are classified together, not scalar fragments'
+    );
+    has(
+      checker,
+      /decoder\.raw_decode\(text, match\.start\(\)\)[\s\S]*visit\(parsed, depth \+ 1, raw=raw\)/,
+      'embedded JSON retains parent and sibling context'
+    );
+    has(
+      checker,
+      /seen_nodes: set\[tuple\[str, bool\]\]/,
+      'raw and decoded contexts do not share node cache identities'
+    );
+    has(
+      checker,
+      /carrier_text = structured\(node, depth, raw=True\) if raw else ""/,
+      'native JSON traverses before raw URI tokenization'
+    );
+    has(
+      checker,
+      /visit\(decorated, depth \+ 1, raw=False\)/,
+      'Markdown-derived views do not invent raw URI form whitespace'
+    );
+    has(
+      checker,
+      /structured\(text, depth, raw=False\)/,
+      'decoded JSON retains classification without reinterpreting URI serialization'
+    );
+    const lookup =
+      renderer.split('def _find_config_values(')[1]?.split('def _resolve_short_config(')[0] ?? '';
+    has(
+      lookup,
+      /if nested:[\s\S]*_check_private_field\(name, value\)[\s\S]*_check_private_conversation\(value\)/,
+      'selected configuration ancestors share captured-field classification'
+    );
+    has(
+      renderer,
+      /def source_text\(text: str\) -> str:\s+_check_private_content\(text\)/,
+      'source bodies preflight before normalization and effective template hashes'
+    );
+    has(
+      renderer,
+      /def _relative_text\([\s\S]*?_check_private_content\(text\)[\s\S]*?_check_text_credentials\(text\)/,
+      'common text boundary covers captured content as well as credentials and paths'
+    );
+    has(
+      renderer,
+      /def _relative_values\([\s\S]*?_check_private_value\(value\)/,
+      'structured customization is checked before recursive scalar normalization'
+    );
+    const config =
+      renderer.split('def _resolve_config_value(')[1]?.split('def _credential_key(')[0] ?? '';
+    has(
+      config,
+      /_check_private_value\(value\)[\s\S]*_require_string\(value/,
+      'selected central leaves preflight before conversion'
+    );
+    const customization =
+      renderer.split('class _CustomizationTable(')[1]?.split('class _RenderContext')[0] ?? '';
+    has(
+      customization,
+      /resolved = _relative_values\([\s\S]*self\._ctx\.inputs\[label\] = resolved/,
+      'consumed customization preflights before input capture'
+    );
+    has(
+      renderer,
+      /rendered\[name\] = environment\.get_template\(name\)\.render\(context\.variables\)\s+_check_private_content\(rendered\[name\]\)/,
+      'final Jinja synthesis cannot bypass content classification'
+    );
+    has(
+      renderer,
+      /_check_private_value\(probe\.inputs\)\s+input_values = json\.loads\(_canonical_json\(probe\.inputs\)\)/,
+      'captured inputs checked before serialization and generation hashing'
+    );
+    has(
+      renderer,
+      /_check_private_value\(manifest\)[\s\S]*_publish\(/,
+      'manifest checked before publication'
+    );
+    // Source contracts and the opt-in actual CLI suite are not LLM/native enforcement proof.
   });
 
   it('P1 machine path rejection includes foreign source and customization values', () => {
@@ -2261,6 +2461,40 @@ describe('risk-based approval delivery source contracts (not native enforcement)
         `${file}: failed candidates preserve prior records`
       );
     }
+    const auto = read('mydocs/skills/bmad-build-auto/step-04-review.md');
+    const deferred = auto.split('\n- **defer**')[1]?.split('## Finalize')[0] ?? '';
+    for (const pattern of [
+      /어떤 persistent write보다 먼저[\s\S]*prior bytes[\s\S]*WHOLE candidate를 메모리에서 구성/,
+      /단일 top-level `deferred` list[\s\S]*JSON-valid YAML/,
+      /정확히 `id`, `source_plan`, `summary`, `evidence` 네 필드/,
+      /privacy-safe string[\s\S]*`id`는 전체 목록에서 유일/,
+      /realpath[\s\S]*repository-contained[\s\S]*raw private\/external path를 직렬화하지 않는다/,
+      /serialize→parse→roundtrip[\s\S]*불변성\/concurrency[\s\S]*atomic persist[\s\S]*readback/,
+      /preflight 실패 시 prior bytes는 그대로 유지[\s\S]*먼저 쓰고 repair하거나 old bytes를 덮어쓰는 복구를 하지 않는다/,
+      /성공 readback 전에는 저장 성공으로 간주하지 않는다/
+    ])
+      has(deferred, pattern, `auto deferred: whole-candidate preflight ${pattern.source}`);
+    has(
+      auto,
+      /기존 구현 기록 또는 검증 아래 `### 자동 실행 결과`[\s\S]*정확한 H2 10개를 유지하고 H2를 추가하지 않는다/,
+      'auto completion records cannot add an eleventh generated H2'
+    );
+    has(
+      planning,
+      /경계와 제약 아래 `### 미해결 질문`[\s\S]*H2를 추가하지 않는다/,
+      'new plan questions reuse the fixed section set'
+    );
+    const checkpoint = section(planning, '### CHECKPOINT 1');
+    has(
+      checkpoint,
+      /real path[\s\S]*privacy-safe repository-relative 참조만 표시/,
+      'checkpoint checks privacy and realpath before displaying a plan reference'
+    );
+    has(
+      checkpoint,
+      /raw\/absolute\/CWD-relative 경로 또는 그 해시를 노출하지 않고/,
+      'external canonical plans are not exposed through fallback references'
+    );
   });
 
   it('P1 review completion needs actual successful lanes and preserves canonical intent only with the leader', () => {

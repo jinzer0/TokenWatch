@@ -31,6 +31,16 @@ type Route = (typeof routes)[number];
 type Review = (typeof reviews)[number];
 const proseSurfaces = ['source', 'instruction', 'persistent', 'overrides'] as const;
 type ProseSurface = (typeof proseSurfaces)[number];
+// Recognizable synthetic captured content, not arbitrary confidential prose.
+const capturedContent = {
+  prompt: 'PROMPT: SYNTHETIC_PRIVATE_PROMPT_SENTINEL asks for a confidential draft.',
+  response: 'RESPONSE: SYNTHETIC_PRIVATE_RESPONSE_SENTINEL is the confidential answer.',
+  sql: 'SELECT synthetic_private_value FROM synthetic_private_records WHERE synthetic_id = 17;',
+  python:
+    'Traceback (most recent call last):\n  SyntheticFrame\nSyntheticError: SYNTHETIC_PRIVATE_STACK_SENTINEL',
+  metadata:
+    '{"synthetic_raw_record":{"synthetic_message":"SYNTHETIC_PRIVATE_METADATA_SENTINEL","synthetic_turn":17}}'
+} as const;
 interface Fixture {
   root: string;
   renderer: string;
@@ -207,7 +217,24 @@ function privateRejection(
   cwd = f.root,
   overrides?: string
 ): void {
-  const before = new Map(inputs.map((path) => [path, readBytes(path)]));
+  const before = new Map(
+    [
+      ...inputs,
+      ...markdownFiles(f.skillDir).map((name) => join(f.skillDir, name)),
+      join(f.skillDir, 'SKILL.md'),
+      join(f.skillDir, 'customize.toml'),
+      ...[
+        'tools/bmad/config.toml',
+        '_bmad/config.toml',
+        '_bmad/custom/config.toml',
+        '_bmad/custom/config.user.toml',
+        `_bmad/custom/${basename(f.skillDir)}.toml`,
+        `_bmad/custom/${basename(f.skillDir)}.user.toml`
+      ]
+        .map((name) => join(f.root, name))
+        .filter(existsSync)
+    ].map((path) => [path, readBytes(path)])
+  );
   const oldOutputs = new Map(
     ['manifest.json', ...Object.keys(prior.outputs)].map((name) => [
       name,
@@ -1628,6 +1655,476 @@ print("keyed-merge-ok")
       );
     });
 
+    for (const [category, prose] of Object.entries(capturedContent)) {
+      for (const surface of proseSurfaces) {
+        it(`${skill} captured ${category} rejects ${surface} without changing inputs or generations`, () => {
+          const f = fixture(skill);
+          const prior = render(f);
+          const candidate = privacyProse(f, skill, surface, prose);
+          privateRejection(
+            f,
+            prior,
+            [candidate.input],
+            candidate.assignments,
+            f.root,
+            candidate.overrides
+          );
+        });
+      }
+    }
+    const consumedFields = [
+      ['persistent facts', `workflow.persistent_facts=[${JSON.stringify(capturedContent.prompt)}]`],
+      [
+        'activation prepend',
+        `workflow.activation_steps_prepend=[${JSON.stringify(capturedContent.response)}]`
+      ],
+      [
+        'activation append',
+        `workflow.activation_steps_append=[${JSON.stringify(capturedContent.sql)}]`
+      ],
+      ['completion', `workflow.on_complete=${JSON.stringify(capturedContent.metadata)}`],
+      [
+        'implementation handoff',
+        `workflow.implementation_handoff=${JSON.stringify(`{implementation_contract}\n{implementation_files}\n${capturedContent.python}`)}`
+      ],
+      ['route selection', `workflow.route_selection=${JSON.stringify(capturedContent.prompt)}`],
+      ...(skill === 'bmad-build'
+        ? [
+            [
+              'open plan',
+              `workflow.open_plan=${JSON.stringify(`Open {plan_file} in {project-root}.\n${capturedContent.response}`)}`
+            ]
+          ]
+        : []),
+      [
+        'quick name',
+        `workflow.quick_lenses=[{id="quick",name=${JSON.stringify(capturedContent.response)},instruction="Review {review_acceptance} using {review_scope} and {review_files}."}]`
+      ],
+      [
+        'declared thorough instruction',
+        `workflow.thorough_lenses=[{id="blind-hunter",name="Synthetic public lens",instruction=${JSON.stringify(`{review_acceptance} {review_scope} {review_files}\n${capturedContent.sql}`)}}]`
+      ],
+      [
+        'declared thorough name',
+        `workflow.thorough_lenses=[{id="blind-hunter",name=${JSON.stringify(capturedContent.prompt)},instruction="Review {review_acceptance} using {review_scope} and {review_files}."}]`
+      ],
+      [
+        'mixed quick lanes',
+        `workflow.quick_lenses=[{id="quick",name="Public",instruction="Review {review_acceptance} using {review_scope} and {review_files}."},{id="synthetic-captured",name="Synthetic",instruction=${JSON.stringify(capturedContent.metadata)}}]`
+      ],
+      [
+        'mixed thorough lanes',
+        `workflow.thorough_lenses=[{id="blind-hunter",name="Public",instruction="Review {review_acceptance} using {review_scope} and {review_files}."},{id="synthetic-captured",name="Synthetic",instruction=${JSON.stringify(capturedContent.python)}}]`
+      ]
+    ];
+    for (const [field, assignment] of consumedFields) {
+      it(`${skill} captured content rejects consumed ${field}`, () => {
+        const f = fixture(skill);
+        const prior = render(f);
+        privateRejection(
+          f,
+          prior,
+          [],
+          [
+            'workflow.route=auto',
+            ...(field.includes('thorough') ? ['workflow.review=thorough'] : []),
+            assignment
+          ]
+        );
+      });
+    }
+    for (const [form, prose] of [
+      ['role content', '{"role":"user","content":"SYNTHETIC_PRIVATE_ROLE_SENTINEL"}'],
+      [
+        'nested role content',
+        '{"public":{"items":[{"role":"assistant","content":[{"text":"SYNTHETIC_PRIVATE_ROLE_SENTINEL"}]}]}}'
+      ],
+      [
+        'raw metadata',
+        '{"raw_metadata":{"synthetic_message":"SYNTHETIC_PRIVATE_METADATA_SENTINEL","synthetic_turn":17}}'
+      ],
+      ['prompt field', '{"prompt":"Synthetic captured prompt body"}'],
+      ['response field', '{"response":"Synthetic captured response body"}'],
+      [
+        'session body',
+        '{"synthetic_session":{"message":"Synthetic captured session body","count":17}}'
+      ],
+      [
+        'conversation body',
+        '{"syntheticConversation":{"message":"Synthetic captured conversation body"}}'
+      ],
+      [
+        'attached capture placeholder body',
+        '{"raw_record":"${RAW_RECORD} Synthetic captured body"}'
+      ],
+      ['encoded capture key', '{"synthetic_%72aw_record":{"message":"Synthetic captured body"}}'],
+      [
+        'JavaScript stack',
+        'SyntheticError: SYNTHETIC_PRIVATE_JS_STACK_SENTINEL\n    at syntheticFunction (synthetic.js:17:3)'
+      ],
+      [
+        'indented Python stack',
+        capturedContent.python
+          .split('\n')
+          .map((line) => `    ${line}`)
+          .join('\n')
+      ],
+      [
+        'indented JavaScript stack',
+        '    SyntheticError: Synthetic captured stack body\n        at syntheticFunction (synthetic.js:17:3)'
+      ],
+      [
+        'Java stack',
+        'Exception in thread "synthetic" java.lang.SyntheticException: SYNTHETIC_PRIVATE_JAVA_STACK_SENTINEL\n    at synthetic.Frame.run(Synthetic.java:17)'
+      ],
+      ['SQL insert', "INSERT INTO synthetic_records (body) VALUES ('Synthetic captured body');"],
+      [
+        'SQL update',
+        "UPDATE synthetic_records SET body = 'Synthetic captured body' WHERE id = 17;"
+      ],
+      ['SQL delete', 'DELETE FROM synthetic_records WHERE id = 17;'],
+      ['SQL copy', 'COPY synthetic_records (body) FROM stdin;\nSynthetic captured body'],
+      ['bare SQL delete', 'DELETE FROM synthetic_records;'],
+      ['bare SQL select', 'SELECT synthetic_value FROM synthetic_records;'],
+      ['SQL where is', 'SELECT synthetic_value FROM synthetic_records WHERE synthetic_id IS NULL;'],
+      ['SQL where in', 'DELETE FROM synthetic_records WHERE synthetic_id IN (17, 18);'],
+      [
+        'SQL where like',
+        "SELECT synthetic_value FROM synthetic_records WHERE synthetic_label LIKE 'synthetic%';"
+      ],
+      ['SQL order by', 'SELECT synthetic_value FROM synthetic_records ORDER BY synthetic_order;'],
+      ['SQL group by', 'SELECT synthetic_value FROM synthetic_records GROUP BY synthetic_group;'],
+      ['SQL limit', 'SELECT synthetic_value FROM synthetic_records LIMIT 17;'],
+      ['SQL returning', 'DELETE FROM synthetic_records RETURNING synthetic_value;'],
+      ['SQL aggregate alias', 'SELECT COUNT(*) AS synthetic_count FROM synthetic_records;'],
+      ['SQL nested function', 'SELECT COALESCE(SUM(synthetic_value), 17) FROM synthetic_records;'],
+      [
+        'SQL quoted parentheses',
+        "SELECT synthetic_fn('synthetic (value)', synthetic_value) FROM synthetic_records;"
+      ],
+      ['SQL qualified identifiers', 'SELECT "synthetic"."value" FROM synthetic."records";'],
+      ['parenthesized SQL', '(SELECT * FROM synthetic_records;)'],
+      ['parenthesized SQL no terminator', '(SELECT * FROM synthetic_records)'],
+      [
+        'apostrophe prefixed SQL',
+        "Don't retain this payload: SELECT COUNT(*) FROM synthetic_records;"
+      ],
+      [
+        'nested SQL in incomplete projection',
+        'SELECT synthetic_fn(SELECT * FROM synthetic_records;) ordinary public prose.'
+      ],
+      ['quoted SQL keyword', "SELECT 'SELECT' AS synthetic_value FROM synthetic_records;"],
+      [
+        'SQL argument depth limit',
+        'SELECT synthetic_fn(' +
+          '('.repeat(33) +
+          'synthetic_value' +
+          ')'.repeat(33) +
+          ') ordinary public prose.'
+      ],
+      ['SQL candidate scan limit', 'SELECT '.repeat(70) + 'public documentation.'],
+      [
+        'HTTPS query transcript',
+        `https://example.com/public?q=${encodeURIComponent(capturedContent.prompt)}`
+      ],
+      [
+        'HTTPS query SQL',
+        `https://example.com/public?q=${encodeURIComponent(capturedContent.sql)}`
+      ],
+      [
+        'HTTPS fragment record',
+        `https://example.com/public#${encodeURIComponent(capturedContent.metadata)}`
+      ],
+      ['HTTPS path traceback', `https://example.com/${encodeURIComponent(capturedContent.python)}`],
+      [
+        'nested HTTPS transcript',
+        `https://example.com/public?target=${encodeURIComponent(`https://example.com/public?q=${encodeURIComponent(capturedContent.prompt)}`)}`
+      ],
+      ['HTTPS prompt field', 'https://example.com/public?prompt=Synthetic%20captured%20body'],
+      [
+        'HTTPS role content',
+        'https://example.com/public?role=user&content=Synthetic%20captured%20body'
+      ],
+      [
+        'HTTPS duplicate role',
+        'https://example.com/public?role=user&role=reviewer&content=Synthetic%20captured%20body'
+      ],
+      [
+        'HTTPS encoded role alias',
+        'https://example.com/public?role=reviewer&%72ole=user&content=Synthetic%20captured%20body'
+      ],
+      [
+        'HTTPS form encoded stack',
+        'https://example.com/public?note=Error%3A+synthetic%0A++at+run%28module%3A1%29'
+      ],
+      [
+        'HTTPS form encoded role',
+        'https://example.com/public?role=+user+&content=Synthetic+captured+body'
+      ],
+      [
+        'nested HTTPS form role',
+        `https://example.com/public?target=${encodeURIComponent('https://example.com/public?role=+user+&content=Synthetic+captured+body')}`
+      ],
+      [
+        'encoded URI cache context',
+        encodeURIComponent(
+          JSON.stringify([
+            'https://example.com/public?note=Error%253A%2Bsynthetic%250A%2B%2Bat%2Brun%2528module%253A1%2529',
+            'https://example.com/public?note=Error%3A+synthetic%0A++at+run%28module%3A1%29'
+          ])
+        )
+      ],
+      ['bold transcript', `**${capturedContent.prompt}**`],
+      ['bold transcript label', '**PROMPT:** SYNTHETIC_PRIVATE_PROMPT_SENTINEL'],
+      ['bold transcript name', '**PROMPT**: SYNTHETIC_PRIVATE_PROMPT_SENTINEL'],
+      ['blockquote transcript', '> USER: SYNTHETIC_PRIVATE_PROMPT_SENTINEL'],
+      [
+        'blockquote traceback',
+        capturedContent.python
+          .split('\n')
+          .map((line) => `> ${line}`)
+          .join('\n')
+      ],
+      [
+        'attached placeholder body',
+        'PROMPT: {review_acceptance} SYNTHETIC_PRIVATE_PROMPT_SENTINEL'
+      ],
+      [
+        'encoded attached placeholder body',
+        'PROMPT:%20{review_acceptance}%20SYNTHETIC_PRIVATE_PROMPT_SENTINEL'
+      ],
+      ['percent', encodeURIComponent(capturedContent.prompt)],
+      ['entity', capturedContent.response.replaceAll(':', '&#58;')],
+      [
+        'JSON Unicode',
+        capturedContent.metadata.replace('synthetic_raw_record', 'synthetic_raw_\\u0072ecord')
+      ],
+      ['NFKC', capturedContent.prompt.replace('PROMPT:', 'ＰＲＯＭＰＴ：')],
+      [
+        'nested encoding',
+        encodeURIComponent(encodeURIComponent(capturedContent.response.replace(':', '&#58;')))
+      ],
+      ['depth parsing limit', '['.repeat(40) + '0' + ']'.repeat(40)],
+      ['node parsing limit', JSON.stringify(Array.from({ length: 10001 }, () => 0))]
+    ]) {
+      it(`${skill} captured content rejects ${form} with structural context`, () => {
+        const f = fixture(skill);
+        const prior = render(f);
+        const candidate = privacyProse(f, skill, 'instruction', prose);
+        privateRejection(f, prior, [candidate.input], candidate.assignments);
+      });
+    }
+    for (const layer of [
+      'tools/bmad/config.toml',
+      '_bmad/config.toml',
+      '_bmad/custom/config.toml',
+      '_bmad/custom/config.user.toml'
+    ]) {
+      it(`${skill} captured selected central value rejects ${layer}`, () => {
+        const f = fixture(skill);
+        const source = join(f.skillDir, 'plan-template.md');
+        const text = `${readBytes(source).toString('utf8')}\n{{ config.public.synthetic_caption }}\n`;
+        writeFileSync(source, text);
+        f.sourceHashes['plan-template.md'] = sha256(text);
+        f.templateHashes['plan-template.md'] = sha256(text);
+        const input = join(f.root, layer);
+        mkdirSync(dirname(input), { recursive: true });
+        const base = existsSync(input) ? readBytes(input).toString('utf8') : '';
+        writeFileSync(
+          input,
+          `${base}\n[public]\nsynthetic_caption = "Public caption"\nneutral_counter = 17\n`
+        );
+        const prior = render(f);
+        expect(prior.outputs['plan-template.md'].includes('Public caption')).toBe(true);
+        writeFileSync(
+          input,
+          `${base}\n[public]\nsynthetic_caption = ${JSON.stringify(capturedContent.metadata)}\nneutral_counter = 17\n`
+        );
+        privateRejection(f, prior, [source, input]);
+      });
+    }
+    for (const lookup of ['direct', 'short']) {
+      it(`${skill} captured selected ancestor rejects ${lookup} lookup`, () => {
+        const f = fixture(skill);
+        const prior = render(f);
+        const config = join(f.root, '_bmad/config.toml');
+        mkdirSync(dirname(config), { recursive: true });
+        writeFileSync(
+          config,
+          '[synthetic_raw_record]\nsynthetic_caption = "Synthetic captured body"\n'
+        );
+        const source = join(f.skillDir, 'plan-template.md');
+        writeFileSync(
+          source,
+          `${readBytes(source).toString('utf8')}\n{{ ${lookup === 'short' ? 'config.synthetic_caption' : 'config.synthetic_raw_record.synthetic_caption'} }}\n`
+        );
+        privateRejection(f, prior, [source, config]);
+      });
+    }
+    it(`${skill} captured source literal retains envelope structure`, () => {
+      const f = fixture(skill);
+      const prior = render(f);
+      const source = join(f.skillDir, 'plan-template.md');
+      writeFileSync(
+        source,
+        `${readBytes(source).toString('utf8')}\n{{ {"synthetic_raw_record": {"synthetic_message": "Synthetic captured body"}}["synthetic_raw_record"]["synthetic_message"] }}\n`
+      );
+      privateRejection(f, prior, [source]);
+    });
+    it(`${skill} captured final-Jinja-only synthesis fails after public concatenation succeeds`, () => {
+      const f = fixture(skill);
+      const source = join(f.skillDir, 'plan-template.md');
+      const base = readBytes(source).toString('utf8');
+      const control = `${base}\n{{ "public-" ~ "reference" }}\n`;
+      writeFileSync(source, control);
+      f.sourceHashes['plan-template.md'] = sha256(control);
+      f.templateHashes['plan-template.md'] = sha256(control);
+      const prior = render(f);
+      expect(prior.outputs['plan-template.md'].includes('public-reference')).toBe(true);
+      writeFileSync(
+        source,
+        `${base}\n{{ "PRO" ~ "MPT" ~ ": " ~ "SYNTHETIC_PRIVATE_PROMPT_SENTINEL asks for a confidential draft." }}\n`
+      );
+      privateRejection(f, prior, [source]);
+    });
+    for (const [category, prose] of Object.entries(capturedContent)) {
+      it(`${skill} fresh captured ${category} rejection creates no generation namespace`, () => {
+        const f = fixture(skill);
+        const source = join(f.skillDir, 'workflow.md');
+        const defaults = join(f.skillDir, 'customize.toml');
+        const sourceBefore = readBytes(source);
+        const defaultsBefore = readBytes(defaults);
+        const result = invoke(
+          f.renderer,
+          [
+            '--project-root',
+            f.root,
+            '--skill',
+            f.skillDir,
+            '--set',
+            `workflow.persistent_facts=[${JSON.stringify(prose)}]`
+          ],
+          f.root
+        );
+        expect(
+          !result.error &&
+            result.status === 1 &&
+            result.stdout === 'HALT: BMAD rendering failed.\n' &&
+            result.stderr === ''
+        ).toBe(true);
+        expect(existsSync(join(f.root, '_bmad/render'))).toBe(false);
+        expect(
+          readBytes(source).equals(sourceBefore) && readBytes(defaults).equals(defaultsBefore)
+        ).toBe(true);
+      });
+    }
+    for (const surface of proseSurfaces) {
+      it(`${skill} captured policy preserves source prose but rejects caller prose on ${surface}`, () => {
+        const f = fixture(skill);
+        const prior = render(f);
+        const prose = [
+          'Do not store prompt or response bodies, executable SQL payloads, errors or stack traces.',
+          'Discuss SQL terminology, SELECT projections and error handling without captured records.',
+          'Delete from the plan any obsolete sections.',
+          'Select route from the recorded evidence.',
+          'Delete from plan.',
+          'Select route from evidence.',
+          `SELECT ${Array.from({ length: 40 }, () => 'f()').join(', ')} ordinary public prose.`,
+          '{review_acceptance} {review_scope} {review_files} {review_prompt}',
+          '{implementation_contract} {implementation_files}',
+          'PROMPT: {review_acceptance}',
+          '**RESPONSE:** {implementation_contract}',
+          '**PROMPT:**',
+          '{"metadata":{"counter":17,"message":"Public documentation"},"role":"reviewer","content":"Public policy","prompt_count":2,"response_count":3}',
+          '{"prompt":"","response":"{review_acceptance}","raw_record":{},"raw_metadata":null}',
+          '{"synthetic_session":{"prompt_tokens":17,"active":true},"syntheticConversation":{"count":2,"enabled":false}}',
+          '{"raw_record":"${RAW_RECORD}","raw_metadata":"<redacted>"}',
+          '{"role":"user","content":"{review_acceptance}"}',
+          '{"metadata":{"public":{"nested":{"counter":17,"enabled":true}}}}',
+          '{"documentation":"https://example.com/public?note=Error%3A%2Bsynthetic%0A%2B%2Bat%2Brun%28module%3A1%29"}',
+          encodeURIComponent(
+            '{"documentation":"\\u0068ttps://example.com/public?note=Error%3A%2Bsynthetic%0A%2B%2Bat%2Brun%28module%3A1%29"}'
+          ),
+          '<policy><instruction>Keep review public and bounded.</instruction></policy>',
+          'Read https://example.com/public?counter=17 and tools/bmad/config.toml.',
+          'Read https://example.com/public?prompt_count=17&role=reviewer&content=Public%20policy',
+          'Read https://example.com/public?role=reviewer&content=Public+policy&literal_plus=%2B',
+          'Read https://example.com/public?note=Error%3A%2Bsynthetic%0A%2B%2Bat%2Brun%28module%3A1%29',
+          'Read https://example.com/public?note=Error%253A%2Bsynthetic%250A%2B%2Bat%2Brun%2528module%253A1%2529',
+          'Read https://example.com/public?%70rompt=%7Breview_acceptance%7D&role=user&content=%7Bimplementation_contract%7D',
+          `Read https://example.com/public?target=${encodeURIComponent(`https://example.com/public?q=${encodeURIComponent('Review public source without copying prompts.')}`)}`
+        ].join('\n');
+        const candidate = privacyProse(f, skill, surface, prose);
+        const before = readBytes(candidate.input);
+        if (surface !== 'source') {
+          privateRejection(
+            f,
+            prior,
+            [candidate.input],
+            candidate.assignments,
+            f.root,
+            candidate.overrides
+          );
+          return;
+        }
+        const snapshot = render(f, candidate.assignments, candidate.overrides);
+        expect(
+          Object.values(snapshot.outputs).some((text) => text.includes(prose)),
+          'public prose/JSON/XML/native placeholders preserved byte-for-byte'
+        ).toBe(true);
+        expect(
+          readBytes(candidate.input).equals(before),
+          'public source/config bytes unchanged'
+        ).toBe(true);
+      });
+    }
+    it(`${skill} captured policy rejects caller prose even with public labels and native placeholders`, () => {
+      const f = fixture(skill);
+      const prior = render(f);
+      const policy =
+        'Public policy: reject prompt and response bodies, SQL payloads and stack traces; discuss error handling safely.';
+      const handoff = `Implement {implementation_contract} using {implementation_files}. ${policy}`;
+      const values: Record<string, string | string[]> = {
+        activation_steps_prepend: [policy],
+        activation_steps_append: [policy],
+        on_complete: policy,
+        route_selection: policy,
+        implementation_handoff: handoff,
+        ...(skill === 'bmad-build'
+          ? { open_plan: 'Open {plan_file} in {project-root}; keep public editor behavior.' }
+          : {})
+      };
+      const assignments = Object.entries(values).map(
+        ([key, value]) => `workflow.${key}=${JSON.stringify(value)}`
+      );
+      const lane =
+        '{id="synthetic-public",name="Public prompt/response/SQL policy",instruction="Review {review_acceptance} using {review_scope}, {review_files} and {review_prompt}. Keep errors public."}';
+      for (const assignment of assignments) {
+        privateRejection(f, prior, [], [assignment]);
+      }
+      for (const group of ['quick_lenses', 'thorough_lenses']) {
+        privateRejection(f, prior, [], [`workflow.${group}=[${lane}]`]);
+      }
+    });
+    it(`${skill} captured policy permits safe persistent file references and native handoff`, () => {
+      const f = fixture(skill);
+      const facts = ['file:AGENTS.md'];
+      const handoff = 'file:AGENTS.md';
+      const snapshot = render(f, [
+        `workflow.persistent_facts=${JSON.stringify(facts)}`,
+        `workflow.implementation_handoff=${JSON.stringify(handoff)}`
+      ]);
+      expect(
+        snapshot.manifest.inputs.resolved_values['customization.workflow.persistent_facts']
+      ).toEqual(facts);
+      expect(
+        snapshot.manifest.inputs.resolved_values['customization.workflow.implementation_handoff']
+      ).toBe(handoff);
+      expect(Object.values(snapshot.outputs).some((text) => text.includes('file:AGENTS.md'))).toBe(
+        true
+      );
+      expect(Object.values(snapshot.outputs).some((text) => text.includes(handoff))).toBe(true);
+    });
     for (const reference of [
       '../',
       '../shared/reference.md',
@@ -2175,59 +2672,72 @@ print("keyed-merge-ok")
         expect(readBytes(source).equals(before)).toBe(true);
       });
     }
-    it(`${skill} actually renders Korean canonical headings with unchanged native schema`, () => {
-      const f = fixture(skill);
-      try {
-        const snapshot = render(f, ['workflow.route=full']);
-        const plan = readBytes(join(snapshot.generation, 'plan-template.md')).toString('utf8');
-        for (const heading of [
-          '의도',
-          '경계와 제약',
-          'I/O 및 경계 사례 행렬',
-          '코드 맵',
-          '작업과 수용 기준',
-          '구현 기록',
-          '계획 변경 기록',
-          '리뷰 분류 기록',
-          '설계 기록',
-          '검증'
-        ]) {
-          expect(plan.includes(`## ${heading}`), 'Korean canonical output section').toBe(true);
+    it.each(['auto', 'full', 'oneshot'] as const)(
+      `${skill} actually renders Korean canonical headings with unchanged native schema on %s`,
+      (route) => {
+        const f = fixture(skill);
+        try {
+          const snapshot = render(f, [`workflow.route=${route}`]);
+          const plan = readBytes(join(snapshot.generation, 'plan-template.md')).toString('utf8');
+          const headings = [
+            '의도',
+            '경계와 제약',
+            'I/O 및 경계 사례 행렬',
+            '코드 맵',
+            '작업과 수용 기준',
+            '구현 기록',
+            '계획 변경 기록',
+            '리뷰 분류 기록',
+            '설계 기록',
+            '검증'
+          ];
+          expect(
+            [...plan.matchAll(/^## (.+)$/gm)].map((match) => match[1]),
+            'exact generated H2 set and order on every route'
+          ).toEqual(headings);
+          expect(
+            plan.includes('full/oneshot 모두 아래 H2 10개를 정확히 유지'),
+            'rendered plan instructions retain every section regardless of route'
+          ).toBe(true);
+          expect(
+            plan.includes('해당 없으면 본문에 짧게'),
+            'nonapplicable contents do not remove required headings'
+          ).toBe(true);
+          expect(
+            /^## (?:Intent|Implementation Notes|Plan Change Log|Review Triage Log|Verification)$/m.test(
+              plan
+            ),
+            'obsolete emitted headings removed'
+          ).toBe(false);
+          for (const key of [
+            'title',
+            'type',
+            'ticket',
+            'created',
+            'status',
+            'baseline_revision',
+            'route',
+            'route_source',
+            'risk',
+            'review',
+            'review_source',
+            'lenses_ran',
+            'review_loop_iteration',
+            'context'
+          ]) {
+            expect(new RegExp(`^${key}:`, 'm').test(plan), 'fixed machine schema retained').toBe(
+              true
+            );
+          }
+          expect(
+            plan.includes(skill === 'bmad-build' ? '<frozen-after-approval' : '<intent-contract>'),
+            'native intent ownership marker retained'
+          ).toBe(true);
+        } finally {
+          cleanup(f.root);
         }
-        expect(
-          /^## (?:Intent|Implementation Notes|Plan Change Log|Review Triage Log|Verification)$/m.test(
-            plan
-          ),
-          'obsolete emitted headings removed'
-        ).toBe(false);
-        for (const key of [
-          'title',
-          'type',
-          'ticket',
-          'created',
-          'status',
-          'baseline_revision',
-          'route',
-          'route_source',
-          'risk',
-          'review',
-          'review_source',
-          'lenses_ran',
-          'review_loop_iteration',
-          'context'
-        ]) {
-          expect(new RegExp(`^${key}:`, 'm').test(plan), 'fixed machine schema retained').toBe(
-            true
-          );
-        }
-        expect(
-          plan.includes(skill === 'bmad-build' ? '<frozen-after-approval' : '<intent-contract>'),
-          'native intent ownership marker retained'
-        ).toBe(true);
-      } finally {
-        cleanup(f.root);
       }
-    });
+    );
     for (const surface of ['instruction', 'persistent', 'overrides'] as const) {
       for (const alias of [
         '{plan_file}',

@@ -52,7 +52,11 @@ lifecycle assessment·native permission·ownership·대상 file manifest/diff �
 
 ## Task Procedure
 
-0. 명령·source 수정 전에 요청 모드를 분기한다. read-only/planning-only 또는 보고 파일 쓰기 위임이 없는 report-only는 기존 evidence로 응답하고 STOP한다. 산출물이 명시 요청된 report-only는 요청된 보고 파일만 작성/갱신하고 STOP하며 canonical 경로·원문·의도와 context/board/source를 보존한다. 보고 산출물은 새 제품 공식 문서 root 채택이 아니다. 두 제한 모드는 검증 명령·repair·다음 stage·Git·hooks·publication을 실행하지 않는다. 과거 실패는 failed, 미실행은 not_run(기존 형식의 not-run), 누락/오래된 evidence는 incomplete/한계로 기록하고 pass를 추정하지 않는다. 별도로 명시 위임된 실행 행동만 해당 scope의 아래 절차를 적용한다.
+0. 첫 prerequisite·명령·preflight 전에 실제 요청 모드를 분기한다. 직접 Skill 호출도 이 분기를 생략하지 않는다.
+   - **existing-evidence-only / report-only**: 제공된 자료와 이미 존재하는 evidence만 사용한다. 보고 파일이 명시 요청되고 쓰기가 허용된 경우에만 그 exact 보고 산출물을 작성/갱신하며, 그 외에는 응답으로 보고하고 STOP한다. metadata refresh·network·Git·preflight·검증 gates·repair·다음 stage·context/board/source 갱신·hooks·publication 전에 종료한다. 기존 canonical 경로·원문·의도는 보존하며 보고 산출물은 새 제품 공식 문서 root 채택이 아니다.
+   - **genuine informational read-only PR review**: 기존 evidence만 쓰라는 제한이 없다면 실제 위임·native 권한 안에서 안전한 최신 PR metadata·full diff·기존 checks 결과를 조회·분석하고 응답 후 STOP할 수 있다. untrusted code 실행·tests·파일/context/board/source 쓰기·repair·hooks·publication은 하지 않으며 아래 실행 절차로 진입하지 않는다.
+   - **그 밖의 read-only / planning-only**: existing-evidence-only로 일괄 해석하지 않는다. 실제 scope의 안전한 최신 조회·분석과 명시 허용된 계획 산출물만 처리하고 STOP하며 구현·repair·publication이나 routine task 시작 절차로 확대하지 않는다.
+   - 모든 분기에서 과거 실패는 failed, 미실행은 not_run(기존 형식의 not-run), 누락/오래된 evidence는 incomplete/unknown 및 한계로 기록한다. 성공이나 없던 기록을 추정·생성하지 않는다. 별도로 명시 위임된 실행 행동만 해당 scope의 아래 절차를 적용한다.
 1. 실행 모드의 실제 요청·scope·ownership·root 위험 정책과 native/platform/nearest-child/privacy 제약을 확인한다. 아래 2–15단계는 해당 행동이 위임된 실행 scope에만 적용한다.
 2. 기존 Issue가 있으면 그 번호를 사용한다. 필요 없는 Issue·board·plan을 새로 만들지 않으며 Issue 생성은 별도 위임을 확인한다.
 3. 기존 canonical 계획 또는 LOW context를 재사용한다. 필요한 새 계획은 BMAD 하나로 제한하고 HF는 참조·context/evidence만 보완한다.
