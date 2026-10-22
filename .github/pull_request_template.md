@@ -1,108 +1,117 @@
-## Summary
+<!-- 모든 HF 문서와 GitHub PR 제목·본문은 한국어로 작성한다. 경로·명령·상태 코드 등 고정 기술 토큰은 유지한다. 기존 canonical 사용자 문서는 번역·복제하지 않고 참조한다. -->
 
-<!-- Keep this to at most 4 bullets.
-- What target task does this PR address?
-- Why was the change made?
-- What changed?
-- What should reviewers inspect first?
+## 요약
+
+<!-- 최대 4개 항목으로 작성한다.
+- 이 PR의 작업 대상은 무엇인가?
+- 왜 변경했는가?
+- 무엇이 바뀌었는가?
+- 검토자가 먼저 확인할 내용은 무엇인가?
+root/nearest-child AGENTS.md Risk-Based Execution Policy·native permission을 우선한다.
+본문 준비만으로 구현·게시 권한을 만들지 않는다.
+검증된 task-owned standing commit/push와 명확한 변경 요청의 PR만 처리하며 실패/미위임/permission-blocked publication은 실행하지 않는다.
+Merge/Release·formal posting·Issue close·tag·미위임 삭제/cleanup 권한은 별도다.
 -->
 
-- Target task: #
-- Why:
-- What:
-- Review focus:
+- 작업 대상: {실제 Issue 번호 또는 기존 작업 맥락·범위; 가짜 번호를 만들지 않음}
+- 이유:
+- 내용:
+- 검토 초점:
 
-## Changes
+## 변경 사항
 
 <!--
-For Stage-based work, write one line per Stage.
-Link each Stage title to the stage report and each short commit SHA to the commit URL.
-Example: **[Stage 1](stage-url)** ([0cdbae0](commit-url)): one-line summary
+stage 기반 작업은 stage마다 한 줄씩 작성한다.
+stage 제목은 단계 보고서에, 짧은 commit SHA는 commit URL에 연결한다.
+예: **[단계 1](stage-url)** ([0cdbae0](commit-url)): 한 줄 요약
+실제 필요한 stage/context만 기록한다. LOW에는 Issue/board/plan/모든 stage report를 강제하지 않는다.
 -->
 
-- **[Stage 1](stage-url)** ([0cdbae0](commit-url)):
+- {실제 단계·작업 맥락의 변경 요약; 존재하는 공개 근거·commit만 링크}
 
-### Impact Areas
+### 영향 영역
 
-<!-- Keep this only when several areas changed and reviewers need area-specific priority.
-If only 1-2 areas changed, delete this subsection. Maximum 5 rows. -->
+<!-- 여러 영역이 변경되어 영역별 검토 우선순위가 필요할 때만 유지한다.
+변경 영역이 1~2개뿐이면 이 하위 절을 삭제한다. 최대 5행으로 작성한다. -->
 
-| Area | Change | Review Focus |
-| ---- | ------ | ------------ |
-|      |        |              |
+| 영역 | 변경 | 검토 초점 |
+| ---- | ---- | --------- |
+|      |      |           |
 
-### Work Documents
+### 작업 문서
 
 <!--
-Just before creating the PR, run `git rev-parse HEAD` and use GitHub blob URLs pinned to the PR head commit SHA.
-Use `[filename](https://github.com/jinzer0/TokenWatch/blob/{head_sha}/mydocs/...)` instead of raw URLs.
-Delete entries that do not apply.
+PR 생성 직전에 `git rev-parse HEAD`로 확인한 PR head commit SHA에 고정된 GitHub blob URL을 사용한다.
+원시 URL 대신 `[filename](https://github.com/jinzer0/TokenWatch/blob/{head_sha}/mydocs/...)` 형식을 사용한다.
+해당하지 않는 항목은 삭제한다. 보고서가 없으면 새 산출물이나 링크를 꾸며 만들지 않는다.
+기존 단일 canonical 계획과 필요한 공개 근거만 링크한다. 기존 _impl canonical은 그대로 참조하되 별도 구현 원본을 강제하지 않는다.
+비공개 native context의 원시 경로·세션 자료나 가짜 문서 링크는 공개하지 않는다.
 -->
 
-- Task plan: [task*m{milestone}*{issue}.md](https://github.com/jinzer0/TokenWatch/blob/{head_sha}/mydocs/plans/task_m{milestone}_{issue}.md)
-- Implementation plan: [task*m{milestone}*{issue}\_impl.md](https://github.com/jinzer0/TokenWatch/blob/{head_sha}/mydocs/plans/task_m{milestone}_{issue}_impl.md)
-- Final report: [task*m{milestone}*{issue}\_report.md](https://github.com/jinzer0/TokenWatch/blob/{head_sha}/mydocs/report/task_m{milestone}_{issue}_report.md)
+- 기준 계획·맥락: {존재하는 공개 가능 문서의 SHA 고정 filename 링크 또는 해당 없음}
+- 최종 보고서: {존재하는 공개 가능 보고서의 SHA 고정 filename 링크 또는 해당 없음}
 
-## Key Review Points
+## 핵심 검토 사항
 
-<!-- Keep only when needed. Maximum 3 items. Limit each code block to 20 lines or less. Delete the section if it does not apply. -->
+<!-- 필요할 때만 유지한다. 최대 3개 항목이며 코드 블록은 각각 20줄 이내로 제한한다. 해당하지 않으면 이 절을 삭제한다. -->
 
 -
 
-## Verification
+## 검증
 
 <!--
-Keep only verification that was actually performed.
-Do not list commands alone. Include topic, method, result, and evidence.
-Do not include long logs. Summarize key output, pass counts, and checked conditions.
-Move unperformed verification to `Verification Limitations` or `Remaining Risks` instead of leaving it in the table.
-Delete subsections that do not apply.
+실제로 수행한 검증만 기록한다.
+명령만 나열하지 않고 주제·방법·결과·근거를 포함한다.
+긴 로그를 포함하지 않는다. 핵심 출력·통과 건수·확인 조건을 요약한다.
+미실행 검증은 표에 남기지 않고 `검증 한계` 또는 `잔여 위험`으로 옮긴다.
+실패(MISS)와 미실행(SKIP/not-run), 차단(blocked)을 구분하고 성공으로 표시하지 않는다.
+해당하지 않는 하위 절은 삭제한다.
 -->
 
-### Automated Verification
+### 자동 검증
 
-| Topic | Method    | Result  | Evidence                        |
-| ----- | --------- | ------- | ------------------------------- |
-|       | `command` | OK/MISS | Key output or checked condition |
+| 주제 | 방법   | 결과    | 근거                     |
+| ---- | ------ | ------- | ------------------------ |
+|      | `명령` | OK/MISS | 핵심 출력 또는 확인 조건 |
 
-### Manual/Scenario Verification
+### 수동·시나리오 검증
 
-| Scenario | Check Procedure | Result  | Evidence                                  |
-| -------- | --------------- | ------- | ----------------------------------------- |
-|          |                 | OK/MISS | Screenshot, video, artifact link, or none |
+| 시나리오 | 확인 절차 | 결과    | 근거                                |
+| -------- | --------- | ------- | ----------------------------------- |
+|          |           | OK/MISS | 스크린샷·영상·산출물 링크 또는 없음 |
 
-### CI/Remote Verification
+### CI·원격 검증
 
-| Item | Result       | Evidence                                   |
+| 항목 | 결과         | 근거                                       |
 | ---- | ------------ | ------------------------------------------ |
-|      | OK/MISS/SKIP | GitHub Check name, run link, or check time |
+|      | OK/MISS/SKIP | GitHub Check 이름·실행 링크 또는 확인 시각 |
 
-### Verification Limitations
+### 검증 한계
 
-- None
+- 없음
 
-## Screenshots
+## 스크린샷
 
-<!-- Keep only for visual changes. Do not keep the table without real images or artifacts. Delete the section if it does not apply. -->
+<!-- 시각적 변경에만 유지한다. 실제 이미지나 산출물이 없으면 표를 유지하지 않는다. 해당하지 않으면 이 절을 삭제한다. -->
 
-| Before | After |
-| ------ | ----- |
-|        |       |
+| 변경 전 | 변경 후 |
+| ------- | ------- |
+|         |         |
 
-## Related Issues
+## 관련 Issue
 
-<!-- Do not list the target task here. List only context needed to understand the PR, such as prerequisite, follow-up, Epic, upstream, or reference Issues/PRs. Write "None" if there are none. -->
-
--
-
-## Proposed Follow-up Issues
-
-<!-- List follow-up candidates that do not already have Issues. Write "None" if there are none. -->
+<!-- 작업 대상은 여기에 나열하지 않는다. 선행·후속 작업, Epic, upstream 또는 참고 Issue/PR 등 PR 이해에 필요한 맥락만 기록한다. 없으면 "없음"으로 작성한다. -->
 
 -
 
-## Remaining Risks
+## 후속 Issue 제안
 
-<!-- List verification limitations or operational cautions reviewers should know. Write "None" if there are none. -->
+<!-- 아직 Issue가 없는 후속 작업 후보를 기록한다. 없으면 "없음"으로 작성한다. -->
+
+-
+
+## 잔여 위험
+
+<!-- 검토자가 알아야 할 검증 한계나 운영 주의사항을 기록한다. 없으면 "없음"으로 작성한다. -->
 
 -

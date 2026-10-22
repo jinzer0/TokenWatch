@@ -34,3 +34,8 @@ tokenwatch-*-debug.png
 .omo/
 .sisyphus/
 docs/tokscale/
+
+# Private BMAD generations, machine-local overrides and Python caches
+_bmad/render/
+/_bmad/custom/*.user.toml
+tools/bmad/__pycache__/

@@ -1,157 +1,71 @@
-# Implementation Plan Template
+# 기준 계획 실행 섹션 서식
 
-This central template is for `mydocs/plans/task_{milestone}_{issue}_impl.md`. The implementation plan turns an approved task plan into concrete Stage artifacts, verification commands, and commit messages.
+이 서식은 **기존 기준(canonical) 계획의 실행 섹션**을 구체화하는 선택 서식이다. 새 `task_{milestone}_{issue}_impl.md` 원본을 의무 생성하거나 기존 사용자 계획을 이동·삭제·복제·강제 변환하지 않는다. 기존 `_impl` 파일이 기준 계획이면 그대로 보존·참조한다. LOW는 기존 맥락으로 충분하고 별도 계획/서식을 강제하지 않는다.
 
-Task plan: [`task_{milestone}_{issue}.md`](task_{milestone}_{issue}.md)
-GitHub Issue: [#{issue}](https://github.com/jinzer0/TokenWatch/issues/{issue})
-Milestone: M{milestone}
+루트 및 가장 가까운 하위 `AGENTS.md`의 위험 기반 실행 정책과 네이티브 단계·도구 권한을 우선한다. BMAD는 필요한 단일 계획·의도·설계/AC를 맡고 HF는 참조/맥락/증거를 연결한다.
 
-## Stage Overview
+생성하는 제목·항목명·설명·예시·승인 요청은 한국어로 작성한다. 고정 식별자·기술 키·상태값·명령·경로·커밋 형식은 유지한다. 기존 사용자 기준 문서의 내용·의도는 번역하거나 강제 변환하지 않는다. 프롬프트·응답·자격 증명·원시 경로/세션 ID/레코드·SQL·스택 추적·임의 메타데이터 덤프는 기록하지 않는다.
 
-| Stage | Title   | Main Output | Verification             |
-| ----- | ------- | ----------- | ------------------------ |
-| 1     | {title} | `{path}`    | `{verification summary}` |
-| 2     | {title} | `{path}`    | `{verification summary}` |
-| 3     | {title} | `{path}`    | `{verification summary}` |
+- 기준 계획/맥락: {기존 참조}
+- 요청/범위/소유권: {실제 위임·제외·정확한 작업 파일/수정 구간·기준 상태}
+- Issue/마일스톤: {존재하는 경우만; 없으면 해당 없음}
 
-## Commit Authorization and Subject
+## 단계 개요
 
-- An approved implementation plan, Stage, or report does not authorize a commit. Record artifacts and verification first, then stop unless the current user instruction explicitly requests a commit.
-- For an authorized commit, select `{type}` from `feat`, `fix`, `docs`, `test`, `build`, or `chore` and preserve the Task/Stage traceability in the semantic subject.
-- Every authorized commit command includes the TokenWatch attribution body and `Co-authored-by` trailer.
+단계는 영향·의존성·검증 단위에 비례한다. 고정 최솟값 없이 한 단계도 가능하며 복잡성/파일/토큰 수는 승인 대기 근거가 아니다.
 
-## Document Location Check
+| 단계 | 제목   | 주요 산출물     | 검증        | 의존성        |
+| ---- | ------ | --------------- | ----------- | ------------- |
+| {N}  | {제목} | {필요한 산출물} | {명령/방법} | {실제 의존성} |
 
-Confirm that the actual Stage artifact locations match the "Document Location Judgment" in the task plan. If no document is created, moved, or edited, write `Not applicable` and explain why.
+## 커밋 권한과 제목
 
-| File                       | Planned Location in Task Plan | Stage Artifact Path | Match   | Notes                                                        |
-| -------------------------- | ----------------------------- | ------------------- | ------- | ------------------------------------------------------------ |
-| `{path or not applicable}` | `{path}`                      | `{path}`            | OK/MISS | {if mismatch, approval is required before changing the plan} |
+- 검증·검토된 작업 소유 변경만 정확한 파일명 허용 목록으로 기존 상시 commit/push 위임을 적용한다. 명확한 변경 요청의 PR는 정확한 repo/remote/base/head와 기존 PR를 확인해 생성/갱신한다.
+- 조회·계획·보고 전용 요청이나 계획/단계/done 상태는 구현/공개/HIGH/네이티브 권한이 아니다. 검증 실패·AC 미달·미위임·권한 차단 공개는 성공 실행하지 않는다.
+- Issue가 있으면 `{type}: Task #{issue} Stage {N}: {요약}`, 없으면 `{type}: {요약}`. type은 `feat`, `fix`, `docs`, `test`, `build`, `chore`이며 없는 Task 번호를 꾸며 만들지 않는다. 실제 커밋 제목은 루트의 의미 기반 영어 형식을 따른다.
+- 필수 TokenWatch 출처 표시와 트레일러를 유지한다. 원자적 관심사별 작업 변경만 포함하고 무관한 사용자 작업을 stage/revert/stash/delete하지 않는다.
 
-## Stage 1 - {Title}
+## 문서 위치 확인
 
-### Artifacts
+{실제 위치를 기준 계획/맥락의 판단과 대조한다. 같은 범위의 기존 위치 기록/수정은 재승인하지 않는다. 실질적인 새 문서 루트/독자/아키텍처/범위 결정만 확인한다. 문서 변경이 없으면 해당 없음과 이유를 기록한다.}
 
-New:
+| 파일     | 계획 위치 | 실제 경로 | 일치 여부 | 증거 / 이유                            |
+| -------- | --------- | --------- | --------- | -------------------------------------- |
+| `{path}` | `{path}`  | `{path}`  | {OK/MISS} | {같은 범위 보정 또는 필요한 위험 결정} |
 
-- `{path}`
+## 단계 {N} - {제목}
 
-Modified:
+### 산출물과 변경
 
-- `{path}`
+- {필요한 신규/수정 파일·수정 구간과 구체 변경}
+- {기존 기준 계획/맥락 참조와 필요한 단계 증거; 별도 보고 파일은 필요할 때만}
 
-### Changes
-
-- {Specifically describe what will be created or changed.}
-
-### Verification
+### 검증
 
 ```bash
-{verification command}
+{검증 명령}
 git diff --check
 ```
 
-### Authorized Commit
+{명령·결과·증거와 passed/failed/blocked/not-run을 기록한다. 실패 증거 보고는 허용하고 단계는 incomplete로 유지한 뒤 같은 범위에서 자율 수정·재검증한다. 반복 비수렴·해결 불가능 차단·핵심 요구 충돌·새 위험/범위만 상위 판단을 요청한다.}
 
-Only run this after the current user instruction explicitly authorizes the commit. Otherwise, show the intended files and subject, then stop after verification.
+### 검증된 작업 전용 커밋
 
-```text
-{type}: Task #{issue} Stage 1: {summary}
-```
+{검증된 현재 작업 변경과 실제 위임/네이티브 권한이 있는 경우에만 실행한다. 조회/계획/보고만 또는 실패 상태에서는 실행하지 않는다. 예시의 파일은 실제 정확한 파일명 허용 목록으로 대체하고 없는 보고서를 만들지 않는다.}
 
 ```bash
-git add {Stage 1 artifact files} mydocs/working/task_{milestone}_{issue}_stage1.md
-git commit -m "{type}: Task #{issue} Stage 1: {summary}" \
+git add {정확한 작업 소유 파일명}
+git commit -m "{type}: {해당할 때 기존 Task/Stage 접두사}{요약}" \
   -m "Ultraworked with [Sisyphus](https://github.com/code-yeongyu/oh-my-openagent)" \
   -m "Co-authored-by: Sisyphus <clio-agent@sisyphuslabs.ai>"
 ```
 
-## Stage 2 - {Title}
+## 의존성과 체크포인트
 
-### Artifacts
+{실제 선행 검증과 증거를 충족하면 같은 범위의 다음 단계로 자율 진행한다. 단계/보고 승인·같은 대화의 추가 진행 승인 대기는 없다. 현재 범위/기준 계획·상태·검증·위험 결과·다음 안전 행동을 기록한다. clean은 작업 소유 미반영 변경 기준이며 무관한 수정 파일은 차단이나 정리 권한의 근거가 아니다.}
 
-- `{path}`
+## 위험과 한정 결정
 
-### Changes
+{HIGH의 decision/authority/scope/targets/actions/impact/recovery_conditions/result/evidence가 필요할 때만 기록한다. 다음 위험 행동 직전 및 모든 재개/수정/후속 작업에서 확인하고 동일 조건의 승인은 재사용하며 변경 결정만 승인받는다. missing/denied 행동은 실행하지 않고 독립적인 안전 작업은 계속한다.}
 
-- {Specifically describe what will be created or changed.}
-
-### Verification
-
-```bash
-{verification command}
-git diff --check
-```
-
-### Authorized Commit
-
-Only run this after the current user instruction explicitly authorizes the commit.
-
-```text
-{type}: Task #{issue} Stage 2: {summary}
-```
-
-```bash
-git add {Stage 2 artifact files} mydocs/working/task_{milestone}_{issue}_stage2.md
-git commit -m "{type}: Task #{issue} Stage 2: {summary}" \
-  -m "Ultraworked with [Sisyphus](https://github.com/code-yeongyu/oh-my-openagent)" \
-  -m "Co-authored-by: Sisyphus <clio-agent@sisyphuslabs.ai>"
-```
-
-## Stage 3 - {Title}
-
-### Artifacts
-
-- `{path}`
-
-### Changes
-
-- {Specifically describe what will be created or changed.}
-
-### Verification
-
-```bash
-{verification command}
-git diff --check
-```
-
-### Authorized Commit
-
-Only run this after the current user instruction explicitly authorizes the commit.
-
-```text
-{type}: Task #{issue} Stage 3: {summary}
-```
-
-```bash
-git add {Stage 3 artifact files} mydocs/working/task_{milestone}_{issue}_stage3.md
-git commit -m "{type}: Task #{issue} Stage 3: {summary}" \
-  -m "Ultraworked with [Sisyphus](https://github.com/code-yeongyu/oh-my-openagent)" \
-  -m "Co-authored-by: Sisyphus <clio-agent@sisyphuslabs.ai>"
-```
-
-## Verification
-
-- Run each Stage verification command before writing the stage report.
-- Do not treat a Stage as complete when verification fails.
-- If the plan must change, update the implementation plan first and get task requester approval.
-- If a document location differs from the task plan judgment, update the task plan or implementation plan and get approval before implementing.
-
-## Commits
-
-- Each authorized Stage commit bundles the Stage artifacts with `mydocs/working/task_{milestone}_{issue}_stage{N}.md`.
-- Commit messages follow `{type}: Task #{issue} Stage {N}: {summary}` and include the TokenWatch attribution body and trailer.
-- Without current explicit commit authorization, record the intended files and subject in the Stage report or handoff, then stop after verification.
-
-## Stage Dependencies
-
-- Stage 2 starts after Stage 1 artifacts are confirmed.
-- Stage 3 starts after Stage 2 verification and report approval.
-
-## Risks and Responses
-
-- **{risk name}**: {response}
-
-## Approval Request
-
-- {Ask for approval of Stage split, artifacts, verification commands, and commit messages.}
+{Merge/Release·공식 리뷰/댓글·Issue close·tag·미위임 삭제/정리·네이티브 권한은 별도 경계다. 이전 계획/done 상태나 다른 작업 승인은 권한을 확대하지 않는다.}

@@ -4,21 +4,21 @@ This manual defines the Hyper-Waterfall task procedure, task number and commit m
 
 ## Core Terms
 
-- **Task plan**: document used for the first approval request. It records work purpose, scope, tentative stages, and verification plan.
-- **Implementation plan**: document that turns the approved task plan into concrete stages, artifacts, verification commands, and commit messages.
+- **Task plan**: 의도·scope·acceptance criteria·검증을 담은 단일 canonical 계획. 기존 활성 사용자 계획을 먼저 재사용하고, 새 계획이 필요하면 BMAD가 하나만 작성하며 HF는 참조와 context/evidence를 보완한다.
+- **Implementation plan**: canonical 계획 안의 실행 단계·산출물·검증·commit 구성. 기존 `_impl` 파일은 보존·참조하되 새 별도 원본이나 강제 변환은 요구하지 않는다.
 - **Stage report**: `_stage{N}.md` report left in `mydocs/working/` after a Stage ends.
-- **Final report**: `_report.md` report left in `mydocs/report/` after all Stages end.
-- **Approval assumption rule**: a stage is approved only when the task requester explicitly says to continue in the same thread.
+- **Final report**: 필요한 최종 상태/evidence를 남기는 `mydocs/report/`의 `_report.md`. 실패·blocked 상태도 incomplete로 보고할 수 있으며 LOW에 별도 보고를 강제하지 않는다.
+- **Approval assumption rule**: LOW/MEDIUM의 명확한 요청 scope와 조건이 일치하는 HIGH 승인 묶음을 근거로 진행한다. 같은 thread의 추가 continue는 같은 scope의 필수 gate가 아니다.
 
 ## Document Output Format
 
-Plans, stage reports, final reports, daily task boards, and external PR review documents use the central templates in `mydocs/_templates/`. Skills define procedures and verification; central templates define output format. If they diverge, update them together in the same PR.
+필요한 계획·stage/final report·daily task board·external PR review 문서는 `mydocs/_templates/` 형식을 참조한다. template는 출력 형식이지 산출물 생성이나 승인 의무가 아니다. LOW는 새 Issue/board/plan 없이 기존 context에 변경·최소 검증·제약을 기록할 수 있다. 필요한 template와 Skill이 어긋나면 해당 scope에서 함께 정합화한다.
 
 GitHub Issues and Pull Requests are GitHub platform artifacts. New task Issues use `.github/ISSUE_TEMPLATE/task.yml` as the input prompt format, and PR bodies use `.github/pull_request_template.md` as the output format.
 
-Write all Hyper-Waterfall documents and GitHub platform artifacts in Korean, including Issues, Pull Request titles/bodies, daily task boards, task plans, implementation plans, stage reports, final reports, PR review records, and workflow-facing approval requests. Preserve fixed technical tokens, command names, labels, branch names, file paths, and commit subject prefixes where the workflow format requires them.
+새 Hyper-Waterfall 문서와 GitHub 플랫폼 산출물(Issue, PR, daily task board, 계획, stage/final report, PR review 기록)의 제목·본문 제목·항목명·설명·예시·승인 요청은 한국어로 작성한다. 기술 식별자·명령·고정 GitHub label·branch·경로·설정 key·상태값과 TokenWatch의 영어 semantic commit 형식은 유지한다. 기존 인간 canonical 계획·역사 문서의 경로·원문·의도는 번역·복제·강제 변환하지 않는다. upstream locale/source 언어는 provenance일 뿐 새 출력의 언어 권한이나 runtime fallback이 아니다. 기준은 [`document_structure_guide.md`](document_structure_guide.md)다.
 
-The PR body `Verification` section follows `.github/pull_request_template.md`: `Automated Verification`, `Manual/Scenario Verification`, `CI/Remote Verification`, and `Verification Limitations`. Do not merely list commands. Include results and evidence. Do not leave unperformed verification in tables; move it to `Verification Limitations` or `Remaining Risks`.
+PR 본문 `검증` 절은 `.github/pull_request_template.md`의 `자동 검증`, `수동·시나리오 검증`, `CI·원격 검증`, `검증 한계` 제목을 그대로 따른다. 명령만 나열하지 않고 결과와 evidence를 기록한다. 미실행 검증은 표에 남기지 않고 `검증 한계` 또는 `잔여 위험`으로 옮긴다.
 
 ## Framework Lifecycle Work
 
@@ -29,17 +29,18 @@ When installing Hyper-Waterfall in a new repository or updating an already adopt
 - Update PR transition: `<hyper-waterfall-release-dir>/docs/lifecycle/update_pr.md`
 - Release/tag and update protocol: [`release_update_protocol.md`](release_update_protocol.md)
 
-After lifecycle judgment is approved and actual file changes begin, apply this manual's normal task procedure. Do not apply files from the manifest diff to the target repository before approval.
+lifecycle assessment·native permission·ownership·대상 file manifest/diff 검사는 파일 적용 전에 반드시 수행한다. 명확히 요청된 비파괴 LOW/MEDIUM lifecycle 작업은 그 scope에서 일반 task 절차로 진행하며 manifest 차이 자체를 일괄 승인 gate로 만들지 않는다. 특정 HIGH 행동 또는 실제 중대한 scope/의도 변경만 실행 직전에 권한 있는 요청자의 한정 승인을 확인한다. 검사를 통과한 manifest도 bootstrap/setup/install·새 framework 채택 권한을 만들지 않으며 해당 행동은 실제 별도 위임과 권한이 필요하다. 기존 채택에 Issue·branch·산출물·승인을 소급 요구하지 않는다.
 
 ## Task Number Management
 
-- Use **GitHub Issues** as task numbers to prevent duplicate numbering.
+- 실제 **GitHub Issue**가 있는 작업은 그 번호를 사용한다. Issue 없는 작업에는 가짜 번호나 milestone을 만들지 않는다.
 - **Milestone notation**: `M{version}` (for example, M100=v1.0.0, M05x=v0.5.x)
-- New task registration: if no Issue exists, use the [`task-register`](../skills/task-register/SKILL.md) Skill to check duplicate Issues, milestone, and labels, then create the GitHub Issue after approval.
-- Task start: if an Issue already exists, use [`task-start`](../skills/task-start/SKILL.md) to create the branch, daily task board row, and task plan.
+- 새 Issue가 필요한 경우에만 [`task-register`](../skills/task-register/SKILL.md)로 중복·milestone·label을 확인하고 Issue 생성 위임을 확인한다. Issue 부재가 LOW/MEDIUM 실행을 차단하지 않는다.
+- 기존 Issue 작업의 [`task-start`](../skills/task-start/SKILL.md)는 기존 canonical 계획/context를 재사용하고 필요한 branch·board 기록만 보완한다.
 - Branch name: `local/task{issue_number}` (example: `local/task1`)
 - Remote PR publication branch: `publish/task{issue_number}` (example: `publish/task1`)
-- Commit authorization: an approved plan, Stage, report, or task-start instruction does not authorize a commit. Commit only when the current user instruction explicitly asks for it.
+- Issue 없는 작업은 root `AGENTS.md`의 `local/{task_slug}` / `publish/{task_slug}`와 `{type}: summary`를 사용하고 기존 context로 scope를 추적한다.
+- Commit authorization: 기존 상시 위임에 따라 현재 검증된 task-owned reviewed 변경만 exact filename으로 commit/push한다. 명확한 변경 요청이면 기존 PR 확인 후 필요한 PR도 생성한다. read-only/planning-only/report-only 요청과 plan status는 변경/publication 권한이 아니다.
 - Commit message rules use a fitting `{type}` from `feat`, `fix`, `docs`, `test`, `build`, or `chore`:
   - Basic: `{type}: Task #{issue_number}: summary`
   - Stage commit: `{type}: Task #{issue_number} Stage {N}: summary`
@@ -47,29 +48,30 @@ After lifecycle judgment is approved and actual file changes begin, apply this m
   - Stage report or final report bundled commit: `{type}: Task #{issue_number} Stage {N} + final report: summary`
 - Every authorized commit includes the mandatory TokenWatch attribution body and `Co-authored-by` trailer from root `AGENTS.md`.
 - In `mydocs/orders/`, reference milestone and Issue as `M100 #1`.
-- Task completion: close the Issue only after a separately explicit user instruction or confirmed PR merge.
+- Task completion: Issue close는 요청자의 실제 승인 또는 확인된 PR merge에 근거한 close 권한이 있어야 한다. commit/push/PR 위임만으로 close 권한이 생기지 않는다.
 
 ## Task Procedure
 
-1. If no Issue exists, register a GitHub Issue with `task-register`. If an Issue exists, use that number.
-2. Start the assigned Issue with `task-start`, create `local/task{issue_number}`, and proceed.
-3. Write the task plan before work, then request approval.
-4. Write the implementation plan (minimum 3 Stages, maximum 6 Stages), then request approval.
-5. Start Stage work.
-6. After each Stage, write the stage report and request approval.
-7. Show the intended Stage artifact files and semantic commit subject. Commit the stage report (`_stage{N}.md`) with that Stage's source changes only when the current user instruction explicitly authorizes the commit.
-8. After approval, proceed to the next Stage.
-9. After all Stages, write the final report and request approval.
-10. Show the intended final-report and daily-task-board commit. Commit only with explicit current user authorization; otherwise leave verified artifacts uncommitted.
-11. Push to `publish/task{issue_number}` and create an Open PR to `main` only when the current user separately and explicitly authorizes the push and PR creation.
-12. When approval is requested, the task requester may register feedback in `mydocs/feedback/`.
-13. If all tests pass and there is no feedback, continue.
-14. After PR merge, close the Issue and finalize the daily task board state only with separately explicit user authorization for the Issue-close action.
-15. Clean up the merged `publish/task{issue_number}` remote branch and reproducible local byproducts only with separately explicit user authorization for each cleanup action.
+0. 명령·source 수정 전에 요청 모드를 분기한다. read-only/planning-only 또는 보고 파일 쓰기 위임이 없는 report-only는 기존 evidence로 응답하고 STOP한다. 산출물이 명시 요청된 report-only는 요청된 보고 파일만 작성/갱신하고 STOP하며 canonical 경로·원문·의도와 context/board/source를 보존한다. 보고 산출물은 새 제품 공식 문서 root 채택이 아니다. 두 제한 모드는 검증 명령·repair·다음 stage·Git·hooks·publication을 실행하지 않는다. 과거 실패는 failed, 미실행은 not_run(기존 형식의 not-run), 누락/오래된 evidence는 incomplete/한계로 기록하고 pass를 추정하지 않는다. 별도로 명시 위임된 실행 행동만 해당 scope의 아래 절차를 적용한다.
+1. 실행 모드의 실제 요청·scope·ownership·root 위험 정책과 native/platform/nearest-child/privacy 제약을 확인한다. 아래 2–15단계는 해당 행동이 위임된 실행 scope에만 적용한다.
+2. 기존 Issue가 있으면 그 번호를 사용한다. 필요 없는 Issue·board·plan을 새로 만들지 않으며 Issue 생성은 별도 위임을 확인한다.
+3. 기존 canonical 계획 또는 LOW context를 재사용한다. 필요한 새 계획은 BMAD 하나로 제한하고 HF는 참조·context/evidence만 보완한다.
+4. 의존성과 검증 가능한 단위에 비례해 stage를 구성한다. 한 stage도 가능하며 고정 최소·최대 stage 수나 별도 `_impl` 승인은 없다.
+5. LOW는 기존 context와 최소 검증으로, MEDIUM은 명확한 요청의 scope 위임으로 조사·구현·검증한다.
+6. HIGH 행동 직전에 decision/authority/scope와 `targets`, `actions`, `impact`, `recovery_conditions`, 승인 결과/evidence의 한정 묶음을 확인한다. 미승인/거절된 위험 행동은 하지 않고 독립 안전 작업은 계속한다.
+7. 필요한 stage evidence/checkpoint를 기록하고 같은 scope의 다음 stage로 자율 진행한다. 문서/source/plan/location/stage 기록 자체는 재승인 gate가 아니다.
+8. 실패는 failed/blocked/incomplete와 실제 evidence로 기록하고 같은 scope에서 자율 수정·재검증한다. 검증 실패나 미충족 기준을 complete/pass로 처리하지 않는다.
+9. 비수렴, 핵심 의도 충돌, 실제 scope·위험·복구 조건 변경 또는 분리 불가능한 사용자 작업 충돌만 해당 결정/대상으로 확인한다.
+10. 모든 재개·repair·review·follow-up·종료에서도 다음 위험 행동 전에 HIGH 조건을 재검증한다. 동일 조건은 기존 승인을 재사용하고 바뀐 결정만 승인받는다.
+11. 필요한 최종 보고/context에 변경·검증·남은 위험·미실행 항목을 기록한다. 기존 인간 계획과 역사 문서를 이동·삭제·복제·강제 변환하지 않는다.
+12. current scope/ownership/검증/native 권한을 확인하고 reviewed task 변경·증거만 exact filename으로 commit한다. unrelated dirty/untracked 자료는 false blocked나 cleanup 권한이 아니며 whole diff staging/revert하지 않는다.
+13. 검증된 변경과 상시 위임이 유효하면 실제 repo/remote/base/head와 소유권·기존 PR를 확인하여 task-only push 및 명확한 변경 요청의 필요한 Open PR를 처리한다. 실패/차단이면 성공 publication 없이 제약을 기록한다.
+14. Merge/Release, formal review/comment/reply/resolution 게시, Issue close, tag, untrusted code execution은 해당 실제 권한·안전 조건을 따로 확인한다. 안전한 local review/verification-plan 작성은 remote 게시가 아니다.
+15. branch/worktree/remote 삭제·미위임 cleanup은 별도 권한 없이는 하지 않는다. 위임된 task 소유 임시 자원만 안전하게 정리하며 사용자/다른 작업을 revert/stash/delete하지 않는다.
 
 ## Commit and External Action Authorization
 
-Writing a plan, report, review, or PR body prepares an artifact; it does not authorize a commit, push, PR creation, merge, Issue close, remote deletion, or branch/worktree removal. Before any such action, show the intended files or external action and obtain an explicit current user instruction for that action. A request to "start task," "finish Stage," "write report," "prepare PR," or "review PR" is not sufficient commit or external-action authorization.
+계획·보고·review·PR body의 작성/상태 자체는 외부 권한을 만들지 않는다. root의 verified standing task-only commit/push 및 clear-change-request PR 위임을 적용하되 실제 scope/검증/ownership/native 권한을 직전에 확인한다. report-only·prepare PR·review PR 요청만으로 변경/publication하지 않는다. Merge/Release·formal 게시·close·tag·삭제·미위임 cleanup은 별도 실제 권한이 필요하다. 원격 권한 차단은 우회하거나 무한 재시도하지 않고 해당 행동의 blocked/limitation으로 남긴다.
 
 ## Work Rules
 
@@ -77,43 +79,43 @@ Writing a plan, report, review, or PR body prepares an artifact; it does not aut
 
 ## Approval Assumption Rule
 
-- Treat a stage as approved only when the task requester explicitly says to continue in the same thread, such as "continue" or "proceed to the next stage."
+- 같은 scope의 LOW/MEDIUM은 명확한 요청을 위임으로 사용한다. HIGH는 조건이 일치하는 한정 승인만 재사용한다. stage 전환·일반 repair·기록 갱신마다 continue를 재요청하지 않는다. native workflow admission과 tool permission은 계속 우선한다.
 
 ## FAQ / Common Mistakes
 
 ### When Stage verification fails
 
-Do not write or commit a stage report while verification is failing. First identify the failed command, summarize the error, and recover inside the same Stage. If the Stage scope grew beyond the plan, ask the task requester whether to split the Stage or update the implementation plan.
+실패한 검증·증상·evidence·다음 안전 행동을 허용된 report/context 또는 응답에 기록하되 incomplete로 유지한다. report-only는 Task Procedure 0에 따라 보고 후 종료하고 수정·재검증하지 않는다. 실행이 위임된 같은 scope의 기술 수정·replan·재검증은 자율 진행한다. 비수렴이나 실제 의도/scope/위험 변경만 확인하며 실패 중 성공 완료나 publication하지 않는다.
 
 ### When Stage size is unclear
 
-Use 3-6 Stages by default. Each Stage should be small enough to implement, verify, and report in one cycle. Separate risky shared-rule changes, code changes, and documentation/verification cleanup into different Stages. Low-risk documentation work can be split by document group.
+의존성·영향·검증 단위에 비례해 한 stage 또는 필요한 수로 나눈다. 파일/줄/token 수와 난이도는 sizing 근거이지 HIGH나 승인 대기 이유가 아니다. 기존 구조 안의 같은 scope는 evidence/checkpoint 뒤 계속 진행한다.
 
 ### When work started on the next Stage without approval
 
-Stop immediately and inspect the current change scope. If changes are uncommitted, keep only the part belonging to the approved Stage. If already committed, report the situation to the task requester and confirm whether to add a corrective commit or update the plan.
+실행이 위임된 같은 scope에서 추가 continue 없이 다음 stage를 진행한 것은 위반이 아니다. 보고만 요청된 경우에는 다음 stage 권한이 없다. 실제 scope/위험 이탈이면 그 행동만 중단하고 현재 변경·evidence를 보존한다. 위임된 task-owned correction만 수행하며 사용자/다른 worker 변경을 되돌리지 않는다.
 
 ## SKILL Call Display Guidance
 
-When applying a Hyper-Waterfall SKILL procedure, tell the user in one line before running the actual procedure. This does not allow implicit calls; it only makes transparent that the procedure is being applied based on explicit instruction or stage approval.
+Hyper-Waterfall SKILL을 실제 적용할 때 호출 표시는 위임된 절차를 알리는 용도일 뿐 source/plan/stage 재승인 gate가 아니다. 명시 native workflow 호출의 admission과 플랫폼 권한은 우회하지 않는다.
 
 Recommended format:
 
-- `Calling the task-register skill.`
-- `Calling the task-start skill.`
-- `Calling the task-stage-report skill.`
-- `Proceeding with the task-final-report skill.`
-- `Calling the pr-merge-cleanup skill.`
-- `Calling the external-pr-review skill.`
-- `Calling the todo skill.`
+- `task-register skill을 호출합니다.`
+- `task-start skill을 호출합니다.`
+- `task-stage-report skill을 호출합니다.`
+- `task-final-report skill로 진행합니다.`
+- `pr-merge-cleanup skill을 호출합니다.`
+- `external-pr-review skill을 호출합니다.`
+- `todo skill을 호출합니다.`
 
 Use this display for the corresponding Hyper-Waterfall procedure.
 
-The README "Core SKILL Details" table is the user-facing summary of each Skill, while this section defines actual call display principles. If a Skill is added, removed, renamed, or its call timing changes, review the README table and this section in the same PR.
+Skill 변경은 실제 skill source·이 절과 직접 연결된 `pr_command_guide.md` Authorization Boundary, `internal_pr_guide.md` Purpose/Work Documents, `pr_process_guide.md` Basic Principles/Detailed Documents만 필요한 범위에서 함께 정합화한다. 제품 README에 없는 Core SKILL Details 표를 가정하거나 새 표를 만들지 않는다.
 
 Document structure policy review or manual neutrality judgment is not itself a separate Skill call display target. Display the core Skill only when that judgment leads to Issue registration, task start, stage completion, or another core Skill procedure.
 
-`task-final-report` writes the final report and prepares PR materials. Committing, pushing, and publishing the PR remain separately explicit user-authorized actions.
+`task-final-report`는 필요한 보고/PR 자료를 작성하고 root의 verified task-only commit/push 및 명확한 변경 요청 PR 위임을 따른다. Merge/Release·formal 게시·close·tag·삭제/미위임 cleanup 권한은 포함하지 않는다.
 
 Installation/update lifecycle judgment itself is not a Hyper-Waterfall procedure call display target. However, if it results in GitHub Issue registration or task start, follow the display rule for `task-register`, `task-start`, or the actual core Skill used.
 
