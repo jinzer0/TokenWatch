@@ -74,11 +74,11 @@ Codex가 `ordinaryUsageAllowed: false`를 반환하면 `usage-blocked`(포함 �
 
 필요한 도구는 다음과 같습니다.
 
-- Node.js 20.11 이상
+- 소스 개발·데스크톱 패키징: Node.js 24.22.1
 - Corepack pnpm, 이 저장소는 `pnpm@10.23.0`을 사용합니다.
 - `better-sqlite3` native dependency를 빌드할 수 있는 환경
 
-Node.js 20.20.2에서 전체 테스트·CLI/desktop 빌드를 검증했고, 최소 20.11.0에서는 빌드된 CLI의 SQLite 조회·구독 관측 저장을 검증했습니다. 현재 데스크톱 빌드 도구는 `node:util.styleText`를 사용하므로 20.11.0에서 `build:desktop`은 실행되지 않습니다. CLI 최소 지원 정책은 유지하며 소스 개발은 검증된 20.20.2 환경을 권장합니다. Node/Electron runtime을 바꾼 뒤에는 해당 runtime용 native rebuild와 로딩 확인이 필요합니다.
+Electron 42 설치 도구는 Node.js 22.12 이상을 요구하므로 소스 개발·데스크톱 패키징은 릴리스 workflow와 같은 Node.js 24.22.1을 사용합니다. 빌드된 CLI의 최소 Node.js 20.11 지원 정책은 별도이며 변경하지 않습니다. Node/Electron runtime을 바꾼 뒤에는 해당 runtime용 native rebuild와 로딩 확인이 필요합니다. `dev:desktop`은 새 설치에서도 Electron 바이너리를 먼저 준비한 뒤 개발 서버를 시작합니다.
 
 ```bash
 corepack pnpm install
