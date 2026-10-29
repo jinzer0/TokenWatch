@@ -59,7 +59,9 @@ describe('desktop renderer shell', () => {
     render(<App />);
 
     expect(await screen.findByRole('heading', { name: 'TokenWatch' })).toBeTruthy();
-    expect(screen.getByLabelText('Dashboard status').textContent).toContain('Ready');
+    await waitFor(() =>
+      expect(screen.getByLabelText('Dashboard status').textContent).toContain('Ready')
+    );
     expect(screen.getByLabelText('Database and refresh status').textContent).toContain(
       'DatabaseReady'
     );
