@@ -22,6 +22,18 @@ const macConfigSection = (builderConfig: string): string =>
 const linuxConfigSection = (builderConfig: string): string =>
   builderConfig.match(/^linux:\n(?:(?!^\S).*\n?)*/m)?.[0] ?? '';
 
+describe('Electron development runtime', () => {
+  it('prepares the Electron binary before the desktop development server', () => {
+    expect(readPackageJson().scripts['dev:desktop']).toBe('install-electron && electron-vite dev');
+  });
+
+  it('uses the supported source-development Node version for both release jobs', () => {
+    const workflow = readProjectFile('.github/workflows/release-candidate.yml');
+    const versions = [...workflow.matchAll(/node-version: '([^']+)'/g)].map((match) => match[1]);
+    expect(versions).toEqual(['24.22.1', '24.22.1']);
+  });
+});
+
 describe('macOS packaging policy', () => {
   it('omits a hardcoded signing identity when mac configuration is read', () => {
     // Given

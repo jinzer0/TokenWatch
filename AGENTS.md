@@ -15,7 +15,7 @@ Use this root file for common rules only. For local rules, read the nearest chil
 
 ## Environment
 
-- Use Node.js 20.11 or newer.
+- Use Node.js 24.22.1 for source development and desktop packaging. Built CLI support remains Node.js 20.11 or newer. Electron 42 installation requires Node.js 22.12 or newer.
 - Use Corepack pnpm. The project pins `pnpm@10.23.0`, so run commands as `corepack pnpm ...`.
 - `better-sqlite3` is native. The machine must support native builds for it.
 - After changing Node versions, reinstall or rebuild dependencies before trusting checks. Verify that `better-sqlite3` can load before calling the setup good.
@@ -161,7 +161,7 @@ This project uses the **Hyper-Waterfall** methodology. Read these rules carefull
 
 - Preserve TokenWatch privacy guarantees: never expose prompts, responses, API keys, OAuth tokens, credentials, raw paths, raw session IDs, raw records, SQL payloads, stack traces, or arbitrary metadata dumps.
 - Do not edit generated, vendor, orchestration, or reference paths: `dist/`, `out/`, `release/`, `node_modules/`, `.sisyphus/`, or `docs/tokscale/`; only task-requested `.sisyphus/evidence/` files are allowed.
-- Use Node.js 20.11+ and `corepack pnpm`; after Node or Electron native rebuilds, verify `better-sqlite3` loads before trusting checks.
+- Use Node.js 24.22.1 and `corepack pnpm` for source development and packaging (built CLI support remains Node.js 20.11+); after Node or Electron native rebuilds, verify `better-sqlite3` loads before trusting checks.
 - Use isolated `TOKENWATCH_DB_PATH=/tmp/...` databases for tests and smoke checks that could access the application database.
 - Run the narrowest relevant verification first, then `corepack pnpm typecheck` for source changes; use the broader TokenWatch checks when required by the root guidance.
 - Risk-Based Execution Policy의 scope/검증/ownership과 기존 commit-push 위임을 따른다. 명확한 변경 요청의 PR는 자동 진행하지만 Merge/Release·미위임 외부 행동은 별도 권한을 유지한다. 초기 adoption을 과거 Issue/branch/산출물/PR의 소급 요구로 만들지 않는다.
