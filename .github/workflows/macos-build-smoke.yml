@@ -1,0 +1,68 @@
+name: macOS unsigned build smoke
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/macos-build-smoke.yml'
+      - '.github/workflows/release-candidate.yml'
+      - 'electron-builder.yml'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+permissions:
+  contents: read
+jobs:
+  macos-build-smoke:
+    name: Unsigned macOS package (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+            machine: arm64
+          - runner: macos-15-intel
+            arch: x64
+            machine: x86_64
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24.22.1'
+      - name: Install dependencies and build desktop
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = "${{ matrix.machine }}"
+          corepack enable
+          corepack pnpm install --frozen-lockfile
+          node -e 'const DB = require("better-sqlite3"); new DB(":memory:").close()'
+          corepack pnpm build:desktop
+      - name: Check unsigned DMG and executable architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="$(mktemp "$RUNNER_TEMP/tokenwatch-builder.XXXXXX").yml"
+          node -e '
+            const fs = require("node:fs");
+            let config = fs.readFileSync("electron-builder.yml", "utf8");
+            for (const [from, to] of [
+              ["forceCodeSigning: true", "forceCodeSigning: false"],
+              ["  sign: true", "  sign: false"],
+              ["  notarize: true", "  notarize: false\n  identity: null"]
+            ]) {
+              if (config.split(from).length !== 2) throw Error("Unexpected signing settings");
+              config = config.replace(from, to);
+            }
+            fs.writeFileSync(process.argv[1], config);
+          ' "$config"
+          corepack pnpm exec electron-builder --config "$config" --mac dmg --${{ matrix.arch }} --publish never
+          dmgs=(release/*-${{ matrix.arch }}.dmg)
+          test "${#dmgs[@]}" -eq 1 && test -s "${dmgs[0]}"
+          apps=(release/mac*/TokenWatch.app/Contents/MacOS/TokenWatch)
+          test "${#apps[@]}" -eq 1 && test -f "${apps[0]}"
+          test "$(lipo -archs "${apps[0]}")" = "${{ matrix.machine }}"
