@@ -36,7 +36,6 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24.22.1'
-          cache: pnpm
       - run: corepack enable
       - run: corepack pnpm install --frozen-lockfile
       - name: Build and verify signed macOS artifact
@@ -78,7 +77,6 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24.22.1'
-          cache: pnpm
       - run: corepack enable
       - run: corepack pnpm install --frozen-lockfile
       - name: Build and verify Linux AppImage artifact
