@@ -31,11 +31,24 @@ usage-graph.png
 tokenwatch-*-debug.png
 
 # Local orchestration and reference material
+/.codegraph
+/.gjc/
+/.omx/
 .omo/
 .sisyphus/
 docs/tokscale/
 
-# Private BMAD generations, machine-local overrides and Python caches
-_bmad/render/
-/_bmad/custom/*.user.toml
+# Local BMAD installation, configuration and generated files
+/_bmad/
+/_bmad/render/
+/skills-lock.json
+/mydocs/skills/bmad/
+/mydocs/skills/bmad-*/
+/mydocs/skills/bmod-*/
+!/mydocs/skills/bmad-build/
+!/mydocs/skills/bmad-build-auto/
+/mydocs/skills/bmad-build/bmod.toml
+/mydocs/skills/bmad-build/references/
+/mydocs/skills/bmad-build-auto/bmod.toml
+/mydocs/skills/bmad-build-auto/references/
 tools/bmad/__pycache__/
