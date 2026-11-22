@@ -22,11 +22,11 @@ jobs:
       matrix:
         include:
           - arch: arm64
-            runner: macos-14
+            runner: macos-15
             script: package:mac:arm64
             artifact: release/TokenWatch-0.1.2-arm64.dmg
           - arch: x64
-            runner: macos-13
+            runner: macos-15-intel
             script: package:mac:x64
             artifact: release/TokenWatch-0.1.2-x64.dmg
     steps:
