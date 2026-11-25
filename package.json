@@ -1,6 +1,6 @@
 {
   "name": "tokenwatch",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Local-first CLI and Ink TUI for AI coding agent token usage metadata.",
   "type": "module",
   "main": "out/main/main.js",
@@ -37,10 +37,10 @@
     "package:mac": "corepack pnpm package:mac:arm64",
     "verify:linux-appimage": "tsx src/desktop/packaging/verifyLinuxAppImage.ts",
     "checksum:sha256": "tsx src/desktop/packaging/writeSha256.ts",
-    "package:mac:arm64": "(corepack pnpm build:desktop >/dev/null 2>&1 && corepack pnpm verify:mac-signing -- --preflight >/dev/null 2>&1 && electron-builder --mac dmg --arm64 --publish never >/dev/null 2>&1 && corepack pnpm verify:mac-signing -- --finalize --app release/mac-arm64/TokenWatch.app --dmg release/TokenWatch-0.1.2-arm64.dmg >/dev/null 2>&1 && corepack pnpm verify:mac-dmg-smoke -- --dmg release/TokenWatch-0.1.2-arm64.dmg --app-name TokenWatch >/dev/null 2>&1 && corepack pnpm checksum:sha256 -- release/TokenWatch-0.1.2-arm64.dmg >/dev/null 2>&1) || { printf '%s\\n' TW_SIGNING_FAILED >&2; exit 1; }",
-    "package:mac:x64": "(corepack pnpm build:desktop >/dev/null 2>&1 && corepack pnpm verify:mac-signing -- --preflight >/dev/null 2>&1 && electron-builder --mac dmg --x64 --publish never >/dev/null 2>&1 && corepack pnpm verify:mac-signing -- --finalize --app release/mac/TokenWatch.app --dmg release/TokenWatch-0.1.2-x64.dmg >/dev/null 2>&1 && corepack pnpm verify:mac-dmg-smoke -- --dmg release/TokenWatch-0.1.2-x64.dmg --app-name TokenWatch >/dev/null 2>&1 && corepack pnpm checksum:sha256 -- release/TokenWatch-0.1.2-x64.dmg >/dev/null 2>&1) || { printf '%s\\n' TW_SIGNING_FAILED >&2; exit 1; }",
-    "package:linux:x64": "(corepack pnpm build:desktop >/dev/null 2>&1 && electron-builder --linux AppImage --x64 --publish never >/dev/null 2>&1 && corepack pnpm checksum:sha256 -- release/TokenWatch-0.1.2-x86_64.AppImage >/dev/null 2>&1 && corepack pnpm verify:linux-appimage -- --artifact release/TokenWatch-0.1.2-x86_64.AppImage --checksum release/TokenWatch-0.1.2-x86_64.AppImage.sha256 >/dev/null 2>&1) || { printf '%s\\n' TW_LINUX_PACKAGE_FAILED >&2; exit 1; }",
-    "package:linux:arm64": "(corepack pnpm build:desktop >/dev/null 2>&1 && electron-builder --linux AppImage --arm64 --publish never >/dev/null 2>&1 && corepack pnpm checksum:sha256 -- release/TokenWatch-0.1.2-arm64.AppImage >/dev/null 2>&1 && corepack pnpm verify:linux-appimage -- --artifact release/TokenWatch-0.1.2-arm64.AppImage --checksum release/TokenWatch-0.1.2-arm64.AppImage.sha256 >/dev/null 2>&1) || { printf '%s\\n' TW_LINUX_PACKAGE_FAILED >&2; exit 1; }",
+    "package:mac:arm64": "(corepack pnpm build:desktop >/dev/null 2>&1 && corepack pnpm verify:mac-signing -- --preflight >/dev/null 2>&1 && electron-builder --mac dmg --arm64 --publish never >/dev/null 2>&1 && corepack pnpm verify:mac-signing -- --finalize --app release/mac-arm64/TokenWatch.app --dmg release/TokenWatch-0.1.3-arm64.dmg >/dev/null 2>&1 && corepack pnpm verify:mac-dmg-smoke -- --dmg release/TokenWatch-0.1.3-arm64.dmg --app-name TokenWatch >/dev/null 2>&1 && corepack pnpm checksum:sha256 -- release/TokenWatch-0.1.3-arm64.dmg >/dev/null 2>&1) || { printf '%s\\n' TW_SIGNING_FAILED >&2; exit 1; }",
+    "package:mac:x64": "(corepack pnpm build:desktop >/dev/null 2>&1 && corepack pnpm verify:mac-signing -- --preflight >/dev/null 2>&1 && electron-builder --mac dmg --x64 --publish never >/dev/null 2>&1 && corepack pnpm verify:mac-signing -- --finalize --app release/mac/TokenWatch.app --dmg release/TokenWatch-0.1.3-x64.dmg >/dev/null 2>&1 && corepack pnpm verify:mac-dmg-smoke -- --dmg release/TokenWatch-0.1.3-x64.dmg --app-name TokenWatch >/dev/null 2>&1 && corepack pnpm checksum:sha256 -- release/TokenWatch-0.1.3-x64.dmg >/dev/null 2>&1) || { printf '%s\\n' TW_SIGNING_FAILED >&2; exit 1; }",
+    "package:linux:x64": "(corepack pnpm build:desktop >/dev/null 2>&1 && electron-builder --linux AppImage --x64 --publish never >/dev/null 2>&1 && corepack pnpm checksum:sha256 -- release/TokenWatch-0.1.3-x86_64.AppImage >/dev/null 2>&1 && corepack pnpm verify:linux-appimage -- --artifact release/TokenWatch-0.1.3-x86_64.AppImage --checksum release/TokenWatch-0.1.3-x86_64.AppImage.sha256 >/dev/null 2>&1) || { printf '%s\\n' TW_LINUX_PACKAGE_FAILED >&2; exit 1; }",
+    "package:linux:arm64": "(corepack pnpm build:desktop >/dev/null 2>&1 && electron-builder --linux AppImage --arm64 --publish never >/dev/null 2>&1 && corepack pnpm checksum:sha256 -- release/TokenWatch-0.1.3-arm64.AppImage >/dev/null 2>&1 && corepack pnpm verify:linux-appimage -- --artifact release/TokenWatch-0.1.3-arm64.AppImage --checksum release/TokenWatch-0.1.3-arm64.AppImage.sha256 >/dev/null 2>&1) || { printf '%s\\n' TW_LINUX_PACKAGE_FAILED >&2; exit 1; }",
     "verify:mac-dmg-smoke": "tsx src/desktop/packaging/verifyMacosDmgSmoke.ts"
   },
   "dependencies": {
@@ -61,7 +61,7 @@
     "@testing-library/react": "^16.3.0",
     "@vitejs/plugin-react": "^5.1.1",
     "electron": "^42.11.16",
-    "electron-builder": "^26.0.12",
+    "electron-builder": "^26.18.0",
     "electron-vite": "^4.0.0",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
@@ -72,7 +72,8 @@
     "typescript": "^5.9.3",
     "vite": "^8.1.6",
     "typescript-eslint": "^8.48.1",
-    "vitest": "4.1.11"
+    "vitest": "4.1.12",
+    "electron-builder-squirrel-windows": "26.18.0"
   },
   "packageManager": "pnpm@10.23.0",
   "pnpm": {
@@ -80,6 +81,22 @@
       "better-sqlite3",
       "electron",
       "esbuild"
-    ]
+    ],
+    "overrides": {
+      "@xmldom/xmldom@0.8": "^0.8.15",
+      "baseline-browser-mapping": "^2.11.0",
+      "brace-expansion@1": "^1.1.21",
+      "brace-expansion@2": "^2.1.7",
+      "brace-expansion@5": "^5.0.12",
+      "browserslist": "^4.28.7",
+      "esbuild@0.28": "^0.28.2",
+      "fast-uri@3": "^3.1.9",
+      "form-data@4": "^4.0.6",
+      "ip-address": "^10.7.4",
+      "js-yaml@4": "^4.3.2",
+      "tar@7": "^7.5.21",
+      "minimatch@>=7 <11": "^11.0.1",
+      "glob@>=9 <14": "^14.0.2"
+    }
   }
 }
