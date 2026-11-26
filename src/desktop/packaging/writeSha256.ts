@@ -13,8 +13,15 @@ export function writeSha256File(artifactPath: string): void {
 }
 
 function runCli(): void {
-  const artifactPath = process.argv[2];
-  if (artifactPath === undefined || artifactPath.length === 0) {
+  const commandArguments = process.argv.slice(2);
+  const argumentsWithoutSeparator =
+    commandArguments[0] === '--' ? commandArguments.slice(1) : commandArguments;
+  const artifactPath = argumentsWithoutSeparator[0];
+  if (
+    argumentsWithoutSeparator.length !== 1 ||
+    artifactPath === undefined ||
+    artifactPath.length === 0
+  ) {
     process.stderr.write('TW_CHECKSUM_FAILED\n');
     process.exitCode = 1;
     return;
