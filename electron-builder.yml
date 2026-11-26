@@ -25,3 +25,7 @@ linux:
   target:
     - target: AppImage
   category: Utility
+appImage:
+  executableArgs: []
+toolsets:
+  appimage: '1.0.3'

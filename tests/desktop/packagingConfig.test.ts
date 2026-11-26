@@ -104,16 +104,16 @@ describe('macOS packaging policy', () => {
       'electron-builder --linux AppImage --x64 --publish never'
     );
     expect(packageJson.scripts['package:linux:x64']).toContain(
-      'checksum:sha256 -- release/TokenWatch-0.1.3-x86_64.AppImage'
+      'checksum:sha256 -- release/TokenWatch-0.1.4-x86_64.AppImage'
     );
     expect(packageJson.scripts['package:linux:x64']).toContain(
-      'verify:linux-appimage -- --artifact release/TokenWatch-0.1.3-x86_64.AppImage --checksum release/TokenWatch-0.1.3-x86_64.AppImage.sha256'
+      'verify:linux-appimage -- --artifact release/TokenWatch-0.1.4-x86_64.AppImage --checksum release/TokenWatch-0.1.4-x86_64.AppImage.sha256'
     );
     expect(packageJson.scripts['package:linux:arm64']).toContain(
       'electron-builder --linux AppImage --arm64 --publish never'
     );
     expect(packageJson.scripts['package:linux:arm64']).toContain(
-      'verify:linux-appimage -- --artifact release/TokenWatch-0.1.3-arm64.AppImage --checksum release/TokenWatch-0.1.3-arm64.AppImage.sha256'
+      'verify:linux-appimage -- --artifact release/TokenWatch-0.1.4-arm64.AppImage --checksum release/TokenWatch-0.1.4-arm64.AppImage.sha256'
     );
   });
 
@@ -155,7 +155,7 @@ describe('macOS packaging policy', () => {
     expect(smokeIndex).toBeGreaterThan(verificationIndex);
     expect(packageMacX64Script).toContain('--finalize --app release/mac/TokenWatch.app');
     expect(packageMacX64Script).toContain(
-      'verify:mac-dmg-smoke -- --dmg release/TokenWatch-0.1.3-x64.dmg --app-name TokenWatch'
+      'verify:mac-dmg-smoke -- --dmg release/TokenWatch-0.1.4-x64.dmg --app-name TokenWatch'
     );
   });
 
@@ -236,15 +236,15 @@ describe('macOS packaging policy', () => {
     expect(workflow).not.toContain('contents: write');
   });
 
-  it('sets the package release version to 0.1.3', () => {
+  it('sets the package release version to 0.1.4', () => {
     // When
     const packageVersion = readProjectFile('package.json').match(/"version": "([^"]+)"/)?.[1] ?? '';
 
     // Then
-    expect(packageVersion).toBe('0.1.3');
+    expect(packageVersion).toBe('0.1.4');
   });
 
-  it('sets the application release version to 0.1.3', () => {
+  it('sets the application release version to 0.1.4', () => {
     // Given
     const constants = readProjectFile('src/app/constants.ts');
 
@@ -252,7 +252,7 @@ describe('macOS packaging policy', () => {
     const applicationVersion = constants.match(/APP_VERSION = '([^']+)'/)?.[1] ?? '';
 
     // Then
-    expect(applicationVersion).toBe('0.1.3');
+    expect(applicationVersion).toBe('0.1.4');
   });
 
   it('uses identical allow-jit-only application and inherited entitlements', () => {
