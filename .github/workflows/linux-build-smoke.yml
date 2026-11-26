@@ -44,8 +44,14 @@ jobs:
       - run: corepack pnpm install --frozen-lockfile
       - name: Verify launcher sandbox and checksum regressions
         run: corepack pnpm test tests/desktop/appImageSandbox.test.ts tests/desktop/writeSha256.test.ts tests/desktop/verifyLinuxAppImage.test.ts
-      - name: Build and verify the real AppImage
-        run: xvfb-run --auto-servernum corepack pnpm ${{ matrix.script }}
+      - name: Build desktop
+        run: corepack pnpm build:desktop >/dev/null 2>&1 || { echo TW_DESKTOP_BUILD_FAILED; exit 1; }
+      - name: Package the real AppImage
+        run: corepack pnpm exec electron-builder --linux AppImage --${{ matrix.arch }} --publish never >/dev/null 2>&1 || { echo TW_APPIMAGE_BUILD_FAILED; exit 1; }
+      - name: Write artifact checksum
+        run: corepack pnpm checksum:sha256 -- release/TokenWatch-0.1.4-${{ matrix.arch == 'x64' && 'x86_64' || 'arm64' }}.AppImage >/dev/null 2>&1 || { echo TW_CHECKSUM_FAILED; exit 1; }
+      - name: Verify the sandboxed AppImage
+        run: xvfb-run --auto-servernum corepack pnpm verify:linux-appimage -- --artifact release/TokenWatch-0.1.4-${{ matrix.arch == 'x64' && 'x86_64' || 'arm64' }}.AppImage --checksum release/TokenWatch-0.1.4-${{ matrix.arch == 'x64' && 'x86_64' || 'arm64' }}.AppImage.sha256 >/dev/null 2>&1 || { echo TW_APPIMAGE_SMOKE_FAILED; exit 1; }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: tokenwatch-linux-smoke-${{ matrix.arch }}
